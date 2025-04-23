@@ -14,7 +14,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Attempting to load config file: " << config_path << std::endl;
 
     // --- Load Configuration ---
-    MDetectorParams params; // Create an instance of the parameters struct
+    DynObjFilterParams params; // Create an instance of the parameters struct
     if (!load_config(config_path, params)) {
         std::cerr << "Failed to load configuration from " << config_path << std::endl;
         return 1; // Indicate failure
@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
     std::cout << "  Case 1 Depth Thr:     " << params.depth_thr1 << std::endl;
     std::cout << "  Case 2 Vel Min Thr:   " << params.v_min_thr2 << std::endl;
     std::cout << "  Case 3 Occl Times Thr:" << params.occluding_times_thr3 << std::endl;
-    std::cout << "  Cluster Voxel Res:    " << params.cluster_Voxel_revolusion << std::endl;
+    std::cout << "  Cluster Voxel Res:    " << params.Cluster_Voxel_revolusion << std::endl;
     std::cout << "-------------------------------------" << std::endl;
 
 
