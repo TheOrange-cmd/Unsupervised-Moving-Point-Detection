@@ -25,3 +25,11 @@ conda install cmake make gcc_linux-64 gxx_linux-64
 conda install eigen pcl opencv tbb yaml-cpp
 conda install libglu xorg-libx11 xorg-libxext xorg-libxfixes mesa-libgl-devel-cos7-x86_64 mesa-libgl-cos7-x86_64
 ```
+
+To clean, build, and test in one go, outputting test failures:
+
+```
+conda activate mdet_env
+cd ~/m_detector/standalone/build
+rm -rf * && cmake .. && make && ctest --output-on-failure
+```

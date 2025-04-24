@@ -54,7 +54,7 @@ target_link_libraries(m_detector_lib PUBLIC
     ${PCL_LIBRARIES}
     yaml-cpp::yaml-cpp
     ${OpenCV_LIBS}              # Link if shared sources use OpenCV functions
-    ${TBB_LIBRARIES}            # Link if shared sources use TBB functions
+    TBB::tbb                    # Link if shared sources use TBB functions
     ${OpenMP_CXX_LIBRARIES}     # Link if shared sources use OpenMP
 )
 
@@ -78,7 +78,7 @@ target_link_libraries(m_detector_cli PRIVATE
     ${PCL_LIBRARIES}       # Keep if main.cpp uses PCL directly
     yaml-cpp::yaml-cpp     # Keep if main.cpp uses yaml-cpp directly
     ${OpenCV_LIBS}         # Keep if main.cpp uses OpenCV directly
-    ${TBB_LIBRARIES}       # Keep if main.cpp uses TBB directly
+    TBB::tbb               # Keep if main.cpp uses TBB directly
     ${OpenMP_CXX_LIBRARIES} # Keep if main.cpp uses OpenMP directly
 )
 
@@ -103,6 +103,9 @@ add_executable(m_detector_tests
     test/point_cloud_utils/test_spherical_projection.cpp
     test/point_cloud_utils/test_invalid_point_check.cpp
     test/point_cloud_utils/test_is_self_point.cpp
+    test/point_cloud_utils/test_check_vertical_fov.cpp
+    test/point_cloud_utils/test_neighbor_static_depth_range.cpp
+    test/point_cloud_utils/test_interpolations.cpp
     # test/test_config_loader.cpp # Add this when you create it
 )
 
@@ -111,6 +114,7 @@ target_link_libraries(m_detector_tests PRIVATE
     m_detector_lib      # Link our shared library (provides utils, config, etc.)
     GTest::gtest        # Link Google Test
     GTest::gtest_main   # Link Google Test main
+    TBB::tbb
     # Dependencies like Eigen, PCL, yaml-cpp are inherited from m_detector_lib
 )
 

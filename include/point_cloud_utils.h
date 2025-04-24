@@ -1,3 +1,5 @@
+// file: include/point_cloud_utils.h
+
 #ifndef POINTCLOUD_UTILS_H
 #define POINTCLOUD_UTILS_H
 
@@ -49,44 +51,110 @@ namespace PointCloudUtils {
      */
     bool isInsideAABB(const V3D& point, const AABB& box);
 
-    // /**
-    //  * @brief Checks if a point is near the vertical Field of View limits based on neighbors.
-    //  * @param p The point to check (uses hor_ind, ver_ind).
-    //  * @param map_info The depth map containing neighbor information.
-    //  * @param params The configuration parameters struct (DynObjFilterParams).
-    //  * @return True if the point is near the FoV limit, false otherwise.
-    //  */
-    // bool CheckVerFoV(const point_soph & p, const DepthMap &map_info, const DynObjFilterParams& params);
+    /**
+     * @brief Checks if a point has neighboring points vertically above and below it
+     *        within specified limits in the same horizontal column of the depth map.
+     * @param p The point to check (must contain valid hor_ind and ver_ind).
+     * @param map_info The depth map containing other points.
+     * @param params Parameters struct containing vertical FoV limits (pixel_fov_down, pixel_fov_up).
+     * @return bool Returns true if the point LACKS support either above or below (potentially isolated),
+     *              false if it HAS support both above and below.
+     */
+    bool checkVerticalFov(const point_soph& p, const DepthMap& map_info, const DynObjFilterParams& params);
 
-    // /**
-    //  * @brief Finds the min/max static depth values in the neighborhood of a point.
-    //  * @param p The point defining the neighborhood center.
-    //  * @param map_info The depth map containing neighbor depth information.
-    //  * @param params The configuration parameters struct (DynObjFilterParams).
-    //  * @param max_depth Output: Maximum static depth found in the neighborhood.
-    //  * @param min_depth Output: Minimum static depth found in the neighborhood.
-    //  */
-    // void CheckNeighbor(const point_soph & p, const DepthMap &map_info, const DynObjFilterParams& params, float &max_depth, float &min_depth);
+    /**
+     * @brief Finds the minimum and maximum static depth among valid neighbors of a point.
+     *
+     * Searches a square neighborhood (defined by params.checkneighbor_range) around
+     * the point 'p' in the spherical index grid. For each neighbor cell within
+     * the grid bounds that contains points, it considers the pre-computed static
+     * min/max depth associated with that cell.
+     *
+     * @param p The center point (must contain valid hor_ind and ver_ind).
+     * @param map_info The depth map containing neighbor information and pre-computed static depths.
+     * @param params Parameters struct containing checkneighbor_range.
+     * @param[out] min_depth Reference to a float that will be updated with the minimum static depth found among neighbors.
+     *                       The caller should initialize this (e.g., to std::numeric_limits<float>::max() or 0.0f).
+     *                       If no valid neighbors are found, its value might remain unchanged or be the initial value.
+     * @param[out] max_depth Reference to a float that will be updated with the maximum static depth found among neighbors.
+     *                       The caller should initialize this (e.g., to 0.0f or std::numeric_limits<float>::lowest()).
+     *                       If no valid neighbors are found, its value might remain unchanged or be the initial value.
+     *
+     * @note This function does NOT handle horizontal index wrap-around. Neighbors are checked
+     *       only within the non-wrapped index range.
+     * @note The function relies on the caller to initialize min_depth and max_depth appropriately before the call.
+     *       A common initialization is min_depth = std::numeric_limits<float>::max(), max_depth = 0.0f.
+     *       Alternatively, initialize both to 0.0f, and check after the call if they are still 0.0f to see if neighbors were found.
+     */
+    void findNeighborStaticDepthRange(const point_soph& p,
+        const DepthMap& map_info,
+        const DynObjFilterParams& params,
+        float& min_depth,
+        float& max_depth);
 
-    // /**
-    //  * @brief Interpolates depth using only STATIC neighbors from a historical depth map.
-    //  * @param p Input point (spherical coords used, cache is updated).
-    //  * @param map_index Index of the historical map (used for cache offset calculation).
-    //  * @param base_map_index Index of the earliest map in the current processing window (for cache offset).
-    //  * @param depth_map The historical 2D depth map containing potential neighbors.
-    //  * @param params The configuration parameters struct (DynObjFilterParams).
-    //  * @return Interpolated depth, -1 if no neighbors, -2 if triangulation failed.
-    //  */
-    // float DepthInterpolationStatic(point_soph & p, int map_index, int base_map_index, const DepthMap2D &depth_map, const DynObjFilterParams& params);
+    // START interpolation related functions
 
-    // /**
-    //  * @brief Interpolates depth using ALL neighbors from a historical depth map.
-    //  * @param p Input point (spherical coords used).
-    //  * @param depth_map The historical 2D depth map containing potential neighbors.
-    //  * @param params The configuration parameters struct (DynObjFilterParams).
-    //  * @return Interpolated depth, -1 if not enough neighbors, -2 if triangulation failed.
-    //  */
-    // float DepthInterpolationAll(const point_soph & p, const DepthMap2D &depth_map, const DynObjFilterParams& params);
+    // --- Helper Types ---
+    enum class InterpolationNeighborType { STATIC_ONLY, ALL_VALID };
+    enum class InterpolationStatus { SUCCESS, NOT_ENOUGH_NEIGHBORS, NO_VALID_TRIANGLE };
+    struct InterpolationResult {
+        InterpolationStatus status = InterpolationStatus::NOT_ENOUGH_NEIGHBORS;
+        float depth = 0.0f;
+    };
+
+    // --- Helper Function (Internal or in .cpp) ---
+    // Calculates wrapped index safely
+    inline int getWrappedIndex(int base_idx, int offset, int max_dim) {
+        int idx = base_idx + offset;
+        return (idx % max_dim + max_dim) % max_dim; // Handles negative results correctly
+    }
+
+    // --- Core Logic Functions ---
+
+    /**
+     * @brief Finds suitable neighboring points for depth interpolation.
+     * @param p The point for which to find neighbors.
+     * @param map_info The depth map data.
+     * @param params Filter parameters (interp range, thresholds, frame_dur).
+     * @param type Whether to collect only static or all valid neighbors.
+     * @return Vector of 3D coordinates (V3F) of valid neighbors.
+     */
+    std::vector<V3F> findInterpolationNeighbors(
+        const point_soph& p,
+        const DepthMap& map_info, // Assuming DepthMap holds the grid
+        const DynObjFilterParams& params,
+        InterpolationNeighborType type);
+
+    /**
+     * @brief Attempts to find a triangle of neighbors enclosing p's projection and interpolates depth.
+     * @param target_point_projection 2D projection of the point to interpolate for (e.g., p.vec.head<2>()).
+     * @param neighbors Vector of 3D coordinates (V3F) of potential neighbors.
+     * @param params Filter parameters (needed for thresholds like interp_hor_thr if used internally).
+     * @return InterpolationResult indicating success/failure and the depth.
+     */
+    InterpolationResult computeBarycentricDepth(
+        const V2F& target_point_projection, // Assuming V2F type for 2D
+        const std::vector<V3F>& neighbors,
+        const DynObjFilterParams& params); // May only need specific thresholds
+
+
+    // --- Main Public Function ---
+
+    /**
+     * @brief Interpolates the depth for a point using barycentric interpolation on neighbors.
+     * @param p The point to interpolate depth for.
+     * @param map_info The depth map data.
+     * @param params Filter parameters.
+     * @param type Whether to use only static or all valid neighbors.
+     * @return InterpolationResult indicating success/failure and the depth.
+     */
+    InterpolationResult interpolateDepth(
+        const point_soph& p,
+        const DepthMap& map_info,
+        const DynObjFilterParams& params,
+        InterpolationNeighborType type);
+
+    // END interpolation related functions
 
 } // namespace PointCloudUtils
 
