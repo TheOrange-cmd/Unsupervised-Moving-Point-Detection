@@ -14,7 +14,8 @@ constexpr double CACHE_VALID_THRESHOLD = 10e-5; // Or 1e-5
 
 namespace PointCloudUtils {
 
-    void SphericalProjection(point_soph &p, int depth_index, const M3D &rot, const V3D &transl, const DynObjFilterParams& params, point_soph &p_spherical)
+    void SphericalProjection(point_soph &p, int depth_index, const M3D &rot, 
+      const V3D &transl, const DynObjFilterParams& params, point_soph &p_spherical)
     {
         // Calculate cache index once
         const int cache_idx = depth_index % HASH_PRIM;
@@ -242,143 +243,112 @@ namespace PointCloudUtils {
     // Reimplementation of the interpolation functions, DepthInterpolationStatic and DepthInterpolationAll
 
     std::vector<V3F> findInterpolationNeighbors(
-        const point_soph& p,
-        const DepthMap& map_info,
-        const DynObjFilterParams& params,
-        InterpolationNeighborType type)
+      const point_soph& p,
+      const DepthMap& map_info,
+      const DynObjFilterParams& params,
+      InterpolationNeighborType type)
     {
-        #ifdef ENABLE_INTERPOLATION_DEBUG_PRINT
-        std::cout << "[FIN] Target p: hor_ind=" << p.hor_ind << ", ver_ind=" << p.ver_ind
-                  << ", az=" << p.vec.x() << ", el=" << p.vec.y() << ", time=" << p.time
-                  << ", type_req=" << (type == InterpolationNeighborType::STATIC_ONLY ? "STATIC" : "ALL")
-                  << std::endl;
-        std::cout << "[FIN] Params: interp_h_num=" << params.interp_hor_num << ", interp_v_num=" << params.interp_ver_num
-                  << ", interp_h_thr=" << params.interp_hor_thr << ", interp_v_thr=" << params.interp_ver_thr
-                  << ", frame_dur=" << params.frame_dur << std::endl;
-        #endif
-    
         std::vector<V3F> neighbors;
-        // Reserve some space heuristically, e.g., based on search area * typical density
-        // neighbors.reserve((2 * params.interp_hor_num + 1) * (2 * params.interp_ver_num + 1) * 5);
+        // Consider reserving space if performance profiling indicates it's beneficial
+        // neighbors.reserve((2 * params.interp_hor_num + 1) * (2 * params.interp_ver_num + 1) * estimated_density);
     
         // Ensure indices of p are valid before proceeding
         if (p.hor_ind < 0 || p.hor_ind >= MAX_1D || p.ver_ind < 0 || p.ver_ind >= MAX_1D_HALF) {
-            #ifdef ENABLE_INTERPOLATION_DEBUG_PRINT
-                    std::cout << "[FIN] ERROR: Target point p has invalid indices!" << std::endl;
-            #endif
-                    return neighbors; // Return empty vector
+            // Optionally log an error here using a proper logging framework if needed
+            // e.g., LogError("Target point p has invalid indices: hor=%d, ver=%d", p.hor_ind, p.ver_ind);
+            return neighbors; // Return empty vector
+        }
+    
+        // Loop through the grid neighborhood defined by interp_hor_num and interp_ver_num
+        for (int offset_h = -params.interp_hor_num; offset_h <= params.interp_hor_num; ++offset_h) {
+            int neighbor_hor_idx = getWrappedIndex(p.hor_ind, offset_h, MAX_1D);
+    
+            for (int offset_v = -params.interp_ver_num; offset_v <= params.interp_ver_num; ++offset_v) {
+                // Vertical index does not wrap
+                int neighbor_ver_idx = p.ver_ind + offset_v;
+    
+                // Skip if vertical index is out of bounds
+                if (neighbor_ver_idx < 0 || neighbor_ver_idx >= MAX_1D_HALF) {
+                    continue;
                 }
-            
-            // Loop through the grid neighborhood defined by interp_hor_num and interp_ver_num
-            for (int offset_h = -params.interp_hor_num; offset_h <= params.interp_hor_num; ++offset_h) {
-                int neighbor_hor_idx = getWrappedIndex(p.hor_ind, offset_h, MAX_1D);
-        
-                for (int offset_v = -params.interp_ver_num; offset_v <= params.interp_ver_num; ++offset_v) {
-                    // Vertical index does not wrap in the original logic's calculation style
-                    int neighbor_ver_idx = p.ver_ind + offset_v;
-        
-                    // Skip if vertical index is out of bounds
-                    if (neighbor_ver_idx < 0 || neighbor_ver_idx >= MAX_1D_HALF) {
+    
+                // Calculate the 1D index for the neighbor cell
+                int neighbor_1d_index = neighbor_hor_idx * MAX_1D_HALF + neighbor_ver_idx;
+    
+                // Bounds check for the 1D index (safety check)
+                if (neighbor_1d_index < 0 || neighbor_1d_index >= MAX_2D_N) {
+                    // Optionally log a warning here if this condition is unexpected
+                    // e.g., LogWarning("Calculated invalid neighbor_1d_index: %d", neighbor_1d_index);
+                    continue;
+                }
+    
+                // Get the points in the neighbor cell
+                // Ensure map_info.depth_map has size MAX_2D_N or handle potential out-of-bounds access
+                if (neighbor_1d_index >= map_info.depth_map.size()) {
+                    // Log error or handle appropriately if the index can exceed the map size
+                    continue;
+                }
+                const auto& cell_points = map_info.depth_map[neighbor_1d_index];
+    
+                if (cell_points.empty()) { // Check if cell is empty before iterating
+                    continue;
+                }
+    
+                // Iterate through points within that cell
+                for (const point_soph* neighbor_ptr : cell_points) {
+                    if (!neighbor_ptr) continue; // Skip null pointers if they can exist
+    
+                    // Filter 1: Time difference check
+                    float time_diff = std::fabs(neighbor_ptr->time - p.time);
+                    // Skip points from the same frame/scan or too close in time
+                    // Note: The original check was time_diff < params.frame_dur, which skipped
+                    // points *within* the frame duration. If the intent is to keep points
+                    // *outside* a certain time window, the logic might need adjustment.
+                    // Assuming the original logic is correct: skip if too close in time.
+                    if (time_diff < params.frame_dur) {
                         continue;
                     }
-        
-                    // Calculate the 1D index for the neighbor cell
-                    int neighbor_1d_index = neighbor_hor_idx * MAX_1D_HALF + neighbor_ver_idx;
-            
-                    #ifdef ENABLE_INTERPOLATION_DEBUG_PRINT
-                                // Optional: Print every cell being checked
-                                // std::cout << "[FIN] Checking cell: hor_idx=" << neighbor_hor_idx << ", ver_idx=" << neighbor_ver_idx << ", 1d_idx=" << neighbor_1d_index << std::endl;
-                    #endif
-                    
-                                // Bounds check for the 1D index (safety check)
-                                if (neighbor_1d_index < 0 || neighbor_1d_index >= MAX_2D_N) {
-                    #ifdef ENABLE_INTERPOLATION_DEBUG_PRINT
-                                    std::cout << "[FIN] WARNING: Calculated invalid neighbor_1d_index: " << neighbor_1d_index << std::endl;
-                    #endif
-                                    continue;
-                                }
-                    
-                            // Get the points in the neighbor cell
-                            const auto& cell_points = map_info.depth_map[neighbor_1d_index];
-                
-                            if (cell_points.empty()) { // Check if cell is empty before iterating
-                                continue;
-                            }
-                
-                    #ifdef ENABLE_INTERPOLATION_DEBUG_PRINT
-                                if (!cell_points.empty()) {
-                                    std::cout << "[FIN] Cell [" << neighbor_hor_idx << "," << neighbor_ver_idx << "] (1d=" << neighbor_1d_index << ") has " << cell_points.size() << " points." << std::endl;
-                                }
-                    #endif
-                    
-                                // Iterate through points within that cell
-                                for (const point_soph* neighbor_ptr : cell_points) {
-                                    if (!neighbor_ptr) continue;
-                    
-                    #ifdef ENABLE_INTERPOLATION_DEBUG_PRINT
-                                    std::cout << "[FIN]   Considering neighbor: az=" << neighbor_ptr->vec.x() << ", el=" << neighbor_ptr->vec.y()
-                                            << ", depth=" << neighbor_ptr->vec.z() << ", time=" << neighbor_ptr->time << ", dyn=" << neighbor_ptr->dyn << std::endl;
-                    #endif
-                    
-                                    // Filter 1: Time difference check
-                                    float time_diff = std::fabs(neighbor_ptr->time - p.time);
-                                    if (time_diff < params.frame_dur) {
-                    #ifdef ENABLE_INTERPOLATION_DEBUG_PRINT
-                                        std::cout << "[FIN]     SKIP: Time diff " << time_diff << " < " << params.frame_dur << std::endl;
-                    #endif
-                                        continue; // Skip points from the same frame/scan
-                                }
-                
-                                // Filter 2: Projection distance check (using azimuth/elevation directly)
-                                float hor_diff_raw = neighbor_ptr->vec.x() - p.vec.x();
-                                float ver_diff = neighbor_ptr->vec.y() - p.vec.y();
-                
-                                // Handle azimuth wrap-around for difference calculation
-                                float hor_diff = hor_diff_raw;
-                                if (hor_diff > PI_MATH) hor_diff -= 2.0f * PI_MATH;
-                                else if (hor_diff < -PI_MATH) hor_diff += 2.0f * PI_MATH;
-                
-                                float abs_hor_diff = std::fabs(hor_diff);
-                                float abs_ver_diff = std::fabs(ver_diff);
-                
-                                if (abs_hor_diff >= params.interp_hor_thr || abs_ver_diff >= params.interp_ver_thr) {
-                #ifdef ENABLE_INTERPOLATION_DEBUG_PRINT
-                                    std::cout << "[FIN]     SKIP: Proj dist |hor_diff|=" << abs_hor_diff << " (thr=" << params.interp_hor_thr
-                                            << ") or |ver_diff|=" << abs_ver_diff << " (thr=" << params.interp_ver_thr << ")" << std::endl;
-                #endif
-                                    continue; // Skip points too far in projection space
-                                }
-                
-                                // Filter 3: Neighbor Type check
-                                bool use_neighbor = false;
-                                if (type == InterpolationNeighborType::ALL_VALID) {
-                                    use_neighbor = true;
-                                } else if (type == InterpolationNeighborType::STATIC_ONLY) {
-                                    if (neighbor_ptr->dyn == STATIC) {
-                                        use_neighbor = true;
-                                    } else {
-                #ifdef ENABLE_INTERPOLATION_DEBUG_PRINT
-                                        std::cout << "[FIN]     SKIP: STATIC_ONLY requested, neighbor is dyn=" << neighbor_ptr->dyn << std::endl;
-                #endif
-                                    }
-                                }
-                
-                                // Add the neighbor's vector (azimuth, elevation, depth) if it passed all filters
-                                if (use_neighbor) {
-                #ifdef ENABLE_INTERPOLATION_DEBUG_PRINT
-                                    std::cout << "[FIN]     KEEPING neighbor." << std::endl;
-                #endif
-                                    neighbors.push_back(neighbor_ptr->vec);
-                                }
-                            } // End loop through points in cell
-                        } // End loop vertical offset
-                    } // End loop horizontal offset
-                
-                #ifdef ENABLE_INTERPOLATION_DEBUG_PRINT
-                    std::cout << "[FIN] Returning " << neighbors.size() << " neighbors." << std::endl;
-                #endif
-                    return neighbors;
-            }
+    
+                    // Filter 2: Projection distance check (using azimuth/elevation directly)
+                    float hor_diff_raw = neighbor_ptr->vec.x() - p.vec.x();
+                    float ver_diff = neighbor_ptr->vec.y() - p.vec.y();
+    
+                    // Handle azimuth wrap-around for difference calculation
+                    float hor_diff = hor_diff_raw;
+                    if (hor_diff > PI_MATH) hor_diff -= 2.0f * PI_MATH;
+                    else if (hor_diff < -PI_MATH) hor_diff += 2.0f * PI_MATH;
+    
+                    float abs_hor_diff = std::fabs(hor_diff);
+                    float abs_ver_diff = std::fabs(ver_diff);
+    
+                    // Skip points too far in projection space (angular distance)
+                    if (abs_hor_diff >= params.interp_hor_thr || abs_ver_diff >= params.interp_ver_thr) {
+                        continue;
+                    }
+    
+                    // Filter 3: Neighbor Type check
+                    bool use_neighbor = false;
+                    if (type == InterpolationNeighborType::ALL_VALID) {
+                        use_neighbor = true; // Include if it passed previous filters
+                    } else if (type == InterpolationNeighborType::STATIC_ONLY) {
+                        // Include only if it passed previous filters AND is marked as static
+                        if (neighbor_ptr->dyn == STATIC) {
+                            use_neighbor = true;
+                        }
+                        // No else needed, use_neighbor remains false if not STATIC
+                    }
+                    // Add other InterpolationNeighborType cases here if necessary
+    
+                    // Add the neighbor's vector (azimuth, elevation, depth) if it passed all filters
+                    if (use_neighbor) {
+                        neighbors.push_back(neighbor_ptr->vec);
+                    }
+                } // End loop through points in cell
+            } // End loop vertical offset
+        } // End loop horizontal offset
+    
+        return neighbors;
+    }
     
     
     InterpolationResult computeBarycentricDepth(

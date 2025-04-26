@@ -1,3 +1,11 @@
+// file: include/dataloader/dataset_loader_interface.h
+
+/**
+ * @file dataset_loader_interface.h
+ * @brief Defines the functions of the dataloader module to be shared for all datasets. 
+ * Dataset specific loaders *must* use these functions to ensure consistent handling of the data within the algorithm. 
+ */
+
 #ifndef DATA_LOADER_INTERFACE_H
 #define DATA_LOADER_INTERFACE_H
 

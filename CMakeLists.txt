@@ -34,7 +34,6 @@ set(SHARED_SOURCES
     src/config/config_loader.cpp
     src/point_cloud_utils/point_cloud_utils.cpp
     src/filtering/dyn_obj_filter.cpp    
-    src/data_loader/data_loader.cpp    
 )
 
 # Create a static library (or SHARED if you prefer)

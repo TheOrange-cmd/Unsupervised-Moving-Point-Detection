@@ -1,5 +1,12 @@
-#ifndef DATA_LOADER_TYPES_H
-#define DATA_LOADER_TYPES_H
+
+// file: include/dataloader/dataloader_types.h
+
+/**
+ * @file dataloader_types.h
+ * @brief Defines common structs used specifically for the dataloader module. 
+ * Dataset specific loaders *must* use these structs to ensure consistent handling of the data within the algorithm. 
+ */
+ 
 
 #include <vector>
 #include <string>
@@ -38,5 +45,3 @@ struct Pose {
 };
 
 // Could add structs for Annotations, CameraImages etc. later
-
-#endif // DATA_LOADER_TYPES_H

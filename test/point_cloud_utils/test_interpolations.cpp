@@ -6,7 +6,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>                // For std::make_shared if using std::shared_ptr
-#include <boost/make_shared.hpp> // For boost::shared_ptr if using boost
+// #include <boost/make_shared.hpp> // For boost::shared_ptr if using boost
 #include <Eigen/Geometry>        // For Eigen::AngleAxisd
 
 // --- Test Fixture ---
@@ -36,7 +36,7 @@ protected:
         temp_point.GetVec(global_pos, params.hor_resolution_max, params.ver_resolution_max);
 
         // Now create the actual managed point
-        auto p_ptr = boost::make_shared<point_soph>();
+        auto p_ptr = std::make_shared<point_soph>();
         p_ptr->glob = global_pos;
         p_ptr->time = time;
         p_ptr->dyn = dyn_status;

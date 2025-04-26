@@ -30,6 +30,6 @@ To clean, build, and test in one go, outputting test failures:
 
 ```
 conda activate mdet_env
-cd ~/m_detector/standalone/build
+cd ~/Unsupervised-Moving-Point-Detection/build
 rm -rf * && cmake .. && make && ctest --output-on-failure
 ```
