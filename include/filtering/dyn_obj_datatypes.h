@@ -330,12 +330,12 @@ public:
     V3D              project_T;         ///< Translation vector (world to sensor frame) for this map's pose.
     std::vector<point_soph::Ptr> point_sopth_pointer; ///< Vector holding shared pointers to points (potentially for ownership).
     int              point_sopth_pointer_count; ///< Counter associated with point_sopth_pointer (usage unclear).
-    float*           min_depth_static;  ///< Array (size MAX_2D_N) storing minimum depth of STATIC points per cell.
-    float*           min_depth_all;     ///< Array (size MAX_2D_N) storing minimum depth of ALL points per cell.
-    float*           max_depth_all;     ///< Array (size MAX_2D_N) storing maximum depth of ALL points per cell.
-    float*           max_depth_static;  ///< Array (size MAX_2D_N) storing maximum depth of STATIC points per cell.
-    int*             max_depth_index_all; ///< Array (size MAX_2D_N) storing index within cell vector of the point with max depth.
-    int*             min_depth_index_all; ///< Array (size MAX_2D_N) storing index within cell vector of the point with min depth.
+    std::vector<float> min_depth_static;  ///< Array (size MAX_2D_N) storing minimum depth of STATIC points per cell.
+    std::vector<float> min_depth_all;     ///< Array (size MAX_2D_N) storing minimum depth of ALL points per cell.
+    std::vector<float> max_depth_all;     ///< Array (size MAX_2D_N) storing maximum depth of ALL points per cell.
+    std::vector<float> max_depth_static;  ///< Array (size MAX_2D_N) storing maximum depth of STATIC points per cell.
+    std::vector<int> max_depth_index_all; ///< Array (size MAX_2D_N) storing index within cell vector of the point with max depth.
+    std::vector<int> min_depth_index_all; ///< Array (size MAX_2D_N) storing index within cell vector of the point with min depth.
     std::vector<int> index_vector;      ///< Helper vector containing indices 0 to MAX_2D_N-1, used for parallel iteration.
 
     /** @brief Shared pointer type definition for DepthMap. */
@@ -350,33 +350,40 @@ public:
         map_index(-1),
         project_R(M3D::Identity()),
         project_T(V3D::Zero()),
-        point_sopth_pointer_count(0),
-        min_depth_static(nullptr),
-        min_depth_all(nullptr),
-        max_depth_all(nullptr),
-        max_depth_static(nullptr),
-        max_depth_index_all(nullptr),
-        min_depth_index_all(nullptr)
+        point_sopth_pointer_count(0)
+        // min_depth_static(nullptr),
+        // min_depth_all(nullptr),
+        // max_depth_all(nullptr),
+        // max_depth_static(nullptr),
+        // max_depth_index_all(nullptr),
+        // min_depth_index_all(nullptr)
     {
         std::cout << "build depth map2\n"; // Consider using a proper logger
         try {
             depth_map.assign(MAX_2D_N, std::vector<point_soph*>());
             index_vector.resize(MAX_2D_N); // Pre-allocate index vector
 
-            min_depth_static = new float[MAX_2D_N];
-            min_depth_all = new float[MAX_2D_N];
-            max_depth_all = new float[MAX_2D_N];
-            max_depth_static = new float[MAX_2D_N];
-            max_depth_index_all = new int[MAX_2D_N];
-            min_depth_index_all = new int[MAX_2D_N];
+            // min_depth_static = new float[MAX_2D_N];
+            // min_depth_all = new float[MAX_2D_N];
+            // max_depth_all = new float[MAX_2D_N];
+            // max_depth_static = new float[MAX_2D_N];
+            // max_depth_index_all = new int[MAX_2D_N];
+            // min_depth_index_all = new int[MAX_2D_N];
+
+            min_depth_static.resize(MAX_2D_N);
+            min_depth_all.resize(MAX_2D_N);
+            max_depth_all.resize(MAX_2D_N);
+            max_depth_static.resize(MAX_2D_N);
+            max_depth_index_all.resize(MAX_2D_N);
+            min_depth_index_all.resize(MAX_2D_N);
 
             // Initialize allocated arrays
-            std::fill_n(min_depth_static, MAX_2D_N, 0.0f); // Or std::numeric_limits<float>::max()?
-            std::fill_n(min_depth_all, MAX_2D_N, 0.0f);    // Or std::numeric_limits<float>::max()?
-            std::fill_n(max_depth_all, MAX_2D_N, 0.0f);
-            std::fill_n(max_depth_static, MAX_2D_N, 0.0f);
-            std::fill_n(min_depth_index_all, MAX_2D_N, -1);
-            std::fill_n(max_depth_index_all, MAX_2D_N, -1);
+            std::fill(min_depth_static.begin(), min_depth_static.end(), 0.0f);
+            std::fill(min_depth_all.begin(), min_depth_all.end(), 0.0f); 
+            std::fill(max_depth_all.begin(), max_depth_all.end(), 0.0f);
+            std::fill(max_depth_static.begin(), max_depth_static.end(), 0.0f);
+            std::fill(min_depth_index_all.begin(), min_depth_index_all.end(), -1);
+            std::fill(max_depth_index_all.begin(), max_depth_index_all.end(), -1);
 
             // Fill index vector
             for (int i = 0; i < MAX_2D_N; ++i) {
@@ -385,8 +392,8 @@ public:
         } catch (const std::bad_alloc& e) {
             std::cerr << "Error: Failed to allocate memory for DepthMap members. " << e.what() << std::endl;
             // Clean up any partially allocated memory if possible, though RAII helps here
-            delete[] min_depth_static; min_depth_static = nullptr;
-            delete[] min_depth_all; min_depth_all = nullptr;
+            // delete[] min_depth_static; min_depth_static = nullptr;
+            // delete[] min_depth_all; min_depth_all = nullptr;
             // ... etc for other arrays
             throw; // Re-throw the exception
         }
@@ -405,39 +412,47 @@ public:
         map_index(frame),
         project_R(rot),
         project_T(transl),
-        point_sopth_pointer_count(0),
-        min_depth_static(nullptr),
-        min_depth_all(nullptr),
-        max_depth_all(nullptr),
-        max_depth_static(nullptr),
-        max_depth_index_all(nullptr),
-        min_depth_index_all(nullptr)
+        point_sopth_pointer_count(0)
+        // min_depth_static(nullptr),
+        // min_depth_all(nullptr),
+        // max_depth_all(nullptr),
+        // max_depth_static(nullptr),
+        // max_depth_index_all(nullptr),
+        // min_depth_index_all(nullptr)
     {
          try {
             depth_map.assign(MAX_2D_N, std::vector<point_soph*>());
             index_vector.resize(MAX_2D_N);
 
-            min_depth_static = new float[MAX_2D_N];
-            min_depth_all = new float[MAX_2D_N];
-            max_depth_all = new float[MAX_2D_N];
-            max_depth_static = new float[MAX_2D_N];
-            max_depth_index_all = new int[MAX_2D_N];
-            min_depth_index_all = new int[MAX_2D_N];
+            // min_depth_static = new float[MAX_2D_N];
+            // min_depth_all = new float[MAX_2D_N];
+            // max_depth_all = new float[MAX_2D_N];
+            // max_depth_static = new float[MAX_2D_N];
+            // max_depth_index_all = new int[MAX_2D_N];
+            // min_depth_index_all = new int[MAX_2D_N];
 
-            std::fill_n(min_depth_static, MAX_2D_N, 0.0f); // Or max()?
-            std::fill_n(min_depth_all, MAX_2D_N, 0.0f);    // Or max()?
-            std::fill_n(max_depth_all, MAX_2D_N, 0.0f);
-            std::fill_n(max_depth_static, MAX_2D_N, 0.0f);
-            std::fill_n(min_depth_index_all, MAX_2D_N, -1);
-            std::fill_n(max_depth_index_all, MAX_2D_N, -1);
+            min_depth_static.resize(MAX_2D_N);
+            min_depth_all.resize(MAX_2D_N);
+            max_depth_all.resize(MAX_2D_N);
+            max_depth_static.resize(MAX_2D_N);
+            max_depth_index_all.resize(MAX_2D_N);
+            min_depth_index_all.resize(MAX_2D_N);
+
+            // Initialize allocated arrays
+            std::fill(min_depth_static.begin(), min_depth_static.end(), 0.0f);
+            std::fill(min_depth_all.begin(), min_depth_all.end(), 0.0f); 
+            std::fill(max_depth_all.begin(), max_depth_all.end(), 0.0f);
+            std::fill(max_depth_static.begin(), max_depth_static.end(), 0.0f);
+            std::fill(min_depth_index_all.begin(), min_depth_index_all.end(), -1);
+            std::fill(max_depth_index_all.begin(), max_depth_index_all.end(), -1);
 
             for (int i = 0; i < MAX_2D_N; ++i) {
                 index_vector[i] = i;
             }
         } catch (const std::bad_alloc& e) {
             std::cerr << "Error: Failed to allocate memory for DepthMap members. " << e.what() << std::endl;
-            delete[] min_depth_static; min_depth_static = nullptr;
-            delete[] min_depth_all; min_depth_all = nullptr;
+            // delete[] min_depth_static; min_depth_static = nullptr;
+            // delete[] min_depth_all; min_depth_all = nullptr;
             // ... etc
             throw;
         }
@@ -459,37 +474,37 @@ public:
         project_T(cur.project_T),
         point_sopth_pointer(cur.point_sopth_pointer), // Copies the vector of shared_ptrs (increases ref count)
         point_sopth_pointer_count(cur.point_sopth_pointer_count),
-        min_depth_static(nullptr), // Allocate new arrays
-        min_depth_all(nullptr),
-        max_depth_all(nullptr),
-        max_depth_static(nullptr),
-        max_depth_index_all(nullptr),
-        min_depth_index_all(nullptr),
+        min_depth_static(cur.min_depth_static), // Allocate new arrays
+        min_depth_all(cur.min_depth_all),
+        max_depth_all(cur.max_depth_all),
+        max_depth_static(cur.max_depth_static),
+        max_depth_index_all(cur.max_depth_index_all),
+        min_depth_index_all(cur.min_depth_index_all),
         index_vector(cur.index_vector) // Copy the index vector
     {
-        try {
-            min_depth_static = new float[MAX_2D_N];
-            min_depth_all = new float[MAX_2D_N];
-            max_depth_all = new float[MAX_2D_N];
-            max_depth_static = new float[MAX_2D_N];
-            max_depth_index_all = new int[MAX_2D_N];
-            min_depth_index_all = new int[MAX_2D_N];
+        // try {
+        //     // min_depth_static = new float[MAX_2D_N];
+        //     // min_depth_all = new float[MAX_2D_N];
+        //     // max_depth_all = new float[MAX_2D_N];
+        //     // max_depth_static = new float[MAX_2D_N];
+        //     // max_depth_index_all = new int[MAX_2D_N];
+        //     // min_depth_index_all = new int[MAX_2D_N];
 
-            // Deep copy the contents of the depth arrays
-            std::copy_n(cur.min_depth_static, MAX_2D_N, min_depth_static);
-            std::copy_n(cur.max_depth_static, MAX_2D_N, max_depth_static);
-            std::copy_n(cur.min_depth_all, MAX_2D_N, min_depth_all);
-            std::copy_n(cur.max_depth_all, MAX_2D_N, max_depth_all);
-            std::copy_n(cur.max_depth_index_all, MAX_2D_N, max_depth_index_all);
-            std::copy_n(cur.min_depth_index_all, MAX_2D_N, min_depth_index_all);
+        //     // // Deep copy the contents of the depth arrays
+        //     // std::copy_n(cur.min_depth_static, MAX_2D_N, min_depth_static);
+        //     // std::copy_n(cur.max_depth_static, MAX_2D_N, max_depth_static);
+        //     // std::copy_n(cur.min_depth_all, MAX_2D_N, min_depth_all);
+        //     // std::copy_n(cur.max_depth_all, MAX_2D_N, max_depth_all);
+        //     // std::copy_n(cur.max_depth_index_all, MAX_2D_N, max_depth_index_all);
+        //     // std::copy_n(cur.min_depth_index_all, MAX_2D_N, min_depth_index_all);
 
-        } catch (const std::bad_alloc& e) {
-             std::cerr << "Error: Failed to allocate memory during DepthMap copy construction. " << e.what() << std::endl;
-            delete[] min_depth_static; min_depth_static = nullptr;
-            delete[] min_depth_all; min_depth_all = nullptr;
-             // ... etc
-            throw;
-        }
+        // } catch (const std::bad_alloc& e) {
+        //      std::cerr << "Error: Failed to allocate memory during DepthMap copy construction. " << e.what() << std::endl;
+        //     // delete[] min_depth_static; min_depth_static = nullptr;
+        //     // delete[] min_depth_all; min_depth_all = nullptr;
+        //      // ... etc
+        //     throw;
+        // }
         // Note: index_vector is already copied by vector's copy constructor
     }
 
@@ -506,12 +521,12 @@ public:
      */
     ~DepthMap()
     {
-        delete [] min_depth_static;
-        delete [] min_depth_all;
-        delete [] max_depth_all;
-        delete [] max_depth_static;
-        delete [] max_depth_index_all;
-        delete [] min_depth_index_all;
+        // delete [] min_depth_static;
+        // delete [] min_depth_all;
+        // delete [] max_depth_all;
+        // delete [] max_depth_static;
+        // delete [] max_depth_index_all;
+        // delete [] min_depth_index_all;
         // Note: point_soph objects pointed to by depth_map and point_sopth_pointer
         // are NOT deleted here. Their lifetime must be managed elsewhere (e.g., by the owner
         // who populates point_sopth_pointer or another mechanism).
@@ -559,12 +574,12 @@ public:
         // printf("clear time %f\n", t2-t); // Consider using logger
 
         // Reset depth arrays (check for nullptrs before filling)
-        if (min_depth_static) std::fill_n(min_depth_static, MAX_2D_N, 0.0f); // Or max()?
-        if (min_depth_all) std::fill_n(min_depth_all, MAX_2D_N, 0.0f);       // Or max()?
-        if (max_depth_all) std::fill_n(max_depth_all, MAX_2D_N, 0.0f);
-        if (max_depth_static) std::fill_n(max_depth_static, MAX_2D_N, 0.0f);
-        if (max_depth_index_all) std::fill_n(max_depth_index_all, MAX_2D_N, -1);
-        if (min_depth_index_all) std::fill_n(min_depth_index_all, MAX_2D_N, -1);
+        std::fill(min_depth_static.begin(), min_depth_static.end(), 0.0f);
+        std::fill(min_depth_all.begin(), min_depth_all.end(), 0.0f); 
+        std::fill(max_depth_all.begin(), max_depth_all.end(), 0.0f);
+        std::fill(max_depth_static.begin(), max_depth_static.end(), 0.0f);
+        std::fill(min_depth_index_all.begin(), min_depth_index_all.end(), -1);
+        std::fill(max_depth_index_all.begin(), max_depth_index_all.end(), -1);
 
         // Reset point pointer vector and count (optional, depends on usage)
         // point_sopth_pointer.clear();

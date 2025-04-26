@@ -187,9 +187,13 @@ namespace PointCloudUtils {
             // The caller's min_depth/max_depth will remain unchanged.
             return;
         }
-        // Check if map_info arrays are allocated (though constructor should handle this)
-        if (!map_info.depth_map.data() || !map_info.min_depth_static || !map_info.max_depth_static) {
-            // Log error or warning - map_info seems invalid
+        // Check if map_info vectors are ready (i.e., not empty)
+        if (map_info.depth_map.empty() || map_info.min_depth_static.empty() || map_info.max_depth_static.empty()) {
+            // Log error or warning - map_info seems invalid or uninitialized
+            // Consider adding more specific logging if needed:
+            // if (map_info.depth_map.empty()) { std::cerr << "Error: depth_map is empty!\n"; }
+            // if (map_info.min_depth_static.empty()) { std::cerr << "Error: min_depth_static is empty!\n"; }
+            // if (map_info.max_depth_static.empty()) { std::cerr << "Error: max_depth_static is empty!\n"; }
             return;
         }
 
