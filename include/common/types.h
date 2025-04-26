@@ -12,6 +12,7 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
+#define _USE_MATH_DEFINES
 
 /** @brief PCL point type definition including XYZ coordinates, intensity, and normal vector. */
 typedef pcl::PointXYZINormal PointType;

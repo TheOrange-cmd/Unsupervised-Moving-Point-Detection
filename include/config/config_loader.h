@@ -11,7 +11,9 @@
 
  #ifndef CONFIG_LOADER_H
  #define CONFIG_LOADER_H
- 
+
+
+ #include "common/types.h"
  #include <string>
  #include <vector>
  #include <yaml-cpp/yaml.h> // Include YAML-CPP header

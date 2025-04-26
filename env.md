@@ -19,11 +19,12 @@ Create env:
 conda create -n mdet_env python=3.9 # Include python if needed for scripts later
 conda activate mdet_env
 ```
-Install a bunch of libs:
+Install a bunch of stuff:
 ```
 conda install cmake make gcc_linux-64 gxx_linux-64
 conda install eigen pcl opencv tbb yaml-cpp
 conda install libglu xorg-libx11 xorg-libxext xorg-libxfixes mesa-libgl-devel-cos7-x86_64 mesa-libgl-cos7-x86_64
+conda install pybind11 libxcrypt
 ```
 
 To clean, build, and test in one go, outputting test failures:

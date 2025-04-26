@@ -17,6 +17,7 @@ find_package(OpenCV REQUIRED)
 find_package(TBB REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(GTest REQUIRED) 
+find_package(pybind11 REQUIRED CONFIG)
 
 message(STATUS "Found Eigen3: ${EIGEN3_INCLUDE_DIRS}")
 message(STATUS "Found PCL: ${PCL_INCLUDE_DIRS}")
@@ -25,6 +26,7 @@ message(STATUS "Found OpenCV: ${OpenCV_INCLUDE_DIRS}")
 message(STATUS "Found TBB: ${TBB_INCLUDE_DIRS}")
 message(STATUS "Found OpenMP: ${OpenMP_CXX_FOUND}")
 message(STATUS "Found GTest: ${GTEST_FOUND}") # Check if GTest was found
+message(STATUS "Found pybind11: Version ${pybind11_VERSION} in ${pybind11_DIR}")
 
 # ========================================================================
 # Define Shared Library (NEW)
@@ -70,7 +72,7 @@ if(MDET_ENABLE_INTERPOLATION_DEBUG)
 endif()
 
 # ========================================================================
-# Define Main Executable (MODIFIED)
+# Define Main Executable
 # ========================================================================
 add_executable(m_detector_cli
     src/main.cpp
@@ -103,7 +105,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
 
 
 # ========================================================================
-# Unit Testing Setup (MODIFIED)
+# Unit Testing Setup
 # ========================================================================
 enable_testing()
 
@@ -151,3 +153,39 @@ endforeach()
 # --- Add Tests to CTest ---
 include(GoogleTest)
 gtest_add_tests(TARGET m_detector_tests)
+
+# ========================================================================
+# Python Module
+# ========================================================================
+
+# Define the source file(s) for the bindings
+set(PYBIND_SOURCES
+    src/bindings.cpp 
+)
+
+# Create the Python module using pybind11's helper function
+# This creates a shared library with the correct suffix (.so/.pyd)
+# The first argument is the name Python will use to import the module
+pybind11_add_module(mpy_detector SHARED ${PYBIND_SOURCES})
+
+# Link the Python module against C++ library
+# This makes the functions and classes defined in m_detector_lib available
+# to your binding code in bindings.cpp
+target_link_libraries(mpy_detector PRIVATE
+    m_detector_lib
+    # Add other direct dependencies of bindings.cpp if any
+    # For example, if bindings.cpp uses TBB directly: TBB::tbb
+    # pybind11::module / pybind11::headers are usually handled automatically
+    # by pybind11_add_module
+)
+
+# Include directories are inherited from m_detector_lib (because it uses PUBLIC)
+# If bindings.cpp needs other specific includes, add them here:
+# target_include_directories(mpy_detector PRIVATE /path/to/other/includes)
+
+# Apply compile options if needed (e.g., OpenMP if bindings code uses it)
+# target_compile_options(mpy_detector PRIVATE ${OpenMP_CXX_FLAGS})
+
+# Optional: Set output directory for easier Python import during development
+# set_target_properties(mpy_detector PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/python)
+# If you do this, you might need to add ${CMAKE_BINARY_DIR}/python to your PYTHONPATH

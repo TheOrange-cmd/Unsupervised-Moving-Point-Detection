@@ -299,7 +299,7 @@ namespace PointCloudUtils {
                 }
     
                 // Iterate through points within that cell
-                for (const point_soph* neighbor_ptr : cell_points) {
+                for (const std::shared_ptr<point_soph>& neighbor_ptr : cell_points) {
                     if (!neighbor_ptr) continue; // Skip null pointers if they can exist
     
                     // Filter 1: Time difference check
@@ -319,8 +319,8 @@ namespace PointCloudUtils {
     
                     // Handle azimuth wrap-around for difference calculation
                     float hor_diff = hor_diff_raw;
-                    if (hor_diff > PI_MATH) hor_diff -= 2.0f * PI_MATH;
-                    else if (hor_diff < -PI_MATH) hor_diff += 2.0f * PI_MATH;
+                    if (hor_diff > M_PI) hor_diff -= 2.0f * M_PI;
+                    else if (hor_diff < -M_PI) hor_diff += 2.0f * M_PI;
     
                     float abs_hor_diff = std::fabs(hor_diff);
                     float abs_ver_diff = std::fabs(ver_diff);
@@ -383,8 +383,8 @@ namespace PointCloudUtils {
             float target_offset_x = target_point_projection.x() - v1.x();
             float target_offset_y = target_point_projection.y() - v1.y();
             // Handle azimuth wrap-around for offset
-            if (target_offset_x > PI_MATH) target_offset_x -= 2.0f * PI_MATH;
-            else if (target_offset_x < -PI_MATH) target_offset_x += 2.0f * PI_MATH;
+            if (target_offset_x > M_PI) target_offset_x -= 2.0f * M_PI;
+            else if (target_offset_x < -M_PI) target_offset_x += 2.0f * M_PI;
     
     
             for (size_t j = i + 1; j < neighbors.size(); ++j) {
@@ -392,7 +392,7 @@ namespace PointCloudUtils {
                 // Calculate Manhattan distance from target to v2 projection
                 float dx2 = v2.x() - target_point_projection.x();
                 float dy2 = v2.y() - target_point_projection.y();
-                if (dx2 > PI_MATH) dx2 -= 2.0f * PI_MATH; else if (dx2 < -PI_MATH) dx2 += 2.0f * PI_MATH;
+                if (dx2 > M_PI) dx2 -= 2.0f * M_PI; else if (dx2 < -M_PI) dx2 += 2.0f * M_PI;
                 float dist_to_v2 = std::fabs(dx2) + std::fabs(dy2);
     
                 // Optimization: If dist_to_v2 alone is already worse than the best sum found,
@@ -406,7 +406,7 @@ namespace PointCloudUtils {
                     // Calculate Manhattan distance from target to v3 projection
                     float dx3 = v3.x() - target_point_projection.x();
                     float dy3 = v3.y() - target_point_projection.y();
-                    if (dx3 > PI_MATH) dx3 -= 2.0f * PI_MATH; else if (dx3 < -PI_MATH) dx3 += 2.0f * PI_MATH;
+                    if (dx3 > M_PI) dx3 -= 2.0f * M_PI; else if (dx3 < -M_PI) dx3 += 2.0f * M_PI;
                     float dist_to_v3 = std::fabs(dx3) + std::fabs(dy3);
     
                     float current_dist_sum = dist_to_v2 + dist_to_v3;
@@ -419,8 +419,8 @@ namespace PointCloudUtils {
                         float v31_x = v3.x() - v1.x();
                         float v31_y = v3.y() - v1.y();
                         // Handle azimuth wrap-around for relative vectors
-                        if (v21_x > PI_MATH) v21_x -= 2.0f * PI_MATH; else if (v21_x < -PI_MATH) v21_x += 2.0f * PI_MATH;
-                        if (v31_x > PI_MATH) v31_x -= 2.0f * PI_MATH; else if (v31_x < -PI_MATH) v31_x += 2.0f * PI_MATH;
+                        if (v21_x > M_PI) v21_x -= 2.0f * M_PI; else if (v21_x < -M_PI) v21_x += 2.0f * M_PI;
+                        if (v31_x > M_PI) v31_x -= 2.0f * M_PI; else if (v31_x < -M_PI) v31_x += 2.0f * M_PI;
     
     
                         // Calculate denominator for barycentric coordinates (related to triangle area)

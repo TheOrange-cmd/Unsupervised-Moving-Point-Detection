@@ -2,6 +2,7 @@
 #include "point_cloud_utils/point_cloud_utils.h" // Header for interpolation functions
 #include "filtering/dyn_obj_datatypes.h" // Includes point_soph, DepthMap, V3D, V3F, etc.
 #include "config/config_loader.h"     // Includes DynObjFilterParams
+#include "common/types.h"
 #include <vector>
 #include <cmath>
 #include <limits>
@@ -17,7 +18,7 @@ protected:
     static constexpr int TEST_MAX_1D = MAX_1D;
     static constexpr int TEST_MAX_1D_HALF = MAX_1D_HALF;
     static constexpr int TEST_MAX_2D_N = MAX_2D_N;
-    static constexpr float TEST_PI = PI_MATH; // Use the same PI constant
+    static constexpr float TEST_PI = M_PI; // Use the same PI constant
 
     DynObjFilterParams params;
     DepthMap map_info; // Creates the map with size MAX_2D_N
@@ -72,7 +73,7 @@ protected:
     
         if (map_pos >= 0 && map_pos < TEST_MAX_2D_N) {
             std::cout << "[addPointToMap]   Adding to map_pos=" << map_pos << std::endl;
-            map_info.depth_map[map_pos].push_back(p_ptr.get()); // Add raw pointer to map
+            map_info.depth_map[map_pos].push_back(p_ptr); // Add shared pointer to map
             // Verification print:
             std::cout << "[addPointToMap]   Cell map_info.depth_map[" << map_pos << "] now has size: " << map_info.depth_map[map_pos].size() << std::endl;
         } else {

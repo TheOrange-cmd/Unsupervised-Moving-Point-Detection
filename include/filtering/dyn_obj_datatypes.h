@@ -32,7 +32,7 @@
 // --- Constants for Dynamic Object Filtering, copied as is from original code ---
 
 /** @brief Mathematical constant PI (float precision). */
-#define PI_MATH (3.141593f)
+// #define M_PI (3.141593f)
 /** @brief Prime number used potentially for hashing or indexing. */
 #define HASH_P 116101
 /** @brief Maximum number of points, related to buffer sizing. */
@@ -247,12 +247,12 @@ struct point_soph
         vec(1)    = atan2f(float(point(2)), std::sqrt(std::pow(float(point(0)), 2) + std::pow(float(point(1)), 2))); // Elevation [-pi/2, pi/2]
 
         // Calculate raw horizontal index based on azimuth [-pi, pi] mapped to [0, 2*pi]
-        // Add PI_MATH to shift range to [0, 2*pi], then divide by resolution.
-        int raw_hor_ind = static_cast<int>(std::floor((vec(0) + PI_MATH) / hor_resolution_max));
+        // Add M_PI to shift range to [0, 2*pi], then divide by resolution.
+        int raw_hor_ind = static_cast<int>(std::floor((vec(0) + M_PI) / hor_resolution_max));
 
         // Calculate the theoretical number of horizontal bins for wrap-around check
         // Use round to get the nearest integer number of bins.
-        int num_hor_bins = static_cast<int>(std::round(2.0f * PI_MATH / hor_resolution_max));
+        int num_hor_bins = static_cast<int>(std::round(2.0f * M_PI / hor_resolution_max));
 
         // Handle wrap-around: If index is exactly at or beyond the expected number of bins
         // (can happen at azimuth near +pi due to floating point precision), wrap it to 0.
@@ -266,8 +266,8 @@ struct point_soph
         // hor_ind = raw_hor_ind; // Assign potentially corrected index
 
         // Calculate vertical index based on elevation [-pi/2, pi/2] mapped to [0, pi]
-        // Add 0.5 * PI_MATH to shift range to [0, pi], then divide by resolution.
-        ver_ind = static_cast<int>(std::floor((vec(1) + 0.5f * PI_MATH) / ver_resolution_max));
+        // Add 0.5 * M_PI to shift range to [0, pi], then divide by resolution.
+        ver_ind = static_cast<int>(std::floor((vec(1) + 0.5f * M_PI) / ver_resolution_max));
 
         // Clamp vertical index to be within valid range [0, MAX_1D_HALF - 1]
         // This prevents out-of-bounds access if elevation is slightly outside [-pi/2, pi/2]
@@ -310,7 +310,7 @@ struct point_soph
  * A vector where each element represents a cell in the linearized 1D grid (size MAX_2D_N).
  * Each cell contains a vector of pointers to point_soph objects that fall into that cell.
  */
-typedef std::vector<std::vector<point_soph*>> DepthMap2D;
+typedef std::vector<std::vector<point_soph::Ptr>> DepthMap2D;
 
 /**
  * @brief Class representing a single depth map (snapshot) for a specific time or frame.
@@ -358,9 +358,9 @@ public:
         // max_depth_index_all(nullptr),
         // min_depth_index_all(nullptr)
     {
-        std::cout << "build depth map2\n"; // Consider using a proper logger
+        // std::cout << "build depth map2\n"; // Consider using a proper logger
         try {
-            depth_map.assign(MAX_2D_N, std::vector<point_soph*>());
+            depth_map.assign(MAX_2D_N, std::vector<point_soph::Ptr>());
             index_vector.resize(MAX_2D_N); // Pre-allocate index vector
 
             // min_depth_static = new float[MAX_2D_N];
@@ -421,7 +421,7 @@ public:
         // min_depth_index_all(nullptr)
     {
          try {
-            depth_map.assign(MAX_2D_N, std::vector<point_soph*>());
+            depth_map.assign(MAX_2D_N, std::vector<point_soph::Ptr>());
             index_vector.resize(MAX_2D_N);
 
             // min_depth_static = new float[MAX_2D_N];
@@ -557,7 +557,7 @@ public:
         }
         // Check if depth_map itself needs resizing (shouldn't if constructed correctly)
         if (depth_map.size() != MAX_2D_N) {
-            depth_map.assign(MAX_2D_N, std::vector<point_soph*>());
+            depth_map.assign(MAX_2D_N, std::vector<point_soph::Ptr>());
         }
 
         // double t = omp_get_wtime(); // Timing code (currently commented out)

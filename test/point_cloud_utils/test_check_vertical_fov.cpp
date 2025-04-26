@@ -33,8 +33,17 @@ protected:
     // Assuming DepthMap stores std::vector<point_soph*> as per the definition provided.
     // We'll create a dummy object ONCE and use its address. This is okay for testing
     // emptiness, but DO NOT DEREFERENCE this pointer in the actual function.
-    inline static point_soph dummy_point_object; // Create one dummy object
-    inline static point_soph* dummy_point_ptr = &dummy_point_object; // Pointer to the dummy object
+    inline static point_soph dummy_point_object;
+
+    // Define a deleter that does nothing (since the object is static)
+    inline static auto dummy_deleter = [](point_soph* ptr) {
+        // No-op: Don't delete the static object!
+        (void)ptr; // Avoid unused parameter warning if compiler is strict
+    };
+    
+    // Create a shared_ptr pointing to the static object using the no-op deleter
+    // Let's use a more descriptive name like sptr (shared pointer)
+    inline static std::shared_ptr<point_soph> dummy_point_sptr{ &dummy_point_object, dummy_deleter };
 
     // Helper to create a point_soph with specific indices
     // Note: The V3F vector part might not be strictly needed if only indices are used
@@ -57,7 +66,7 @@ protected:
         int map_pos = hor_idx * TEST_MAX_1D_HALF + ver_idx;
         if (map_pos >= 0 && map_pos < TEST_MAX_2D_N) {
             // Add the dummy pointer to indicate non-emptiness
-            map_info.depth_map[map_pos].push_back(dummy_point_ptr);
+            map_info.depth_map[map_pos].push_back(dummy_point_sptr);
         } else {
            // Calculated position is out of bounds for the map
            // This indicates an issue with TEST_MAX values or calculation

@@ -9,13 +9,15 @@
  * struct, and calculates derived parameters needed for the filtering algorithms.
  */
 
- #include "config/config_loader.h"
+#define _USE_MATH_DEFINES
 
- #include <fstream>
- #include <iostream>
- #include <cmath> // For std::ceil, std::floor, std::round
- 
- #include "filtering/dyn_obj_datatypes.h" // For PI_MATH definition (though it should ideally be in a common math header)
+#include "config/config_loader.h"
+
+#include <fstream>
+#include <iostream>
+#include <cmath> // For std::ceil, std::floor, std::round
+
+// #include "filtering/dyn_obj_datatypes.h" // For PI_MATH definition (though it should ideally be in a common math header)
  
  // Note: The loadParam template function is defined in the header (config_loader.h)
  
@@ -49,8 +51,7 @@
  bool load_config(const std::string& filename, DynObjFilterParams& params) {
    std::ifstream fin(filename);
    if (!fin.is_open()) {
-     std::cerr << "Error: Could not open config file: " << filename << std::endl;
-     return false;
+    throw std::runtime_error("Error: Could not open config file: " + filename);
    }
    // Close the ifstream, YAML::LoadFile handles file reading
    fin.close();
@@ -266,11 +267,7 @@
      // --- Calculate Derived Parameters ---
      // Check for division by zero before calculating pixel counts
      if (params.hor_resolution_max <= 0 || params.ver_resolution_max <= 0) {
-       std::cerr << "Error: hor_resolution_max (" << params.hor_resolution_max
-                 << ") or ver_resolution_max (" << params.ver_resolution_max
-                 << ") is zero or negative. Cannot calculate derived parameters."
-                 << std::endl;
-       return false; // Cannot proceed without valid resolutions
+        throw std::invalid_argument("Error: hor_resolution_max or ver_resolution_max is zero or negative. Cannot calculate derived parameters.");
      }
  
      // Interpolation pixel counts (based on angle thresholds and resolution)
@@ -282,21 +279,21 @@
  
      // FOV pixel indices
      // Convert FOV angles from degrees to radians
-     const float fov_up_rad = params.fov_up * PI_MATH / 180.0f;
-     const float fov_down_rad = params.fov_down * PI_MATH / 180.0f; // Often negative
-     const float fov_cut_rad = params.fov_cut * PI_MATH / 180.0f;
-     const float fov_left_rad = params.fov_left * PI_MATH / 180.0f;
-     const float fov_right_rad = params.fov_right * PI_MATH / 180.0f; // Often negative or wraps
+     const float fov_up_rad = params.fov_up * M_PI / 180.0f;
+     const float fov_down_rad = params.fov_down * M_PI / 180.0f; // Often negative
+     const float fov_cut_rad = params.fov_cut * M_PI / 180.0f;
+     const float fov_left_rad = params.fov_left * M_PI / 180.0f;
+     const float fov_right_rad = params.fov_right * M_PI / 180.0f; // Often negative or wraps
  
      // Vertical FOV: Convert elevation angle to vertical index.
      // Elevation angle range is typically [-pi/2, +pi/2]. Index = floor((elevation + pi/2) / resolution)
      // Add a small epsilon to handle angles exactly at bin boundaries if needed.
      params.pixel_fov_up = static_cast<int>(
-         std::floor((fov_up_rad + 0.5f * PI_MATH) / params.ver_resolution_max));
+         std::floor((fov_up_rad + 0.5f * M_PI) / params.ver_resolution_max));
      params.pixel_fov_down = static_cast<int>(
-         std::floor((fov_down_rad + 0.5f * PI_MATH) / params.ver_resolution_max));
+         std::floor((fov_down_rad + 0.5f * M_PI) / params.ver_resolution_max));
      params.pixel_fov_cut = static_cast<int>(
-         std::floor((fov_cut_rad + 0.5f * PI_MATH) / params.ver_resolution_max));
+         std::floor((fov_cut_rad + 0.5f * M_PI) / params.ver_resolution_max));
  
      // Clamp vertical indices to be within valid range [0, MAX_1D_HALF - 1] if necessary
      // (Requires MAX_1D_HALF definition, potentially from dyn_obj_datatypes.h)
@@ -308,9 +305,9 @@
      // Horizontal FOV: Convert azimuth angle to horizontal index.
      // Azimuth angle range is [-pi, +pi]. Index = floor((azimuth + pi) / resolution)
      params.pixel_fov_left = static_cast<int>(
-         std::floor((fov_left_rad + PI_MATH) / params.hor_resolution_max));
+         std::floor((fov_left_rad + M_PI) / params.hor_resolution_max));
      params.pixel_fov_right = static_cast<int>(
-         std::floor((fov_right_rad + PI_MATH) / params.hor_resolution_max));
+         std::floor((fov_right_rad + M_PI) / params.hor_resolution_max));
  
      // Handle potential wrap-around for horizontal indices if needed, depending on usage.
      // The indices calculated here might represent boundaries in a non-wrapped space.
@@ -321,10 +318,7 @@
  
      // Max pointers needed based on map history duration and frame rate
      if (params.frame_dur <= 0) {
-       std::cerr << "Error: frame_dur (" << params.frame_dur
-                 << ") is zero or negative. Cannot calculate max_pointers_num."
-                 << std::endl;
-       return false; // Cannot calculate buffer needs
+        throw std::invalid_argument("Error: frame_dur is zero or negative. Cannot calculate max_pointers_num.");
      }
      // Calculate total time span covered by maps + buffer delay
      double total_time_span = params.max_depth_map_num * params.depth_map_dur + params.buffer_delay;
@@ -339,17 +333,13 @@
      // ... etc ...
  
    } catch (const YAML::Exception& e) {
-     std::cerr << "Error parsing YAML file: " << filename << " - " << e.what()
-               << std::endl;
-     return false; // YAML parsing error is fatal
+    throw std::runtime_error("Error parsing YAML file: " + filename + " - " + e.what());
    } catch (const std::exception& e) {
      // Catch other potential standard exceptions during calculations
-     std::cerr << "Standard exception during config loading or processing: " << e.what() << std::endl;
-     return false;
+    throw std::runtime_error("Standard exception during config loading or processing: " + std::string(e.what()));
    } catch (...) {
      // Catch any other unexpected exceptions
-     std::cerr << "Unknown exception during config loading or processing." << std::endl;
-     return false;
+    throw std::runtime_error("Unknown exception during config loading or processing.");
    }
  
    // Return true only if all loading AND calculations were successful (or defaults were acceptable)

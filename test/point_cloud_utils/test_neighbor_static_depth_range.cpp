@@ -19,9 +19,17 @@ protected:
     DynObjFilterParams params;
     DepthMap map_info; // Creates the map with size MAX_2D_N
 
-    // Dummy point object/pointer to mark cells as non-empty
     inline static point_soph dummy_point_object;
-    inline static point_soph* dummy_point_ptr = &dummy_point_object;
+
+    // Define a deleter that does nothing (since the object is static)
+    inline static auto dummy_deleter = [](point_soph* ptr) {
+        // No-op: Don't delete the static object!
+        (void)ptr; // Avoid unused parameter warning if compiler is strict
+    };
+    
+    // Create a shared_ptr pointing to the static object using the no-op deleter
+    // Let's use a more descriptive name like sptr (shared pointer)
+    inline static std::shared_ptr<point_soph> dummy_point_sptr{ &dummy_point_object, dummy_deleter };
 
     // Helper to create a point_soph with specific indices
     point_soph createTestPoint(int hor_idx, int ver_idx) {
@@ -47,7 +55,7 @@ protected:
         if (map_pos >= 0 && map_pos < TEST_MAX_2D_N) {
             // Mark cell as non-empty
             if (map_info.depth_map[map_pos].empty()) { // Avoid adding duplicates if called multiple times
-                 map_info.depth_map[map_pos].push_back(dummy_point_ptr);
+                 map_info.depth_map[map_pos].push_back(dummy_point_sptr);
             }
             // Set static depth values
             map_info.min_depth_static[map_pos] = min_d;

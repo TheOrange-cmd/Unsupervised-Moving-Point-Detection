@@ -3,6 +3,7 @@
 #include "config/config_loader.h"     // For DynObjFilterParams
 #include "filtering/dyn_obj_datatypes.h" // For point_soph, V3D, M3D etc.
 #include <Eigen/Geometry>      // For Eigen::AngleAxisd
+#include "common/types.h"
 
 // --- Helper Function (Optional but useful) ---
 // Function to create default parameters for testing
@@ -48,8 +49,8 @@ TEST(SphericalProjectionTest, CacheMiss) {
     float elevation_expected = std::atan2(p_proj_expected.z(), std::sqrt(p_proj_expected.x()*p_proj_expected.x() + p_proj_expected.y()*p_proj_expected.y())); // atan2(5, sqrt(16+4)) = atan2(5, sqrt(20)) approx 0.841 rad
 
     // 3. Indices
-    int hor_ind_expected = std::floor((azimuth_expected + PI_MATH) / params.hor_resolution_max); // floor((2.678 + 3.1416) / 0.01) = floor(581.96) = 581
-    int ver_ind_expected = std::floor((elevation_expected + 0.5 * PI_MATH) / params.ver_resolution_max); // floor((0.841 + 1.5708) / 0.02) = floor(120.59) = 120
+    int hor_ind_expected = std::floor((azimuth_expected + M_PI) / params.hor_resolution_max); // floor((2.678 + 3.1416) / 0.01) = floor(581.96) = 581
+    int ver_ind_expected = std::floor((elevation_expected + 0.5 * M_PI) / params.ver_resolution_max); // floor((0.841 + 1.5708) / 0.02) = floor(120.59) = 120
     int pos_expected = hor_ind_expected * MAX_1D_HALF + ver_ind_expected; // 581 * 449 + 120 = 260869 + 120 = 260989
 
     // Act
@@ -266,11 +267,11 @@ TEST(SphericalProjectionTest, IndexBoundary) {
     ASSERT_NEAR(std::abs(p_output.vec(0)), M_PI, 1e-5);
 
     // 2. Calculate the expected index *based on the azimuth the function actually computed*
-    int hor_ind_expected = std::floor((p_output.vec(0) + PI_MATH) / params.hor_resolution_max);
+    int hor_ind_expected = std::floor((p_output.vec(0) + M_PI) / params.hor_resolution_max);
 
     // 3. Handle potential wrap-around due to floating point at the boundary.
     //    If floor((PI + PI)/res) results in exactly num_bins, it should be index 0.
-    int num_hor_bins = static_cast<int>(std::round(2.0 * PI_MATH / params.hor_resolution_max));
+    int num_hor_bins = static_cast<int>(std::round(2.0 * M_PI / params.hor_resolution_max));
     if (hor_ind_expected >= num_hor_bins) {
          // This case can happen if p_output.vec(0) is exactly +PI and floating point pushes
          // (PI + PI) / res slightly above num_bins before floor.
@@ -356,8 +357,8 @@ TEST(SphericalProjectionTest, DifferentResolutions) {
                                          std::sqrt(p_proj.x()*p_proj.x() + p_proj.y()*p_proj.y()));
     
     // Expected indices with coarser resolution
-    int hor_ind_expected = std::floor((azimuth_expected + PI_MATH) / params.hor_resolution_max);
-    int ver_ind_expected = std::floor((elevation_expected + 0.5 * PI_MATH) / params.ver_resolution_max);
+    int hor_ind_expected = std::floor((azimuth_expected + M_PI) / params.hor_resolution_max);
+    int ver_ind_expected = std::floor((elevation_expected + 0.5 * M_PI) / params.ver_resolution_max);
     
     // Act
     PointCloudUtils::SphericalProjection(p_input, test_depth_index, rotation, translation, params, p_output);
