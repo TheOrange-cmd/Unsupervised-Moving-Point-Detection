@@ -11,6 +11,7 @@
 #include "point_cloud_utils/point_cloud_utils.h"
 
 namespace py = pybind11;
+using namespace PointCloudUtils;
 
 // --- Helper/Wrapper Functions 
 DynObjFilterParams load_config_py(const std::string& filename) {
@@ -25,6 +26,37 @@ DynObjFilterParams load_config_py(const std::string& filename) {
         throw std::runtime_error(std::string("Error loading config: ") + e.what());
     }
 }
+
+// Wrapper for SphericalProjection to handle output parameter
+// point_soph spherical_projection_wrapper(
+//     const V3D& global_point, // Input: Global point coordinates
+//     int depth_index,
+//     const M3D& rot,
+//     const V3D& transl,
+//     const DynObjFilterParams& params)
+// {
+//     // Create a temporary input point_soph (only 'glob' is needed by SphericalProjection's logic)
+//     point_soph p_in;
+//     p_in.glob = global_point;
+//     // Create an output point_soph object
+//     point_soph p_out;
+//     // Call the actual function
+//     PointCloudUtils::SphericalProjection(p_in, depth_index, rot, transl, params, p_out);
+//     // Return the result
+//     return p_out;
+// }
+
+// // Wrapper for findNeighborStaticDepthRange to return min/max
+// std::pair<float, float> find_neighbor_static_depth_range_wrapper(
+//     const point_soph& p,
+//     const DepthMap& map_info,
+//     const DynObjFilterParams& params)
+// {
+//     float min_d = std::numeric_limits<float>::max(); // Initialize appropriately
+//     float max_d = 0.0f; // Initialize appropriately
+//     PointCloudUtils::findNeighborStaticDepthRange(p, map_info, params, min_d, max_d);
+//     return {min_d, max_d};
+// }
 
 // --- Main Module Definition ---
 PYBIND11_MODULE(mpy_detector, m) { // Name must match pybind11_add_module
@@ -58,16 +90,53 @@ PYBIND11_MODULE(mpy_detector, m) { // Name must match pybind11_add_module
     // --- Bind Structs ---
     py::class_<DynObjFilterParams>(m, "DynObjFilterParams")
         .def(py::init<>())
+        // Bind ALL members as readwrite unless they are derived
+        // Example:
         .def_readwrite("buffer_delay", &DynObjFilterParams::buffer_delay)
         .def_readwrite("buffer_size", &DynObjFilterParams::buffer_size)
-        // ... Add ALL other members ...
+        .def_readwrite("points_num_perframe", &DynObjFilterParams::points_num_perframe)
+        .def_readwrite("depth_map_dur", &DynObjFilterParams::depth_map_dur)
+        .def_readwrite("max_depth_map_num", &DynObjFilterParams::max_depth_map_num)
+        .def_readwrite("max_pixel_points", &DynObjFilterParams::max_pixel_points)
+        .def_readwrite("frame_dur", &DynObjFilterParams::frame_dur)
+        .def_readwrite("dataset", &DynObjFilterParams::dataset)
+        .def_readwrite("buffer_dur", &DynObjFilterParams::buffer_dur)
+        .def_readwrite("point_index", &DynObjFilterParams::point_index)
+        .def_readwrite("self_x_f", &DynObjFilterParams::self_x_f)
+        .def_readwrite("self_x_b", &DynObjFilterParams::self_x_b)
+        .def_readwrite("self_y_l", &DynObjFilterParams::self_y_l)
+        .def_readwrite("self_y_r", &DynObjFilterParams::self_y_r)
+        .def_readwrite("blind_dis", &DynObjFilterParams::blind_dis)
+        .def_readwrite("fov_up", &DynObjFilterParams::fov_up)
+        .def_readwrite("fov_down", &DynObjFilterParams::fov_down)
+        .def_readwrite("fov_cut", &DynObjFilterParams::fov_cut)
+        .def_readwrite("fov_left", &DynObjFilterParams::fov_left)
+        .def_readwrite("fov_right", &DynObjFilterParams::fov_right)
+        .def_readwrite("checkneighbor_range", &DynObjFilterParams::checkneighbor_range)
+        .def_readwrite("stop_object_detect", &DynObjFilterParams::stop_object_detect)
+        // ... Bind ALL other loaded parameters ...
+        .def_readwrite("depth_thr1", &DynObjFilterParams::depth_thr1)
+        // ... etc for Case1, Case2, Case3, Interpolation, Other ...
+        .def_readwrite("dyn_filter_en", &DynObjFilterParams::dyn_filter_en)
+        .def_readwrite("debug_en", &DynObjFilterParams::debug_en)
+        .def_readwrite("hor_resolution_max", &DynObjFilterParams::hor_resolution_max)
+        .def_readwrite("ver_resolution_max", &DynObjFilterParams::ver_resolution_max)
+        .def_readwrite("frame_id", &DynObjFilterParams::frame_id)
+        .def_readwrite("time_file", &DynObjFilterParams::time_file)
+        .def_readwrite("time_breakdown_file", &DynObjFilterParams::time_breakdown_file)
+
+        // Bind Derived Parameters as readonly
         .def_readonly("interp_hor_num", &DynObjFilterParams::interp_hor_num)
         .def_readonly("interp_ver_num", &DynObjFilterParams::interp_ver_num)
-        // ... etc. ...
-        .def("__repr__",
+        .def_readonly("pixel_fov_up", &DynObjFilterParams::pixel_fov_up)
+        .def_readonly("pixel_fov_down", &DynObjFilterParams::pixel_fov_down)
+        .def_readonly("pixel_fov_cut", &DynObjFilterParams::pixel_fov_cut)
+        .def_readonly("pixel_fov_left", &DynObjFilterParams::pixel_fov_left)
+        .def_readonly("pixel_fov_right", &DynObjFilterParams::pixel_fov_right)
+        .def_readonly("max_pointers_num", &DynObjFilterParams::max_pointers_num)
+        .def("__repr__", // Basic representation
              [](const DynObjFilterParams &p) {
-                 // Add namespace qualifier if needed
-                 return "<DynObjFilterParams: buffer_delay=" + std::to_string(p.buffer_delay) + "...>";
+                 return "<DynObjFilterParams: buffer_delay=" + std::to_string(p.buffer_delay) + ", buffer_size=" + std::to_string(p.buffer_size) + "...>";
              });
 
     // Assuming PointCloudUtils namespace:

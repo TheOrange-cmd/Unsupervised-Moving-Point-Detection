@@ -74,18 +74,6 @@ namespace PointCloudUtils {
         { V3D(2.45, 0.45, -1.0),  V3D(2.6, 0.6, -0.9) }
     };
 
-    // Optional helper function implementation
-    bool isInsideAABB(const V3D& point, const AABB& box) {
-        // Assuming V3D has x(), y(), z() accessors
-        return (point.x() > box.min_corner.x() && point.x() < box.max_corner.x() &&
-                point.y() > box.min_corner.y() && point.y() < box.max_corner.y() &&
-                point.z() > box.min_corner.z() && point.z() < box.max_corner.z());
-        // Or using body(0) style if needed:
-        // return (point(0) > box.min_corner(0) && point(0) < box.max_corner(0) &&
-        //         point(1) > box.min_corner(1) && point(1) < box.max_corner(1) &&
-        //         point(2) > box.min_corner(2) && point(2) < box.max_corner(2));
-    }
-
 
     bool isSelfPoint(const V3D& point, int dataset_id) { // Mark dyn as unused if keeping it
         if (dataset_id != 0) {
@@ -100,6 +88,18 @@ namespace PointCloudUtils {
         }
 
         return false; // Point is not inside any self-filter box for dataset 0
+    }
+
+    // Optional helper function implementation
+    bool isInsideAABB(const V3D& point, const AABB& box) {
+        // Assuming V3D has x(), y(), z() accessors
+        return (point.x() > box.min_corner.x() && point.x() < box.max_corner.x() &&
+                point.y() > box.min_corner.y() && point.y() < box.max_corner.y() &&
+                point.z() > box.min_corner.z() && point.z() < box.max_corner.z());
+        // Or using body(0) style if needed:
+        // return (point(0) > box.min_corner(0) && point(0) < box.max_corner(0) &&
+        //         point(1) > box.min_corner(1) && point(1) < box.max_corner(1) &&
+        //         point(2) > box.min_corner(2) && point(2) < box.max_corner(2));
     }
 
     bool checkVerticalFov(const point_soph& p, const DepthMap& map_info, const DynObjFilterParams& params) {
@@ -169,63 +169,163 @@ namespace PointCloudUtils {
         return !(found_support_up && found_support_down);
     }
 
-    void findNeighborStaticDepthRange(const point_soph& p,
+    // /**
+    //  * @brief Internal helper to iterate over neighbor cells and execute a callback.
+    //  *
+    //  * Iterates through a grid neighborhood defined by ranges around a center point.
+    //  * Handles grid boundaries and optional horizontal wrap-around. For each valid
+    //  * neighbor cell within the bounds, it executes the provided callback function
+    //  * with the cell's 1D linearized index.
+    //  *
+    //  * @tparam Func Type of the callback function (usually a lambda).
+    //  * @param center_point The point defining the center of the search.
+    //  * @param hor_range Half-size of the horizontal search window.
+    //  * @param ver_range Half-size of the vertical search window.
+    //  * @param include_center If true, the center cell itself is included in the iteration.
+    //  * @param wrap_horizontal If true, handles horizontal index wrap-around; otherwise, checks bounds [0, MAX_1D-1].
+    //  * @param callback A function-like object (lambda, functor) that accepts a single int (the 1D cell index).
+    //  */
+    // template <typename Func> // Use template for the callable
+    // void forEachNeighborCell(
+    //     const point_soph& center_point,
+    //     int hor_range,
+    //     int ver_range,
+    //     bool include_center,
+    //     bool wrap_horizontal,
+    //     Func func) // Accept any callable 'Func' directly
+    // {
+    //     // Check if center point indices are valid first
+    //     if (center_point.hor_ind < 0 || center_point.hor_ind >= MAX_1D ||
+    //         center_point.ver_ind < 0 || center_point.ver_ind >= MAX_1D_HALF) {
+    //         // Optional: Add warning if desired
+    //         // std::cerr << "[forEachNeighborCell] Warning: Center point indices out of bounds." << std::endl;
+    //         return;
+    //     }
+
+    //     // Use effective non-negative ranges for loop bounds
+    //     int effective_hor_range = std::max(0, hor_range);
+    //     int effective_ver_range = std::max(0, ver_range);
+
+    //     // Determine loop bounds using effective ranges
+    //     int h_start = center_point.hor_ind - effective_hor_range;
+    //     int h_end = center_point.hor_ind + effective_hor_range;
+    //     int v_start = std::max(0, center_point.ver_ind - effective_ver_range);
+    //     int v_end = std::min(MAX_1D_HALF - 1, center_point.ver_ind + effective_ver_range);
+
+    //     // --- (Optional: Remove Debug Prints) ---
+    //     // std::cout << "[forEachNeighborCell] Debug Info:" << std::endl;
+    //     // ... debug prints ...
+    //     // ---
+
+    //     for (int h = h_start; h <= h_end; ++h) {
+    //         int current_h = h;
+
+    //         if (wrap_horizontal) {
+    //             if (current_h < 0) {
+    //                 current_h += MAX_1D;
+    //             } else if (current_h >= MAX_1D) {
+    //                 current_h -= MAX_1D;
+    //             }
+    //         } else {
+    //             if (current_h < 0 || current_h >= MAX_1D) {
+    //                 continue;
+    //             }
+    //         }
+
+    //         for (int v = v_start; v <= v_end; ++v) {
+    //             if (!include_center && h == center_point.hor_ind && v == center_point.ver_ind) {
+    //                 continue;
+    //             }
+
+    //             int pos = current_h * MAX_1D_HALF + v;
+    //             // --- FIX: Call the templated 'func' directly ---
+    //             func(pos);
+    //         }
+    //     }
+    // }
+
+    std::vector<int> findNeighborCells(
+        const point_soph& center_point,
+        int hor_range,
+        int ver_range,
+        bool include_center,
+        bool wrap_horizontal)
+    {
+        std::vector<int> neighbor_indices;
+    
+        int effective_hor_range = std::max(0, hor_range);
+        int effective_ver_range = std::max(0, ver_range);
+    
+        size_t max_neighbors = static_cast<size_t>(2 * effective_hor_range + 1) *
+                               static_cast<size_t>(2 * effective_ver_range + 1);
+    
+        if (!include_center && max_neighbors > 0) {
+            max_neighbors--;
+        }
+    
+        if (max_neighbors > 0) {
+             neighbor_indices.reserve(max_neighbors);
+        }
+    
+        // Call the updated forEachNeighborCell
+        forEachNeighborCell(center_point, hor_range, ver_range, include_center, wrap_horizontal,
+            [&neighbor_indices](int pos) {
+                neighbor_indices.push_back(pos);
+            }
+        );
+    
+        return neighbor_indices;
+    }
+
+    void findNeighborStaticDepthRange(
+        const point_soph& p,
         const DepthMap& map_info,
         const DynObjFilterParams& params,
         float& min_depth,
-        float& max_depth){
-        // Ensure range is sensible
-        const int n = std::max(0, params.checkneighbor_range);
-
-        // Flag to handle initialization cleanly on the first valid neighbor found
-        bool first_neighbor_found = false;
-
-        // --- Input Sanity Checks (Optional but Recommended) ---
-        // Check if p has valid indices
-        if (p.hor_ind < 0 || p.hor_ind >= MAX_1D || p.ver_ind < 0 || p.ver_ind >= MAX_1D_HALF) {
-            // Log error or warning - point has invalid indices
-            // The caller's min_depth/max_depth will remain unchanged.
-            return;
-        }
-        // Check if map_info vectors are ready (i.e., not empty)
+        float& max_depth)
+    {
+        // --- Input Sanity Checks (Performed by forEachNeighborCell and within lambda) ---
+        // Check if map_info vectors seem ready (basic check)
         if (map_info.depth_map.empty() || map_info.min_depth_static.empty() || map_info.max_depth_static.empty()) {
-            // Log error or warning - map_info seems invalid or uninitialized
-            // Consider adding more specific logging if needed:
-            // if (map_info.depth_map.empty()) { std::cerr << "Error: depth_map is empty!\n"; }
-            // if (map_info.min_depth_static.empty()) { std::cerr << "Error: min_depth_static is empty!\n"; }
-            // if (map_info.max_depth_static.empty()) { std::cerr << "Error: max_depth_static is empty!\n"; }
+            std::cerr << "Warning in findNeighborStaticDepthRange: map_info appears uninitialized or empty." << std::endl;
+            // Caller's min_depth/max_depth remain unchanged. Consider if an error/exception is better.
             return;
         }
+         // Check if map vectors have the expected size
+        if (map_info.depth_map.size() != MAX_2D_N ||
+            map_info.min_depth_static.size() != MAX_2D_N ||
+            map_info.max_depth_static.size() != MAX_2D_N) {
+             std::cerr << "Warning in findNeighborStaticDepthRange: map_info vector sizes do not match MAX_2D_N." << std::endl;
+             // Decide how critical this is. Maybe proceed cautiously or return.
+             // For now, we proceed, but the lambda will implicitly handle out-of-bounds if pos >= size().
+        }
 
-        for (int i = -n; i <= n; ++i) {
-            int neighbor_hor_ind = p.hor_ind + i;
-            // --- Skip if neighbor_hor_ind is out of non-wrapped bounds ---
-            // (This replicates original behavior; add modulo for wrap-around)
-            if (neighbor_hor_ind < 0 || neighbor_hor_ind >= MAX_1D) {
-                continue;
-            }
 
-            for (int j = -n; j <= n; ++j) {
-                int neighbor_ver_ind = p.ver_ind + j;
-                // --- Skip if neighbor_ver_ind is out of bounds ---
-                if (neighbor_ver_ind < 0 || neighbor_ver_ind >= MAX_1D_HALF) {
-                    continue;
-                }
+        bool first_neighbor_found = false;
+        const int search_range = std::max(0, params.checkneighbor_range); // Ensure non-negative range
 
-                // Calculate the 1D index for the neighbor
-                int cur_pos = neighbor_hor_ind * MAX_1D_HALF + neighbor_ver_ind;
+        // If we use a range of 0, always include the center
+        bool should_include_center = (search_range == 0);
 
-                // --- Bounds check for the 1D index (redundant if above checks are done, but safe) ---
-                // if (cur_pos < 0 || cur_pos >= MAX_2D_N) {
-                //     continue; // Should not happen with the hor/ver checks above
-                // }
+        // Use the helper, enabling wrap-around, excluding center
+        forEachNeighborCell(p, search_range, search_range, should_include_center, true, // include_center=false, wrap_horizontal=true
+            // Lambda captures necessary variables by reference
+            [&](int pos) {
+                // Check if index is valid for the map vectors (safety check)
+                 if (pos < 0 || pos >= map_info.depth_map.size()) {
+                     // This check might be redundant if MAX_2D_N is correct and vectors are sized properly,
+                     // but adds robustness if map_info could be inconsistent.
+                     // std::cerr << "Warning: Neighbor index " << pos << " out of bounds for map_info vectors." << std::endl;
+                     return; // Skip this index
+                 }
 
-                // Check if the neighbor cell has points
-                // Add check map_info.depth_map[cur_pos] != nullptr if it's a pointer type
-                if (!map_info.depth_map[cur_pos].empty()) {
+                // Check if the neighbor cell contains any points
+                if (!map_info.depth_map[pos].empty()) {
                     // Retrieve pre-computed static depths for this valid neighbor cell
-                    float cur_min_depth = map_info.min_depth_static[cur_pos];
-                    float cur_max_depth = map_info.max_depth_static[cur_pos];
+                    // Add bounds check for safety if sizes might mismatch MAX_2D_N
+                    float cur_min_depth = (pos < map_info.min_depth_static.size()) ? map_info.min_depth_static[pos] : std::numeric_limits<float>::max();
+                    float cur_max_depth = (pos < map_info.max_depth_static.size()) ? map_info.max_depth_static[pos] : 0.0f;
+
 
                     if (!first_neighbor_found) {
                         // This is the first valid neighbor, initialize min/max
@@ -234,274 +334,287 @@ namespace PointCloudUtils {
                         first_neighbor_found = true;
                     } else {
                         // Update min/max with subsequent neighbors
+                        // Important: Only update if the current neighbor actually provided valid depths
+                        // (e.g., min_depth_static might be 0 if no static points were in the cell)
+                        // Assuming 0 is not a valid depth for comparison, or adjust logic as needed.
+                        // If cur_min_depth > 0: // Example check if 0 means invalid/no static point
                         min_depth = std::min(min_depth, cur_min_depth);
                         max_depth = std::max(max_depth, cur_max_depth);
                     }
                 }
-            }
-        }
-        // If no neighbors were found, min_depth and max_depth retain the values
-        // they had when passed into the function by the caller.
+            } // End of lambda
+        ); // End of forEachNeighborCell call
+
+        // If no neighbors were found, min_depth/max_depth remain unchanged from caller's initialization.
     }
 
-    // Reimplementation of the interpolation functions, DepthInterpolationStatic and DepthInterpolationAll
-
     std::vector<V3F> findInterpolationNeighbors(
-      const point_soph& p,
-      const DepthMap& map_info,
-      const DynObjFilterParams& params,
-      InterpolationNeighborType type)
+        const point_soph& p,
+        const DepthMap& map_info,
+        const DynObjFilterParams& params,
+        InterpolationNeighborType type)
     {
         std::vector<V3F> neighbors;
-        // Consider reserving space if performance profiling indicates it's beneficial
-        // neighbors.reserve((2 * params.interp_hor_num + 1) * (2 * params.interp_ver_num + 1) * estimated_density);
-    
-        // Ensure indices of p are valid before proceeding
-        if (p.hor_ind < 0 || p.hor_ind >= MAX_1D || p.ver_ind < 0 || p.ver_ind >= MAX_1D_HALF) {
-            // Optionally log an error here using a proper logging framework if needed
-            // e.g., LogError("Target point p has invalid indices: hor=%d, ver=%d", p.hor_ind, p.ver_ind);
-            return neighbors; // Return empty vector
+        // Consider reserving space based on expected density and search area
+        // neighbors.reserve( estimate );
+
+        // --- Input Sanity Checks (Performed by forEachNeighborCell and within lambda) ---
+        if (map_info.depth_map.empty()) {
+             std::cerr << "Warning in findInterpolationNeighbors: map_info.depth_map is empty." << std::endl;
+             return neighbors;
         }
-    
-        // Loop through the grid neighborhood defined by interp_hor_num and interp_ver_num
-        for (int offset_h = -params.interp_hor_num; offset_h <= params.interp_hor_num; ++offset_h) {
-            int neighbor_hor_idx = getWrappedIndex(p.hor_ind, offset_h, MAX_1D);
-    
-            for (int offset_v = -params.interp_ver_num; offset_v <= params.interp_ver_num; ++offset_v) {
-                // Vertical index does not wrap
-                int neighbor_ver_idx = p.ver_ind + offset_v;
-    
-                // Skip if vertical index is out of bounds
-                if (neighbor_ver_idx < 0 || neighbor_ver_idx >= MAX_1D_HALF) {
-                    continue;
-                }
-    
-                // Calculate the 1D index for the neighbor cell
-                int neighbor_1d_index = neighbor_hor_idx * MAX_1D_HALF + neighbor_ver_idx;
-    
-                // Bounds check for the 1D index (safety check)
-                if (neighbor_1d_index < 0 || neighbor_1d_index >= MAX_2D_N) {
-                    // Optionally log a warning here if this condition is unexpected
-                    // e.g., LogWarning("Calculated invalid neighbor_1d_index: %d", neighbor_1d_index);
-                    continue;
-                }
-    
+        if (map_info.depth_map.size() != MAX_2D_N) {
+             std::cerr << "Warning in findInterpolationNeighbors: map_info.depth_map size does not match MAX_2D_N." << std::endl;
+             // Proceed cautiously, lambda will handle indices.
+        }
+
+        // Use the helper, enabling wrap-around, including center
+        forEachNeighborCell(p, params.interp_hor_num, params.interp_ver_num, true, true, // include_center=true, wrap_horizontal=true
+            // Lambda captures necessary variables
+            [&](int pos) {
+                 // Check if index is valid for the map_info.depth_map (safety check)
+                 if (pos < 0 || pos >= map_info.depth_map.size()) {
+                     return; // Skip invalid index
+                 }
+
                 // Get the points in the neighbor cell
-                // Ensure map_info.depth_map has size MAX_2D_N or handle potential out-of-bounds access
-                if (neighbor_1d_index >= map_info.depth_map.size()) {
-                    // Log error or handle appropriately if the index can exceed the map size
-                    continue;
+                const auto& cell_points = map_info.depth_map[pos];
+
+                if (cell_points.empty()) {
+                    return; // Skip empty cells
                 }
-                const auto& cell_points = map_info.depth_map[neighbor_1d_index];
-    
-                if (cell_points.empty()) { // Check if cell is empty before iterating
-                    continue;
-                }
-    
+
                 // Iterate through points within that cell
-                for (const std::shared_ptr<point_soph>& neighbor_ptr : cell_points) {
-                    if (!neighbor_ptr) continue; // Skip null pointers if they can exist
-    
+                for (const auto& neighbor_ptr : cell_points) { // Use auto& or const auto&
+                    if (!neighbor_ptr) continue; // Skip null pointers
+
+                    // --- Apply original filtering logic ---
+
                     // Filter 1: Time difference check
                     float time_diff = std::fabs(neighbor_ptr->time - p.time);
-                    // Skip points from the same frame/scan or too close in time
-                    // Note: The original check was time_diff < params.frame_dur, which skipped
-                    // points *within* the frame duration. If the intent is to keep points
-                    // *outside* a certain time window, the logic might need adjustment.
-                    // Assuming the original logic is correct: skip if too close in time.
-                    if (time_diff < params.frame_dur) {
+                    if (time_diff < params.frame_dur) { // Skip points too close in time
                         continue;
                     }
-    
-                    // Filter 2: Projection distance check (using azimuth/elevation directly)
+
+                    // Filter 2: Projection distance check (angular distance)
                     float hor_diff_raw = neighbor_ptr->vec.x() - p.vec.x();
                     float ver_diff = neighbor_ptr->vec.y() - p.vec.y();
-    
-                    // Handle azimuth wrap-around for difference calculation
+                    // Handle azimuth wrap-around for difference
                     float hor_diff = hor_diff_raw;
                     if (hor_diff > M_PI) hor_diff -= 2.0f * M_PI;
                     else if (hor_diff < -M_PI) hor_diff += 2.0f * M_PI;
-    
-                    float abs_hor_diff = std::fabs(hor_diff);
-                    float abs_ver_diff = std::fabs(ver_diff);
-    
-                    // Skip points too far in projection space (angular distance)
-                    if (abs_hor_diff >= params.interp_hor_thr || abs_ver_diff >= params.interp_ver_thr) {
-                        continue;
+
+                    if (std::fabs(hor_diff) >= params.interp_hor_thr || std::fabs(ver_diff) >= params.interp_ver_thr) {
+                        continue; // Skip points too far angularly
                     }
-    
+
                     // Filter 3: Neighbor Type check
                     bool use_neighbor = false;
                     if (type == InterpolationNeighborType::ALL_VALID) {
-                        use_neighbor = true; // Include if it passed previous filters
+                        use_neighbor = true;
                     } else if (type == InterpolationNeighborType::STATIC_ONLY) {
-                        // Include only if it passed previous filters AND is marked as static
                         if (neighbor_ptr->dyn == STATIC) {
                             use_neighbor = true;
                         }
-                        // No else needed, use_neighbor remains false if not STATIC
                     }
-                    // Add other InterpolationNeighborType cases here if necessary
-    
-                    // Add the neighbor's vector (azimuth, elevation, depth) if it passed all filters
+                    // Add other types if needed
+
+                    // Add the neighbor's vector if it passed all filters
                     if (use_neighbor) {
                         neighbors.push_back(neighbor_ptr->vec);
                     }
                 } // End loop through points in cell
-            } // End loop vertical offset
-        } // End loop horizontal offset
-    
+            } // End of lambda
+        ); // End of forEachNeighborCell call
+
         return neighbors;
     }
-    
-    
+
     InterpolationResult computeBarycentricDepth(
-        const V2F& target_point_projection, // (azimuth, elevation) of point p
-        const std::vector<V3F>& neighbors,  // (azimuth, elevation, depth) of neighbors
-        const DynObjFilterParams& params)   // Unused currently, but kept for potential future use
+        const V2F& target_point_projection,
+        const std::vector<V3F>& neighbors,
+        const DynObjFilterParams& params)
     {
-        // return InterpolationResult{InterpolationStatus::NOT_ENOUGH_NEIGHBORS, 0.0f};
-        // Need at least 3 points to form a triangle
+        // --- DEBUG PRINT: Input ---
+        std::cout << "[computeBarycentricDepth] Target Proj: (" << target_point_projection.x() << ", " << target_point_projection.y() << ")" << std::endl;
+        std::cout << "[computeBarycentricDepth] Received " << neighbors.size() << " neighbors:" << std::endl;
+        for(size_t i = 0; i < neighbors.size(); ++i) {
+            std::cout << "  Neighbor " << i << ": Proj=(" << neighbors[i].x() << ", " << neighbors[i].y() << "), Depth=" << neighbors[i].z() << std::endl;
+        }
+        // --- END DEBUG ---
+
         if (neighbors.size() < 3) {
-            return { InterpolationStatus::NOT_ENOUGH_NEIGHBORS, 0.0f };
+            std::cout << "[computeBarycentricDepth] Failing early: Not enough neighbors." << std::endl;
+            return {InterpolationStatus::NOT_ENOUGH_NEIGHBORS, 0.0f};
         }
     
-        // Variables to store the best triangle found so far
-        const V3F* best_v1 = nullptr;
-        const V3F* best_v2 = nullptr;
-        const V3F* best_v3 = nullptr;
-        float best_bary_u = 0.0f;
-        float best_bary_v = 0.0f;
-        float best_bary_w = 0.0f;
-        float overall_min_dist_sum = std::numeric_limits<float>::max();
-        bool overall_found_triangle = false;
+        InterpolationResult result;
+        result.status = InterpolationStatus::NO_VALID_TRIANGLE; // Assume failure until success
     
-        // Iterate through all possible combinations of 3 neighbors
+        constexpr float BARY_DEGENERACY_EPSILON = 1e-12f;
+        constexpr float BARY_INSIDE_CHECK_EPSILON = 1e-6f;
+        constexpr float TWO_PI = 2.0f * M_PI;
+    
         for (size_t i = 0; i < neighbors.size(); ++i) {
-            const V3F& v1 = neighbors[i];
-            // Calculate offset from target point to v1 in projection space
-            float target_offset_x = target_point_projection.x() - v1.x();
-            float target_offset_y = target_point_projection.y() - v1.y();
-            // Handle azimuth wrap-around for offset
-            if (target_offset_x > M_PI) target_offset_x -= 2.0f * M_PI;
-            else if (target_offset_x < -M_PI) target_offset_x += 2.0f * M_PI;
-    
-    
             for (size_t j = i + 1; j < neighbors.size(); ++j) {
-                const V3F& v2 = neighbors[j];
-                // Calculate Manhattan distance from target to v2 projection
-                float dx2 = v2.x() - target_point_projection.x();
-                float dy2 = v2.y() - target_point_projection.y();
-                if (dx2 > M_PI) dx2 -= 2.0f * M_PI; else if (dx2 < -M_PI) dx2 += 2.0f * M_PI;
-                float dist_to_v2 = std::fabs(dx2) + std::fabs(dy2);
-    
-                // Optimization: If dist_to_v2 alone is already worse than the best sum found,
-                // no combination involving v2 can be better.
-                if (dist_to_v2 >= overall_min_dist_sum && overall_found_triangle) {
-                     continue;
-                }
-    
                 for (size_t k = j + 1; k < neighbors.size(); ++k) {
-                    const V3F& v3 = neighbors[k];
-                    // Calculate Manhattan distance from target to v3 projection
-                    float dx3 = v3.x() - target_point_projection.x();
-                    float dy3 = v3.y() - target_point_projection.y();
-                    if (dx3 > M_PI) dx3 -= 2.0f * M_PI; else if (dx3 < -M_PI) dx3 += 2.0f * M_PI;
-                    float dist_to_v3 = std::fabs(dx3) + std::fabs(dy3);
+                    // Get original 2D projections
+                    V2F v0_orig = neighbors[i].head<2>();
+                    V2F v1_orig = neighbors[j].head<2>();
+                    V2F v2_orig = neighbors[k].head<2>();
     
-                    float current_dist_sum = dist_to_v2 + dist_to_v3;
+                    // --- Unwrap Azimuths relative to target ---
+                    // Adjust neighbor azimuths to be numerically close to target azimuth
+                    auto unwrap_azimuth = [&](float neighbor_az, float target_az) {
+                        float diff = neighbor_az - target_az;
+                        // If diff is more than PI away, adjust by 2*PI
+                        if (diff > M_PI) {
+                            neighbor_az -= TWO_PI;
+                        } else if (diff <= -M_PI) {
+                            neighbor_az += TWO_PI;
+                        }
+                        return neighbor_az;
+                    };
     
-                    // Check if this combination is potentially better than the best found so far
-                    if (current_dist_sum < overall_min_dist_sum) {
-                        // Calculate vectors relative to v1 in projection space
-                        float v21_x = v2.x() - v1.x();
-                        float v21_y = v2.y() - v1.y();
-                        float v31_x = v3.x() - v1.x();
-                        float v31_y = v3.y() - v1.y();
-                        // Handle azimuth wrap-around for relative vectors
-                        if (v21_x > M_PI) v21_x -= 2.0f * M_PI; else if (v21_x < -M_PI) v21_x += 2.0f * M_PI;
-                        if (v31_x > M_PI) v31_x -= 2.0f * M_PI; else if (v31_x < -M_PI) v31_x += 2.0f * M_PI;
+                    V2F v0 = v0_orig;
+                    v0.x() = unwrap_azimuth(v0.x(), target_point_projection.x());
+                    V2F v1 = v1_orig;
+                    v1.x() = unwrap_azimuth(v1.x(), target_point_projection.x());
+                    V2F v2 = v2_orig;
+                    v2.x() = unwrap_azimuth(v2.x(), target_point_projection.x());
+                    // Target azimuth does not need unwrapping relative to itself
+                    V2F target_unwrapped = target_point_projection;
+                    // --- End Unwrap ---
     
+                    // --- DEBUG PRINT: Triangle (Unwrapped) ---
+                    std::cout << "[computeBarycentricDepth] Checking triangle (i=" << i << ", j=" << j << ", k=" << k << ")" << std::endl;
+                    // std::cout << "  v0 (orig): (" << v0_orig.x() << ", " << v0_orig.y() << ")" << std::endl; // Optional
+                    // std::cout << "  v1 (orig): (" << v1_orig.x() << ", " << v1_orig.y() << ")" << std::endl; // Optional
+                    // std::cout << "  v2 (orig): (" << v2_orig.x() << ", " << v2_orig.y() << ")" << std::endl; // Optional
+                    std::cout << "  v0 (unwr): (" << v0.x() << ", " << v0.y() << ")" << std::endl;
+                    std::cout << "  v1 (unwr): (" << v1.x() << ", " << v1.y() << ")" << std::endl;
+                    std::cout << "  v2 (unwr): (" << v2.x() << ", " << v2.y() << ")" << std::endl;
+                    std::cout << "  Target   : (" << target_unwrapped.x() << ", " << target_unwrapped.y() << ")" << std::endl;
+                    // --- END DEBUG ---
     
-                        // Calculate denominator for barycentric coordinates (related to triangle area)
-                        float denom = v21_x * v31_y - v31_x * v21_y;
+                    // Calculate barycentric coordinates using UNWRAPPED v0, v1, v2 and target
+                    V2F vec_v0v1 = v1 - v0;
+                    V2F vec_v0v2 = v2 - v0;
+                    V2F vec_v0p = target_unwrapped - v0;
     
-                        // Check for collinear points (denominator close to zero)
-                        if (std::fabs(denom) > BARYCENTRIC_EPSILON) {
-                            // Calculate barycentric coordinates (u for v2, v for v3, w for v1)
-                            float bary_u = (target_offset_x * v31_y - target_offset_y * v31_x) / denom;
-                            float bary_v = (target_offset_y * v21_x - target_offset_x * v21_y) / denom;
-                            float bary_w = 1.0f - bary_u - bary_v;
+                    float d00 = vec_v0v1.dot(vec_v0v1);
+                    float d01 = vec_v0v1.dot(vec_v0v2);
+                    float d11 = vec_v0v2.dot(vec_v0v2);
+                    float d20 = vec_v0p.dot(vec_v0v1);
+                    float d21 = vec_v0p.dot(vec_v0v2);
+                    float denom = d00 * d11 - d01 * d01;
     
-                            // Check if the target point is inside the triangle (or on edge)
-                            // Allow slight tolerance due to float precision? Or stick to strict >=0?
-                            constexpr float BARY_CHECK_EPSILON = -1e-5f; // Allow slightly negative due to precision
-                            if (bary_u >= BARY_CHECK_EPSILON && bary_u <= 1.0f - BARY_CHECK_EPSILON &&
-                                bary_v >= BARY_CHECK_EPSILON && bary_v <= 1.0f - BARY_CHECK_EPSILON &&
-                                bary_w >= BARY_CHECK_EPSILON && bary_w <= 1.0f - BARY_CHECK_EPSILON)
-                            {
-                                // Valid triangle enclosing the point found, and it's the best so far
-                                overall_min_dist_sum = current_dist_sum;
-                                best_v1 = &v1;
-                                best_v2 = &v2;
-                                best_v3 = &v3;
-                                // Clamp coordinates just in case epsilon allowed slight over/undershoot
-                                best_bary_u = std::max(0.0f, std::min(1.0f, bary_u));
-                                best_bary_v = std::max(0.0f, std::min(1.0f, bary_v));
-                                best_bary_w = 1.0f - best_bary_u - best_bary_v; // Recalculate w for consistency
-                                overall_found_triangle = true;
-                            }
-                        } // end if !collinear
-                    } // end if potential best
-                } // end loop k (v3)
-            } // end loop j (v2)
-        } // end loop i (v1)
+                    // --- DEBUG PRINT: Calculations (Unwrapped) ---
+                    std::cout << "  (Unwrapped) d00=" << d00 << ", d01=" << d01 << ", d11=" << d11 << ", d20=" << d20 << ", d21=" << d21 << std::endl;
+                    std::cout << "  (Unwrapped) denom=" << denom << " (Degeneracy Epsilon: " << BARY_DEGENERACY_EPSILON << ")" << std::endl;
+                    // --- END DEBUG ---
     
-        // After checking all combinations, calculate depth if a valid triangle was found
-        if (overall_found_triangle && best_v1 && best_v2 && best_v3) {
-            // Interpolate the depth (z-coordinate) using barycentric coordinates
-            // Assuming vec.z() holds the depth/range
-            float interpolated_depth = best_bary_w * best_v1->z() +
-                                       best_bary_u * best_v2->z() +
-                                       best_bary_v * best_v3->z();
+                    if (std::fabs(denom) < BARY_DEGENERACY_EPSILON) {
+                        std::cout << "  -> Skipping: Degenerate triangle (denom < " << BARY_DEGENERACY_EPSILON << ")." << std::endl;
+                        continue;
+                    }
     
-            // Basic sanity check on interpolated depth (optional)
-            if (interpolated_depth < 0.0f) {
-                 // This might indicate an issue if depths should always be positive
-                 // std::cerr << "Warning: Negative interpolated depth calculated: " << interpolated_depth << std::endl;
-                 // Decide how to handle: return error, clamp to 0, or allow negative?
-                 // Let's return failure for now if negative depth is unexpected.
-                 return { InterpolationStatus::NO_VALID_TRIANGLE, 0.0f }; // Or a new status?
-            }
+                    float v = (d11 * d20 - d01 * d21) / denom;
+                    float w = (d00 * d21 - d01 * d20) / denom;
+                    float u = 1.0f - v - w;
     
-            return { InterpolationStatus::SUCCESS, interpolated_depth };
-        } else {
-            // No valid triangle enclosing the point was found among the neighbors
-            return { InterpolationStatus::NO_VALID_TRIANGLE, 0.0f };
-        }
+                    // --- DEBUG PRINT: Barycentric Coords (Unwrapped) ---
+                    std::cout << "  (Unwrapped) Barycentric coords: u=" << u << ", v=" << v << ", w=" << w << std::endl;
+                    // --- END DEBUG ---
+    
+                    bool is_inside = (u >= -BARY_INSIDE_CHECK_EPSILON &&
+                                      v >= -BARY_INSIDE_CHECK_EPSILON &&
+                                      w >= -BARY_INSIDE_CHECK_EPSILON);
+    
+                    std::cout << "  (Unwrapped) Inside Check (Tolerance: " << -BARY_INSIDE_CHECK_EPSILON << "): " << (is_inside ? "PASS" : "FAIL") << std::endl;
+    
+                    if (is_inside) {
+                        // Use original neighbor indices (i, j, k) to get correct depths
+                        result.depth = u * neighbors[i].z() + v * neighbors[j].z() + w * neighbors[k].z();
+                        result.status = InterpolationStatus::SUCCESS;
+                        std::cout << "[computeBarycentricDepth] -> SUCCESS! Interpolated depth: " << result.depth << std::endl;
+                        return result;
+                    }
+                } // end k loop
+            } // end j loop
+        } // end i loop
+    
+        std::cout << "[computeBarycentricDepth] -> FAIL: No valid triangle found containing the target after checking all combinations." << std::endl;
+        return result; // result.status is still NO_VALID_TRIANGLE
     }
     
-    
+
     InterpolationResult interpolateDepth(
         const point_soph& p,
         const DepthMap& map_info,
         const DynObjFilterParams& params,
         InterpolationNeighborType type)
     {
-        // return InterpolationResult{InterpolationStatus::NOT_ENOUGH_NEIGHBORS, 0.0f};
-        // Step 1: Find potential neighbors based on type and filters
+        // 1. Find neighbors using the refactored function
         std::vector<V3F> neighbors = findInterpolationNeighbors(p, map_info, params, type);
-    
-        // Step 2: Extract the 2D projection coordinates of the target point p
-        // Assuming vec.x() = azimuth, vec.y() = elevation
-        V2F target_proj(p.vec.x(), p.vec.y());
-    
-        // Step 3: Compute depth using barycentric interpolation on the neighbors
-        InterpolationResult result = computeBarycentricDepth(target_proj, neighbors, params);
-    
-        return result;
-    }
-    
 
+        // 2. Compute depth using barycentric coordinates
+        //    Need the 2D projection of the target point 'p'
+        V2F target_projection = p.vec.head<2>(); // Assuming p.vec holds azimuth, elevation
+
+        InterpolationResult result = computeBarycentricDepth(target_projection, neighbors, params);
+
+        // Optional: Add logic here based on the original code if specific actions
+        // need to be taken depending on the InterpolationStatus (e.g., fallback methods).
+
+        return result;
+    }  
+
+    std::vector<std::shared_ptr<point_soph>> findPointsInCells( // <-- Return shared_ptr vector
+        const std::vector<int>& cell_indices,
+        const DepthMap& map_info)
+    {
+        std::vector<std::shared_ptr<point_soph>> found_points; // <-- Store shared_ptrs
+        const size_t map_total_size = map_info.depth_map.size(); // Cache the total size
+    
+        // --- Optional: Pre-calculate total points for reservation ---
+        size_t estimated_total_points = 0;
+        for (int cell_index : cell_indices) {
+            // Check index validity before accessing
+            if (cell_index >= 0 && static_cast<size_t>(cell_index) < map_total_size) {
+                // Access the vector of points for the cell and add its size
+                estimated_total_points += map_info.depth_map[cell_index].size();
+            }
+        }
+        found_points.reserve(estimated_total_points); // Reserve space
+        // --- End Optional Reservation ---
+    
+    
+        // --- Main loop to collect points ---
+        for (int cell_index : cell_indices) {
+            // Check index validity again (important!)
+            if (cell_index >= 0 && static_cast<size_t>(cell_index) < map_total_size) {
+                // Get a const reference to the vector of points in the cell
+                const auto& points_ptrs_in_cell = map_info.depth_map[cell_index];
+
+                // --- FIX: Iterate through pointers and push_back the POINTER itself ---
+                for (const auto& point_ptr : points_ptrs_in_cell) {
+                    // Check if the shared_ptr is valid (points to something)
+                    if (point_ptr) {
+                        // Add the shared_ptr itself to the result vector.
+                        // This increments the reference count.
+                        found_points.push_back(point_ptr);
+                    }
+                    // Else: Handle null pointers if necessary
+                }
+            } else {
+                // Optional: Log a warning for invalid indices if desired during debugging
+                // std::cerr << "[findPointsInCells] Warning: Skipping invalid cell index " << cell_index
+                //           << " (Map size: " << map_total_size << ")" << std::endl;
+            }
+        }
+    
+        return found_points;
+    }
 
 }
