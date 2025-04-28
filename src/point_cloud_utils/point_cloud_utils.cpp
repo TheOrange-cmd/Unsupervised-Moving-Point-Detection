@@ -75,7 +75,7 @@ namespace PointCloudUtils {
     };
 
 
-    bool isSelfPoint(const V3D& point, int dataset_id) { // Mark dyn as unused if keeping it
+    bool isSelfPoint(const V3D& point, int dataset_id) { 
         if (dataset_id != 0) {
             return false; // This check only applies to dataset 0
         }

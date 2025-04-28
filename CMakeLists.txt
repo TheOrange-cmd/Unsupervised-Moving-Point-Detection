@@ -36,6 +36,7 @@ set(SHARED_SOURCES
     src/config/config_loader.cpp
     src/point_cloud_utils/point_cloud_utils.cpp
     src/filtering/dyn_obj_filter.cpp 
+    src/filtering/consistency_checks.cpp
 )
 
 # Create a static library (or SHARED if you prefer)
@@ -118,6 +119,7 @@ add_executable(m_detector_tests
     test/point_cloud_utils/test_interpolations.cpp
     test/point_cloud_utils/test_find_neighbor_cells.cpp
     test/point_cloud_utils/test_find_points_in_cells.cpp
+    test/filtering/test_consistency_checks.cpp
     # test/test_config_loader.cpp # Add this when you create it
 )
 
