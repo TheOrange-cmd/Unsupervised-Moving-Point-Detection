@@ -55,6 +55,36 @@ namespace ConsistencyChecks {
         int map_index_diff = 1 // Default difference to 1 if not provided
     );
 
+    /**
+     * @brief Checks if a point 'p' has a depth consistent with nearby STATIC points in an older map.
+     *
+     * This function refactors the logic from the original Case2DepthConsistencyCheck and
+     * Case3DepthConsistencyCheck. It examines static points within a defined angular and
+     * temporal neighborhood of 'p' in the provided 'map_info'.
+     *
+     * Consistency is determined based on two criteria:
+     * 1. The average absolute depth difference between 'p' and 'close' static neighbors
+     *    (those within 'max_thr') must not exceed a dynamic threshold ('current_depth_threshold').
+     * 2. Among static neighbors with a significant depth difference (greater than 'max_thr'),
+     *    'p' must be consistently either closer than all of them OR farther than all of them.
+     *    A mix of significantly closer and significantly farther neighbors indicates inconsistency.
+     *
+     * @param p The point_soph object to check for depth consistency.
+     * @param map_info The DepthMap (representing an older timeframe) containing potential neighbors.
+     * @param params The configuration parameters holding thresholds (depth_cons_*, k_depth*, etc.).
+     * @param check_type Enum indicating which case's parameters to use (CASE2 or CASE3).
+     *                   CASE1 is not supported by this check.
+     * @return bool True if 'p' is considered depth-consistent with the static points in 'map_info'
+     *              according to the rules for the specified case. False otherwise (including if
+     *              no suitable static neighbors are found).
+     * @throws std::invalid_argument if check_type is CASE1_FALSE_REJECTION.
+     */
+    bool checkDepthConsistency(
+        const point_soph& p,
+        const DepthMap& map_info,
+        const DynObjFilterParams& params,
+        ConsistencyCheckType check_type);
+
     // Forward declarations for other checks if they go in this file
     // bool checkDepthConsistency(...);
     // bool checkVelocityConsistency(...);

@@ -61,7 +61,7 @@
      int checkneighbor_range;        /**< @brief Half-size of the square neighborhood (in pixels) to check around a point. (e.g., 1 means 3x3). */
      bool stop_object_detect;        /**< @brief Flag to enable/disable stopped object detection logic. */
  
-     // --- Case 1 parameters (Potentially related to newly detected/appearing objects) ---
+     // --- Case 1 parameters (Related to newly detected/appearing objects) ---
      float depth_thr1;               /**< @brief Depth threshold for Case 1 checks. */
      float enter_min_thr1;           /**< @brief Minimum threshold for entering Case 1 state. */
      float enter_max_thr1;           /**< @brief Maximum threshold for entering Case 1 state. */
@@ -84,7 +84,7 @@
      float k_depth_max_thr1;         /**< @brief Proportional factor for maximum depth threshold calculation in Case 1. */
      float d_depth_max_thr1;         /**< @brief Constant offset for maximum depth threshold calculation in Case 1. */
  
-     // --- Case 2 parameters (Potentially related to moving objects) ---
+     // --- Case 2 parameters (Related to a new occlusion) ---
      float v_min_thr2;               /**< @brief Minimum velocity threshold for Case 2. */
      float acc_thr2;                 /**< @brief Acceleration threshold for Case 2. */
      float map_cons_depth_thr2;      /**< @brief Depth consistency threshold against map for Case 2. */
@@ -102,8 +102,9 @@
      bool case2_interp_en;           /**< @brief Enable/disable interpolation specifically for Case 2 points. */
      float k_depth_max_thr2;         /**< @brief Proportional factor for maximum depth threshold calculation in Case 2. */
      float d_depth_max_thr2;         /**< @brief Constant offset for maximum depth threshold calculation in Case 2. */
+
  
-     // --- Case 3 parameters (Potentially related to occluding objects) ---
+     // --- Case 3 parameters (Related to an old occlusion that is now visible) ---
      float v_min_thr3;               /**< @brief Minimum velocity threshold for Case 3. */
      float acc_thr3;                 /**< @brief Acceleration threshold for Case 3. */
      float map_cons_depth_thr3;      /**< @brief Depth consistency threshold against map for Case 3. */
@@ -165,7 +166,12 @@
      int pixel_fov_left = 0;         /**< @brief Derived pixel index corresponding to the left horizontal FOV limit (fov_left). */
      int pixel_fov_right = 0;        /**< @brief Derived pixel index corresponding to the right horizontal FOV limit (fov_right). */
      int max_pointers_num = 0;       /**< @brief Derived maximum number of point_soph pointer buffers needed based on map history and frame rate. */
- 
+     int depth_cons_ver_num2 = 0;     
+     int depth_cons_ver_num3 = 0;
+     int depth_cons_hor_num2 = 0;     
+     int depth_cons_hor_num3 = 0;
+
+
      /**
       * @brief Construct a new Dyn Obj Filter Params object with default values.
       *

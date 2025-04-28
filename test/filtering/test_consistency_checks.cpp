@@ -104,6 +104,7 @@ protected:
 
         // Initialize/Clear the depth map
         test_map.depth_map.assign(MAX_2D_N, std::vector<std::shared_ptr<point_soph>>());
+        test_map.time = 0.0; // Reset timestamp if needed
         // Initialize static min/max if they are used directly or indirectly (optional)
         // test_map.min_depth_static.assign(MAX_2D_N, std::numeric_limits<float>::max());
         // test_map.max_depth_static.assign(MAX_2D_N, 0.0f);
@@ -112,6 +113,7 @@ protected:
         // Initialize a default center point (can be overridden in tests)
         // Place it somewhere away from edges and the self-box by default
         center_point = createTestPointWithIndices(20.0, 5.0, 0.0, params, 0.1); // time=0.1
+        center_point.vec(2) = 20.0;
         ASSERT_GE(center_point.position, 0) << "Default center_point has invalid position.";
         ASSERT_LT(center_point.position, MAX_2D_N) << "Default center_point has invalid position.";
     }
@@ -124,6 +126,51 @@ protected:
             std::cerr << "Warning: Attempted to add point with invalid position "
                       << p.position << " to map." << std::endl;
         }
+    }
+
+    point_soph addNeighborInRelativeCell(
+        const point_soph& target,
+        DepthMap& map, // Pass map by reference
+        const DynObjFilterParams& params, // Pass params
+        int delta_hor_ind, // e.g., -1, 0, 1
+        int delta_ver_ind, // e.g., -1, 0, 1
+        float depth,
+        double time_offset_sec, // Time offset in SECONDS
+        dyn_obj_flg status = STATIC)
+    {
+        int neighbor_hor_ind = (target.hor_ind + delta_hor_ind + MAX_1D) % MAX_1D;
+        int neighbor_ver_ind = target.ver_ind + delta_ver_ind;
+    
+        // Clamp vertical index
+        neighbor_ver_ind = std::max(0, std::min(MAX_1D_HALF - 1, neighbor_ver_ind));
+    
+        float neighbor_az, neighbor_el;
+        indicesToSpherical(neighbor_hor_ind, neighbor_ver_ind, params.hor_resolution_max, params.ver_resolution_max, neighbor_az, neighbor_el);
+    
+        V3D neighbor_local = sphericalToCartesian(neighbor_az, neighbor_el, depth);
+    
+        // Use target time + offset
+        double neighbor_time = target.time + time_offset_sec;
+    
+        point_soph neighbor_point = createTestPointWithIndices(
+            neighbor_local.x(), neighbor_local.y(), neighbor_local.z(),
+            params, neighbor_time, status);
+    
+        // Debug print in helper
+        std::cout << "[addNeighborInRelativeCell] Target H=" << target.hor_ind << ", V=" << target.ver_ind
+                  << ". Adding neighbor with delta H=" << delta_hor_ind << ", V=" << delta_ver_ind
+                  << " (Target Cell " << neighbor_hor_ind << "," << neighbor_ver_ind << ")"
+                  << " at Depth=" << depth << " Time=" << neighbor_time
+                  << ". Resulting Point H=" << neighbor_point.hor_ind << ", V=" << neighbor_point.ver_ind
+                  << ", Az=" << neighbor_point.vec(0) << ", El=" << neighbor_point.vec(1) << std::endl;
+    
+        // Add the point to the map passed by reference
+        addPointToMap(neighbor_point); // Use a direct add function if 'addPointToMap' isn't suitable
+                                                    // Or make addPointToMap take the map as arg.
+                                                    // Let's assume addPointToMap uses the fixture's test_map implicitly for now.
+                                                    // If not, adjust this call.
+    
+        return neighbor_point;
     }
 
     // Helper to create neighbors for interpolation tests
@@ -180,7 +227,7 @@ protected:
 
 };
 
-// --- Test Cases ---
+// --- Test Cases for Map Consistency ---
 
 TEST_F(ConsistencyChecksTest, PointInsideSelfBox) {
     // Modify center_point's local coordinates to be inside the self-box defined by params
@@ -406,3 +453,209 @@ TEST_F(ConsistencyChecksTest, Case3_InterpolationFailsThreshold) {
     EXPECT_FALSE(ConsistencyChecks::checkMapConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE3_OCCLUDED_SEARCH, map_diff))
         << "Case 3: Point should be inconsistent when interpolation fails threshold.";
 }
+
+// --- Test Cases for Depth Consistency ---
+
+// Test Case: No suitable neighbors found (empty map)
+TEST_F(ConsistencyChecksTest, DepthConsistency_NoNeighbors) {
+    // center_point is setup in the fixture
+    EXPECT_FALSE(ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH))
+        << "Should return false when no neighbors exist in the map.";
+}
+
+// Test Case: Neighbors exist but are filtered out (time, angle, status)
+TEST_F(ConsistencyChecksTest, DepthConsistency_NoSuitableNeighbors) {
+    // Add neighbors outside the time window
+    addPointToMap(createTestPointWithIndices(center_point.local.x() + 0.1, center_point.local.y(), center_point.local.z(), params, center_point.time + params.frame_dur * 2.0, STATIC));
+    // Add neighbors outside the angular threshold (assuming default thresholds are not huge)
+    addPointToMap(createTestPointWithIndices(center_point.local.x() + 5.0, center_point.local.y() + 5.0, center_point.local.z(), params, center_point.time, STATIC));
+    // Add non-static neighbor
+    addPointToMap(createTestPointWithIndices(center_point.local.x(), center_point.local.y(), center_point.local.z(), params, center_point.time, UNCERTAIN)); // Assuming UNCERTAIN is not STATIC
+
+    EXPECT_FALSE(ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH))
+        << "Should return false when neighbors exist but none meet the criteria (time, angle, static).";
+}
+
+// Test Case: Pass - Only one close static neighbor (Rule 1 skipped, Rule 2 passes trivially)
+TEST_F(ConsistencyChecksTest, DepthConsistency_PassOneCloseNeighbor) {
+    center_point.vec(2) = 20.0f;
+    float neighbor_depth = 20.1f;
+    float depth_diff = center_point.vec(2) - neighbor_depth;
+    ASSERT_LT(std::fabs(depth_diff), params.depth_cons_depth_max_thr2);
+
+    // Add neighbor in the *same cell* (delta 0,0) - within search window [-1,1], [-2,2]
+    addNeighborInRelativeCell(center_point, test_map, params, 0, 0, neighbor_depth, -params.frame_dur * 0.5, STATIC);
+
+    // *** ADD THIS DEBUG CHECK ***
+    int target_cell_index = center_point.hor_ind * MAX_1D_HALF + center_point.ver_ind;
+    std::cout << "[TEST DEBUG] Size of map cell [" << target_cell_index << "] after add: "
+            << test_map.depth_map[target_cell_index].size() << std::endl;
+    // Also check if the pointers are the same if size > 1
+    if (test_map.depth_map[target_cell_index].size() > 1) {
+        std::cout << "[TEST DEBUG] Pointer 1: " << test_map.depth_map[target_cell_index][0].get() << std::endl;
+        std::cout << "[TEST DEBUG] Pointer 2: " << test_map.depth_map[target_cell_index][1].get() << std::endl;
+    }
+    // ***************************
+
+    EXPECT_TRUE(ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH))
+        << "Should pass with only one close static neighbor.";
+}
+
+// Test Case: Pass - Multiple close neighbors, average diff below threshold, no significant diffs
+TEST_F(ConsistencyChecksTest, DepthConsistency_PassAvgDiffBelowThreshold) {
+    center_point.vec(2) = 20.0f;
+    float current_depth_threshold = std::max(params.depth_cons_depth_thr2, params.k_depth2 * center_point.vec(2));
+    float depth1 = 20.0f + current_depth_threshold * 0.4f;
+    float depth2 = 20.0f - current_depth_threshold * 0.3f;
+    float depth3 = 20.0f + current_depth_threshold * 0.2f;
+    // Average abs diff = (| -0.4 | + | 0.3 | + | 0.2 |)*thr / (3-1) = (0.4+0.3+0.2)*thr/2 = 0.9*thr/2 = 0.45*thr
+    ASSERT_LT(0.45f * current_depth_threshold, current_depth_threshold); // Verify test setup avg diff < threshold
+    ASSERT_LT(std::fabs(center_point.vec(2) - depth1), params.depth_cons_depth_max_thr2); // Verify within max_thr
+    ASSERT_LT(std::fabs(center_point.vec(2) - depth2), params.depth_cons_depth_max_thr2);
+    ASSERT_LT(std::fabs(center_point.vec(2) - depth3), params.depth_cons_depth_max_thr2);
+
+    // Add neighbors in adjacent cells within search window [-1,1], [-2,2]
+    addNeighborInRelativeCell(center_point, test_map, params, 0, 0, depth1, -params.frame_dur * 0.5, STATIC); // Same cell
+    addNeighborInRelativeCell(center_point, test_map, params, 1, 0, depth2, -params.frame_dur * 0.5, STATIC); // Cell right
+    addNeighborInRelativeCell(center_point, test_map, params, 0, 1, depth3, -params.frame_dur * 0.5, STATIC); // Cell above
+
+    EXPECT_TRUE(ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH))
+        << "Should pass when average depth diff of close neighbors is below threshold.";
+}
+
+// Test Case: Fail - Multiple close neighbors, average diff ABOVE threshold
+TEST_F(ConsistencyChecksTest, DepthConsistency_FailAvgDiffAboveThreshold) {
+    center_point.vec(2) = 20.0f;
+    float current_depth_threshold = std::max(params.depth_cons_depth_thr2, params.k_depth2 * center_point.vec(2));
+
+    // Add neighbors with larger (but still < max_thr) depth differences, ensuring average is ABOVE threshold
+    float depth1 = 20.0f + current_depth_threshold * 1.1f; // diff = -1.1*thr
+    float depth2 = 20.0f - current_depth_threshold * 1.2f; // diff = +1.2*thr
+    // Average abs diff = (| -1.1 | + | 1.2 |)*thr / (2-1) = (1.1+1.2)*thr/1 = 2.3*thr
+    ASSERT_GT(2.3f * current_depth_threshold, current_depth_threshold); // Verify test setup avg diff > threshold
+    ASSERT_LT(std::fabs(center_point.vec(2) - depth1), params.depth_cons_depth_max_thr2); // Ensure still < max_thr
+    ASSERT_LT(std::fabs(center_point.vec(2) - depth2), params.depth_cons_depth_max_thr2);
+
+    addPointToMap(createTestPointWithIndices(center_point.local.x() + 0.01, center_point.local.y(), depth1, params, center_point.time - params.frame_dur * 0.5, STATIC));
+    addPointToMap(createTestPointWithIndices(center_point.local.x() - 0.01, center_point.local.y(), depth2, params, center_point.time - params.frame_dur * 0.5, STATIC));
+
+    // Expect false because avg diff is too high (Rule 1 fails).
+    EXPECT_FALSE(ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH))
+        << "Should fail when average depth diff of close neighbors is above threshold.";
+}
+
+// Test Case: Pass - Rule 1 passes (or skipped), Rule 2 passes (only significantly FARTHER neighbors)
+TEST_F(ConsistencyChecksTest, DepthConsistency_PassOnlyFartherNeighbors) {
+    center_point.vec(2) = 20.0f;
+    float max_thr = params.depth_cons_depth_max_thr2;
+
+    // Add one close neighbor (Rule 1 will be skipped or pass easily)
+    addNeighborInRelativeCell(center_point, test_map, params, 0, 0, 20.0f, -params.frame_dur * 0.5, STATIC);
+
+    // Add neighbors significantly FARTHER than p (p.depth > neighbor.depth)
+    float farther_depth1 = center_point.vec(2) - max_thr * 1.5f;
+    float farther_depth2 = center_point.vec(2) - max_thr * 2.0f;
+    // Add in adjacent cells within search window [-1,1], [-2,2]
+    addNeighborInRelativeCell(center_point, test_map, params, -1, 0, farther_depth1, -params.frame_dur * 0.5, STATIC); // Cell left
+    addNeighborInRelativeCell(center_point, test_map, params, 0, -1, farther_depth2, -params.frame_dur * 0.5, STATIC); // Cell below
+
+    EXPECT_TRUE(ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH))
+        << "Should pass when significantly different neighbors are all farther.";
+}
+
+// Test Case: Pass - Rule 1 passes (or skipped), Rule 2 passes (only significantly CLOSER neighbors)
+TEST_F(ConsistencyChecksTest, DepthConsistency_PassOnlyCloserNeighbors) {
+    center_point.vec(2) = 20.0f;
+    float max_thr = params.depth_cons_depth_max_thr2;
+
+    // Add one close neighbor
+    addNeighborInRelativeCell(center_point, test_map, params, 0, 0, 20.0f, -params.frame_dur * 0.5, STATIC);
+
+    // Add neighbors significantly CLOSER than p (p.depth < neighbor.depth)
+    float closer_depth1 = center_point.vec(2) + max_thr * 1.5f;
+    float closer_depth2 = center_point.vec(2) + max_thr * 2.0f;
+    // Add in adjacent cells within search window [-1,1], [-2,2]
+    addNeighborInRelativeCell(center_point, test_map, params, 1, 1, closer_depth1, -params.frame_dur * 0.5, STATIC); // Cell up-right
+    addNeighborInRelativeCell(center_point, test_map, params, 0, 2, closer_depth2, -params.frame_dur * 0.5, STATIC); // Cell 2 above
+
+    EXPECT_TRUE(ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH))
+        << "Should pass when significantly different neighbors are all closer.";
+}
+
+// Test Case: Fail - Rule 1 passes (or skipped), Rule 2 fails (MIXED closer/farther neighbors)
+TEST_F(ConsistencyChecksTest, DepthConsistency_FailMixedCloserFartherNeighbors) {
+    center_point.vec(2) = 20.0f;
+    float max_thr = params.depth_cons_depth_max_thr2;
+
+    // Add one close neighbor
+    addPointToMap(createTestPointWithIndices(center_point.local.x() + 0.01, center_point.local.y(), 20.0f, params, center_point.time - params.frame_dur * 0.5, STATIC));
+
+    // Add one significantly FARTHER neighbor
+    float farther_depth = center_point.vec(2) - max_thr * 1.5f;
+    addPointToMap(createTestPointWithIndices(center_point.local.x() - 0.01, center_point.local.y(), farther_depth, params, center_point.time - params.frame_dur * 0.5, STATIC));
+
+    // Add one significantly CLOSER neighbor
+    float closer_depth = center_point.vec(2) + max_thr * 1.5f;
+    addPointToMap(createTestPointWithIndices(center_point.local.x(), center_point.local.y() + 0.01, closer_depth, params, center_point.time - params.frame_dur * 0.5, STATIC));
+
+    // Expect false because count_closer > 0 AND count_farther > 0 (Rule 2 fails).
+    EXPECT_FALSE(ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH))
+        << "Should fail when there is a mix of significantly closer and farther neighbors.";
+}
+
+// Test Case: Ensure CASE3 uses its specific parameters (simple check)
+// This test assumes CASE3 parameters are different from CASE2 in the config
+// We'll set up a scenario that passes with CASE2 params but fails with CASE3 (or vice versa)
+TEST_F(ConsistencyChecksTest, DepthConsistency_UsesCase3Params) {
+    // Example: Make CASE3 max_thr much smaller than CASE2 max_thr
+    // Ensure your test config has different values for depth_cons_depth_max_thr2 and depth_cons_depth_max_thr3
+    if (params.depth_cons_depth_max_thr2 <= params.depth_cons_depth_max_thr3) {
+        GTEST_SKIP() << "Skipping test: depth_cons_depth_max_thr2 is not greater than depth_cons_depth_max_thr3 in config.";
+    }
+
+    center_point.vec(2) = 20.0f;
+    // Choose a depth difference that is < max_thr2 but >= max_thr3
+    float depth_diff = (params.depth_cons_depth_max_thr2 + params.depth_cons_depth_max_thr3) / 2.0f;
+    float neighbor_depth = center_point.vec(2) + depth_diff; // This makes diff negative
+
+    ASSERT_LT(std::fabs(depth_diff), params.depth_cons_depth_max_thr2) << "Test setup error: Diff should be < max_thr2";
+    ASSERT_GE(std::fabs(depth_diff), params.depth_cons_depth_max_thr3) << "Test setup error: Diff should be >= max_thr3";
+
+    // Add one neighbor. With CASE2, it's "close". With CASE3, it's "significantly closer".
+    addPointToMap(createTestPointWithIndices(center_point.local.x() + 0.01, center_point.local.y(), neighbor_depth, params, center_point.time - params.frame_dur * 0.5, STATIC));
+
+    // CASE 2: count_close=1, count_closer=0, count_farther=0 -> Should PASS
+    EXPECT_TRUE(ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH))
+        << "CASE 2 should pass with this neighbor setup.";
+
+    // CASE 3: count_close=0, count_closer=1, count_farther=0 -> Should PASS (Rule 2 passes)
+    // This setup actually passes both, just classifying the neighbor differently.
+    // Let's modify to make CASE3 fail Rule 2.
+    test_map.depth_map.assign(MAX_2D_N, std::vector<std::shared_ptr<point_soph>>()); // Clear map
+
+    // Add one significantly CLOSER neighbor (using CASE3 max_thr)
+    float closer_depth = center_point.vec(2) + params.depth_cons_depth_max_thr3 * 1.5f;
+    addPointToMap(createTestPointWithIndices(center_point.local.x() + 0.01, center_point.local.y(), closer_depth, params, center_point.time - params.frame_dur * 0.5, STATIC));
+    // Add one significantly FARTHER neighbor (using CASE3 max_thr)
+    float farther_depth = center_point.vec(2) - params.depth_cons_depth_max_thr3 * 1.5f;
+    addPointToMap(createTestPointWithIndices(center_point.local.x() - 0.01, center_point.local.y(), farther_depth, params, center_point.time - params.frame_dur * 0.5, STATIC));
+
+    // CASE 3: count_close=0, count_closer=1, count_farther=1 -> Should FAIL (Rule 2 fails)
+    EXPECT_FALSE(ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE3_OCCLUDED_SEARCH))
+        << "CASE 3 should fail with mixed closer/farther neighbors based on its specific max_thr.";
+
+    // Optional: Check if CASE2 passes this same setup (it might if max_thr2 is large enough to make both points "close")
+    // bool case2_result = ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH);
+    // std::cout << "Case 2 result for Case 3 fail setup: " << case2_result << std::endl;
+
+}
+
+
+// Test Case: Ensure calling with CASE1 throws an exception
+TEST_F(ConsistencyChecksTest, DepthConsistency_ThrowsOnCase1) {
+    EXPECT_THROW(
+        ConsistencyChecks::checkDepthConsistency(center_point, test_map, params, ConsistencyChecks::ConsistencyCheckType::CASE1_FALSE_REJECTION),
+        std::invalid_argument
+    ) << "Should throw std::invalid_argument when called with CASE1_FALSE_REJECTION.";
+}
+

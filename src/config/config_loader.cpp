@@ -330,11 +330,11 @@
     params.max_pointers_num = static_cast<int>(std::ceil(total_time_span / params.frame_dur)) + 1;
 
 
-    // --- Optional: Calculate other derived numbers if needed later ---
-    // Example: Convert map consistency thresholds from radians to pixels
-    // params.map_cons_hor_num1 = static_cast<int>(std::ceil(params.map_cons_hor_thr1 / params.hor_resolution_max));
-    // params.map_cons_ver_num1 = static_cast<int>(std::ceil(params.map_cons_ver_thr1 / params.ver_resolution_max));
-    // ... etc ...
+    // Calculate depth consistency check parameters
+    params.depth_cons_ver_num2 = ceil(params.depth_cons_ver_thr2/params.ver_resolution_max);
+    params.depth_cons_ver_num3 = ceil(params.depth_cons_ver_thr3/params.ver_resolution_max);
+    params.depth_cons_hor_num2 = ceil(params.depth_cons_hor_thr2/params.ver_resolution_max);
+    params.depth_cons_hor_num3 = ceil(params.depth_cons_hor_thr3/params.ver_resolution_max);
  
    } catch (const YAML::Exception& e) {
     throw std::runtime_error("Error parsing YAML file: " + filename + " - " + e.what());
