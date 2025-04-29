@@ -1,6 +1,19 @@
-cmake_minimum_required(VERSION 3.10) # 3.10 is okay
+cmake_minimum_required(VERSION 3.12) # 3.11 is okay
 
 project(mdet_repurposed CXX)
+
+# # Explicitly tell the linker to search the Conda lib directory
+# # Explicitly tell the linker to search the Conda lib directory
+# link_directories(${CMAKE_PREFIX_PATH}/lib)
+
+# # Set the RPATH for built executables/libraries
+# # This helps them find dependencies within the Conda env at runtime *without* LD_LIBRARY_PATH
+# # Use CMAKE_INSTALL_RPATH to set the RPATH added when installing AND building
+# set(CMAKE_INSTALL_RPATH "${CMAKE_PREFIX_PATH}/lib")
+# # Ensure that directories discovered by the linker during the build are added to the RPATH
+# set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# # Tell CMake to actually use the CMAKE_INSTALL_RPATH setting during the build, not just install
+# set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 
 option(MDET_ENABLE_INTERPOLATION_DEBUG "Enable interpolation debug prints in the library" OFF)
 
@@ -10,6 +23,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF) # Good practice
 
 # --- Find Required Packages ---
+find_package(X11 REQUIRED)
 find_package(Eigen3 3.3 REQUIRED CONFIG)
 find_package(PCL 1.8 REQUIRED COMPONENTS common io search kdtree filters segmentation)
 find_package(yaml-cpp REQUIRED)
@@ -110,7 +124,9 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
 # ========================================================================
 enable_testing()
 
-add_executable(m_detector_tests
+# --- Utils Tests ---
+add_executable(utils_tests
+    # Source files for utils tests
     test/point_cloud_utils/test_spherical_projection.cpp
     test/point_cloud_utils/test_invalid_point_check.cpp
     test/point_cloud_utils/test_is_self_point.cpp
@@ -119,44 +135,90 @@ add_executable(m_detector_tests
     test/point_cloud_utils/test_interpolations.cpp
     test/point_cloud_utils/test_find_neighbor_cells.cpp
     test/point_cloud_utils/test_find_points_in_cells.cpp
-    test/filtering/test_consistency_checks.cpp
-    # test/test_config_loader.cpp # Add this when you create it
+    # Note: test_consistency_helpers.cpp is NOT included here, assuming it's only needed by filtering tests
 )
 
-# Enable debugging prints for interpolation functions during tests ONLY
-target_compile_definitions(m_detector_tests PRIVATE ENABLE_INTERPOLATION_DEBUG_PRINT)
+# Apply compile definitions if needed by utils tests
+# (Assuming interpolation debug might be used in test_interpolations.cpp)
+target_compile_definitions(utils_tests PRIVATE ENABLE_INTERPOLATION_DEBUG_PRINT)
 
-# Link the test executable against the shared library and GTest
-target_link_libraries(m_detector_tests PRIVATE
-    m_detector_lib      # Link our shared library (provides utils, config, etc.)
+# Link utils tests
+target_link_libraries(utils_tests PRIVATE
+    m_detector_lib      # Link our shared library
     GTest::gtest        # Link Google Test
     GTest::gtest_main   # Link Google Test main
-    TBB::tbb
-    # Dependencies like Eigen, PCL, yaml-cpp are inherited from m_detector_lib
+    TBB::tbb            # Link TBB if utils tests or m_detector_lib needs it
 )
 
-# Includes are also inherited from the library
-# target_include_directories(m_detector_tests PRIVATE include) # Usually inherited
-
-# --- Copy test data files next to the test executable ---
-set(TEST_CONFIG_FILES
+# Copy test data files needed by utils tests (if any)
+# If utils tests don't need config files, you can skip this block for utils_tests
+set(UTILS_TEST_CONFIG_FILES
+    # Add any config files SPECIFICALLY needed ONLY by utils tests, if applicable
+    # If they share the same config files, list them here too
     test/config/test_full_config.yaml
     test/config/test_missing_config.yaml
 )
-foreach(TEST_FILE ${TEST_CONFIG_FILES})
+foreach(TEST_FILE ${UTILS_TEST_CONFIG_FILES})
     get_filename_component(TEST_FILE_NAME ${TEST_FILE} NAME)
     add_custom_command(
-        TARGET m_detector_tests POST_BUILD
+        TARGET utils_tests POST_BUILD # Apply to utils_tests target
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_FILE}"
-        "$<TARGET_FILE_DIR:m_detector_tests>/${TEST_FILE_NAME}"
-        COMMENT "Copying test data file: ${TEST_FILE_NAME}"
+        "$<TARGET_FILE_DIR:utils_tests>/${TEST_FILE_NAME}" # Use utils_tests directory
+        COMMENT "Copying test data file for utils_tests: ${TEST_FILE_NAME}"
     )
 endforeach()
 
+# Discover tests in utils_tests and assign the "utils" label
+gtest_discover_tests(utils_tests
+    PROPERTIES LABELS "utils"
+)
+
+# --- Filtering Tests ---
+add_executable(filtering_tests
+    # Source files for filtering tests
+    test/filtering/test_consistency_helpers.cpp # Include the helper source file here
+    test/filtering/test_map_consistency_checks.cpp
+    test/filtering/test_depth_consistency_checks.cpp
+    test/filtering/test_acceleration_consistency.cpp
+    # Add test_occlusion_relationship.cpp and test_occlusion_search.cpp here later
+)
+
+# Apply compile definitions if needed by filtering tests
+# (Assuming interpolation debug might be used indirectly via consistency checks)
+target_compile_definitions(filtering_tests PRIVATE ENABLE_INTERPOLATION_DEBUG_PRINT)
+
+# Link filtering tests
+target_link_libraries(filtering_tests PRIVATE
+    m_detector_lib      # Link our shared library
+    GTest::gtest        # Link Google Test
+    GTest::gtest_main   # Link Google Test main
+    TBB::tbb            # Link TBB if filtering tests or m_detector_lib needs it
+)
+
+# Copy test data files needed by filtering tests
+set(FILTERING_TEST_CONFIG_FILES
+    test/config/test_full_config.yaml
+    test/config/test_missing_config.yaml
+)
+foreach(TEST_FILE ${FILTERING_TEST_CONFIG_FILES})
+    get_filename_component(TEST_FILE_NAME ${TEST_FILE} NAME)
+    add_custom_command(
+        TARGET filtering_tests POST_BUILD # Apply to filtering_tests target
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_FILE}"
+        "$<TARGET_FILE_DIR:filtering_tests>/${TEST_FILE_NAME}" # Use filtering_tests directory
+        COMMENT "Copying test data file for filtering_tests: ${TEST_FILE_NAME}"
+    )
+endforeach()
+
+# Discover tests in filtering_tests and assign the "filtering" label
+gtest_discover_tests(filtering_tests
+    PROPERTIES LABELS "filtering"
+)
+
 # --- Add Tests to CTest ---
 include(GoogleTest)
-gtest_add_tests(TARGET m_detector_tests)
 
 # ========================================================================
 # Python Module
@@ -190,6 +252,4 @@ target_link_libraries(mpy_detector PRIVATE
 # Apply compile options if needed (e.g., OpenMP if bindings code uses it)
 # target_compile_options(mpy_detector PRIVATE ${OpenMP_CXX_FLAGS})
 
-# Optional: Set output directory for easier Python import during development
-# set_target_properties(mpy_detector PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/python)
-# If you do this, you might need to add ${CMAKE_BINARY_DIR}/python to your PYTHONPATH
+# Optional: Set output directory for easier Python import dur

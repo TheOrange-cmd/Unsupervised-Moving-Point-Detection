@@ -85,9 +85,71 @@ namespace ConsistencyChecks {
         const DynObjFilterParams& params,
         ConsistencyCheckType check_type);
 
-    // Forward declarations for other checks if they go in this file
-    // bool checkDepthConsistency(...);
-    // bool checkVelocityConsistency(...);
+    /**
+     * @brief Checks if the change between two velocity measurements is consistent with a maximum acceleration limit.
+     *
+     * This function embodies the logic previously in Case2VelCheck and Case3VelCheck.
+     * It calculates the implied acceleration between two velocity measurements and compares it
+     * to a given threshold.
+     *
+     * @param velocity1 The first velocity measurement (e.g., from time t-2 to t-1).
+     * @param velocity2 The second velocity measurement (e.g., from time t-1 to t).
+     * @param time_delta_between_velocity_centers The time difference between the midpoints of the intervals
+     *                                            over which velocity1 and velocity2 were calculated.
+     *                                            (e.g., ((t + t-1)/2) - ((t-1 + t-2)/2) = (t - t-2)/2 ).
+     *                                            Alternatively, if velocities are considered instantaneous,
+     *                                            this is simply the time difference between the velocity measurements.
+     * @param acceleration_threshold The maximum plausible acceleration (magnitude).
+     * @return True if the absolute difference in velocities is less than the allowed change
+     *         (acceleration_threshold * time_delta_between_velocity_centers), false otherwise.
+     */
+    bool checkAccelerationLimit(
+        float velocity1,
+        float velocity2,
+        double time_delta_between_velocity_centers,
+        const DynObjFilterParams& params,
+        ConsistencyCheckType check_type);
+
+    /**
+     * @brief Checks if two points satisfy the geometric and temporal conditions for an occlusion relationship.
+     *
+     * Replaces `Case2IsOccluded` and `Case3IsOccluding`.
+     * Checks if `potential_occluder` (closer, later point) could be occluding `potential_occluded` (farther, earlier point)
+     * based on depth difference, angular proximity, time difference, and specific thresholds defined by `check_type`.
+     *
+     * @param potential_occluder The point that might be closer and occluding (usually the point from the current frame).
+     * @param potential_occluded The point that might be farther and occluded (usually the point from a previous frame).
+     * @param params Configuration parameters containing thresholds.
+     * @param check_type Determines which set of thresholds (Case 2 or Case 3) to use.
+     * @return True if the occlusion relationship holds, false otherwise.
+     */
+    bool checkOcclusionRelationship(
+        const point_soph& potential_occluder,
+        const point_soph& potential_occluded,
+        const DynObjFilterParams& params,
+        ConsistencyCheckType check_type);
+
+    /**
+     * @brief Searches a neighborhood in a depth map for a point that has an occlusion relationship
+     *        with the given point_to_update.
+     *
+     * Replaces `Case2SearchPointOccludingP` and `Case3SearchPointOccludedbyP`.
+     * Iterates through neighbor cells in map_info around point_to_update. For each neighbor point found,
+     * it calls checkOcclusionRelationship and checkDepthConsistency. If both pass, it updates
+     * point_to_update's occu_index (for Case 2) or is_occu_index (for Case 3) and returns true.
+     *
+     * @param point_to_update The point to check against the map (passed by non-const reference to allow updates).
+     * @param map_info The depth map containing potential neighbors.
+     * @param params Configuration parameters containing thresholds and search window sizes.
+     * @param check_type Determines search window size, which relationship to check (Case 2 or 3),
+     *                   which depth consistency check to use, and which index on point_to_update to set.
+     * @return True if a valid occluding/occluded neighbor is found, false otherwise.
+     */
+    bool findOcclusionRelationshipInMap(
+        point_soph& point_to_update, // Non-const ref to allow updating indices
+        const DepthMap& map_info,
+        const DynObjFilterParams& params,
+        ConsistencyCheckType check_type);
 
 } // namespace ConsistencyChecks
 

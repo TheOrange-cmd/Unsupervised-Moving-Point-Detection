@@ -16,10 +16,10 @@ conda config --set channel_priority strict
 
 Create env:
 ```
-conda create -n mdet_env python=3.9 # Include python if needed for scripts later
+conda create -n mdet_env python=3.9 
 conda activate mdet_env
 ```
-Install a bunch of stuff:
+Install the required build, C++, and python libraries:
 ```
 conda install cmake make gcc_linux-64 gxx_linux-64
 conda install eigen pcl opencv tbb yaml-cpp
@@ -27,10 +27,10 @@ conda install libglu xorg-libx11 xorg-libxext xorg-libxfixes mesa-libgl-devel-co
 conda install pybind11 libxcrypt
 ```
 
-To clean, build, and test in one go, outputting test failures:
+To clean, build, test, and rerun test failures (to get only the failed output at the end in the terminal):
 
 ```
 conda activate mdet_env
 cd ~/Unsupervised-Moving-Point-Detection/build
-rm -rf * && cmake .. && make && ctest --output-on-failure
+make clean && cmake .. && make && ctest && ctest --rerun-failed -V
 ```

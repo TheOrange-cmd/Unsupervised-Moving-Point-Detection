@@ -244,6 +244,7 @@
         loadParam(dyn_obj_node, "Cluster_debug_en", params.Cluster_debug_en);
     success &=
         loadParam(dyn_obj_node, "Cluster_out_file", params.Cluster_out_file);
+    success &= loadParam(dyn_obj_node, "cutoff_value", params.cutoff_value);
     // Ensure resolutions are loaded before derived calculations
     bool res_h_ok = loadParam(dyn_obj_node, "hor_resolution_max", params.hor_resolution_max);
     bool res_v_ok = loadParam(dyn_obj_node, "ver_resolution_max", params.ver_resolution_max);
@@ -329,12 +330,17 @@
     // Calculate number of frames within this span and add 1 for safety/current frame
     params.max_pointers_num = static_cast<int>(std::ceil(total_time_span / params.frame_dur)) + 1;
 
-
     // Calculate depth consistency check parameters
-    params.depth_cons_ver_num2 = ceil(params.depth_cons_ver_thr2/params.ver_resolution_max);
-    params.depth_cons_ver_num3 = ceil(params.depth_cons_ver_thr3/params.ver_resolution_max);
     params.depth_cons_hor_num2 = ceil(params.depth_cons_hor_thr2/params.ver_resolution_max);
+    params.depth_cons_ver_num2 = ceil(params.depth_cons_ver_thr2/params.ver_resolution_max);
     params.depth_cons_hor_num3 = ceil(params.depth_cons_hor_thr3/params.ver_resolution_max);
+    params.depth_cons_ver_num3 = ceil(params.depth_cons_ver_thr3/params.ver_resolution_max);
+
+    // Calculate occlusion consistency check parameters
+    params.occ_hor_num2 = ceil(params.occ_hor_thr2/params.hor_resolution_max);
+    params.occ_ver_num2 = ceil(params.occ_ver_thr2/params.ver_resolution_max);
+    params.occ_hor_num3 = ceil(params.occ_hor_thr3/params.hor_resolution_max);
+    params.occ_ver_num3 = ceil(params.occ_ver_thr3/params.ver_resolution_max);
  
    } catch (const YAML::Exception& e) {
     throw std::runtime_error("Error parsing YAML file: " + filename + " - " + e.what());

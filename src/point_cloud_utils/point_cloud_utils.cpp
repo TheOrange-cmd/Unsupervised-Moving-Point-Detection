@@ -169,81 +169,6 @@ namespace PointCloudUtils {
         return !(found_support_up && found_support_down);
     }
 
-    // /**
-    //  * @brief Internal helper to iterate over neighbor cells and execute a callback.
-    //  *
-    //  * Iterates through a grid neighborhood defined by ranges around a center point.
-    //  * Handles grid boundaries and optional horizontal wrap-around. For each valid
-    //  * neighbor cell within the bounds, it executes the provided callback function
-    //  * with the cell's 1D linearized index.
-    //  *
-    //  * @tparam Func Type of the callback function (usually a lambda).
-    //  * @param center_point The point defining the center of the search.
-    //  * @param hor_range Half-size of the horizontal search window.
-    //  * @param ver_range Half-size of the vertical search window.
-    //  * @param include_center If true, the center cell itself is included in the iteration.
-    //  * @param wrap_horizontal If true, handles horizontal index wrap-around; otherwise, checks bounds [0, MAX_1D-1].
-    //  * @param callback A function-like object (lambda, functor) that accepts a single int (the 1D cell index).
-    //  */
-    // template <typename Func> // Use template for the callable
-    // void forEachNeighborCell(
-    //     const point_soph& center_point,
-    //     int hor_range,
-    //     int ver_range,
-    //     bool include_center,
-    //     bool wrap_horizontal,
-    //     Func func) // Accept any callable 'Func' directly
-    // {
-    //     // Check if center point indices are valid first
-    //     if (center_point.hor_ind < 0 || center_point.hor_ind >= MAX_1D ||
-    //         center_point.ver_ind < 0 || center_point.ver_ind >= MAX_1D_HALF) {
-    //         // Optional: Add warning if desired
-    //         // std::cerr << "[forEachNeighborCell] Warning: Center point indices out of bounds." << std::endl;
-    //         return;
-    //     }
-
-    //     // Use effective non-negative ranges for loop bounds
-    //     int effective_hor_range = std::max(0, hor_range);
-    //     int effective_ver_range = std::max(0, ver_range);
-
-    //     // Determine loop bounds using effective ranges
-    //     int h_start = center_point.hor_ind - effective_hor_range;
-    //     int h_end = center_point.hor_ind + effective_hor_range;
-    //     int v_start = std::max(0, center_point.ver_ind - effective_ver_range);
-    //     int v_end = std::min(MAX_1D_HALF - 1, center_point.ver_ind + effective_ver_range);
-
-    //     // --- (Optional: Remove Debug Prints) ---
-    //     // std::cout << "[forEachNeighborCell] Debug Info:" << std::endl;
-    //     // ... debug prints ...
-    //     // ---
-
-    //     for (int h = h_start; h <= h_end; ++h) {
-    //         int current_h = h;
-
-    //         if (wrap_horizontal) {
-    //             if (current_h < 0) {
-    //                 current_h += MAX_1D;
-    //             } else if (current_h >= MAX_1D) {
-    //                 current_h -= MAX_1D;
-    //             }
-    //         } else {
-    //             if (current_h < 0 || current_h >= MAX_1D) {
-    //                 continue;
-    //             }
-    //         }
-
-    //         for (int v = v_start; v <= v_end; ++v) {
-    //             if (!include_center && h == center_point.hor_ind && v == center_point.ver_ind) {
-    //                 continue;
-    //             }
-
-    //             int pos = current_h * MAX_1D_HALF + v;
-    //             // --- FIX: Call the templated 'func' directly ---
-    //             func(pos);
-    //         }
-    //     }
-    // }
-
     std::vector<int> findNeighborCells(
         const point_soph& center_point,
         int hor_range,
@@ -511,11 +436,11 @@ namespace PointCloudUtils {
     
                     // --- DEBUG PRINT: Calculations (Unwrapped) ---
                     std::cout << "  (Unwrapped) d00=" << d00 << ", d01=" << d01 << ", d11=" << d11 << ", d20=" << d20 << ", d21=" << d21 << std::endl;
-                    std::cout << "  (Unwrapped) denom=" << denom << " (Degeneracy Epsilon: " << BARY_DEGENERACY_EPSILON << ")" << std::endl;
+                    std::cout << "  (Unwrapped) denom=" << denom << " (Degeneracy Epsilon: " << std::scientific << BARY_DEGENERACY_EPSILON << std::fixed << ")" << std::endl;
                     // --- END DEBUG ---
     
                     if (std::fabs(denom) < BARY_DEGENERACY_EPSILON) {
-                        std::cout << "  -> Skipping: Degenerate triangle (denom < " << BARY_DEGENERACY_EPSILON << ")." << std::endl;
+                        std::cout << "  -> Skipping: Degenerate triangle (denom < " << std::scientific << BARY_DEGENERACY_EPSILON << std::fixed << ")." << std::endl;
                         continue;
                     }
     
