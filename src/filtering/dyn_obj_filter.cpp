@@ -179,10 +179,10 @@ DynObjFilter::DynObjFilter(const DynObjFilterParams& config_params) :
 // all points are labeled to one of the dynamic classes based on their index % 7 (for the 7 classes). 
 // This method is only used to verify the data pipeline from numpy - pcl - DynObjFilter - pcl - numpy
 // without depending on having an actual working classifier. 
-std::vector<dyn_obj_flg> DynObjFilter::placeholder_labeling(
+std::vector<DynObjLabel> DynObjFilter::placeholder_labeling(
     const ScanFrame::PointCloudPtr& cloud)
 {
-    std::vector<dyn_obj_flg> labels;
+    std::vector<DynObjLabel> labels;
     if (!cloud) {
         std::cerr << "Warning: placeholder_labeling received a null point cloud." << std::endl;
         return labels; // Return empty vector
@@ -195,7 +195,7 @@ std::vector<dyn_obj_flg> DynObjFilter::placeholder_labeling(
 
     for (size_t i = 0; i < num_points; ++i) {
         // Assign label based on index modulo 7
-        dyn_obj_flg label = static_cast<dyn_obj_flg>(i % 7);
+        DynObjLabel label = static_cast<DynObjLabel>(i % 7);
         labels.push_back(label);
     }
 

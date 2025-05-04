@@ -38,7 +38,7 @@ TEST_F(ConsistencyChecksTest, Case1_InterpolationSucceedsAndPasses) {
     float expected_interp_depth = neighbor_depth; // Approx
 
     // Add a valid triangle of STATIC neighbors with depths close to center_point
-    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, STATIC, -params.frame_dur * 2); // Old static points
+    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, DynObjLabel::STATIC, -params.frame_dur * 2); // Old static points
 
     // Calculate expected threshold for Case 1
     float threshold = params.interp_thr1;
@@ -58,7 +58,7 @@ TEST_F(ConsistencyChecksTest, Case1_InterpolationSucceedsButFailsThreshold) {
     float neighbor_depth = 17.0f; // Far depth
     float expected_interp_depth = neighbor_depth; // Approx
 
-    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, STATIC, -params.frame_dur * 2);
+    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, DynObjLabel::STATIC, -params.frame_dur * 2);
 
     // Calculate expected threshold for Case 1
     float threshold = params.interp_thr1;
@@ -76,7 +76,7 @@ TEST_F(ConsistencyChecksTest, Case1_InterpolationFailsNotEnoughNeighbors) {
     center_point.vec(2) = 15.0f;
 
     // Add only one STATIC neighbor
-    point_soph n1 = createTestPointWithIndices(center_point.local.x()+1, center_point.local.y(), center_point.local.z(), params, center_point.time - params.frame_dur*2, STATIC);
+    point_soph n1 = createTestPointWithIndices(center_point.local.x()+1, center_point.local.y(), center_point.local.z(), params, center_point.time - params.frame_dur*2, DynObjLabel::STATIC);
     n1.vec(2) = 15.1f; // Close depth, but shouldn't matter
     addPointToMap(n1);
 
@@ -102,9 +102,9 @@ TEST_F(ConsistencyChecksTest, Case1_InterpolationFailsBadTriangle) {
     V3D p2_local = p_local;                                              p2_local = p2_local.normalized() * depth;
     V3D p3_local = p_local; p3_local.x() += p_local.norm() * az_offset; p3_local = p3_local.normalized() * depth;
 
-    point_soph n1 = createTestPointWithIndices(p1_local.x(), p1_local.y(), p1_local.z(), params, center_point.time - params.frame_dur*2, STATIC);
-    point_soph n2 = createTestPointWithIndices(p2_local.x(), p2_local.y(), p2_local.z(), params, center_point.time - params.frame_dur*2, STATIC);
-    point_soph n3 = createTestPointWithIndices(p3_local.x(), p3_local.y(), p3_local.z(), params, center_point.time - params.frame_dur*2, STATIC);
+    point_soph n1 = createTestPointWithIndices(p1_local.x(), p1_local.y(), p1_local.z(), params, center_point.time - params.frame_dur*2, DynObjLabel::STATIC);
+    point_soph n2 = createTestPointWithIndices(p2_local.x(), p2_local.y(), p2_local.z(), params, center_point.time - params.frame_dur*2, DynObjLabel::STATIC);
+    point_soph n3 = createTestPointWithIndices(p3_local.x(), p3_local.y(), p3_local.z(), params, center_point.time - params.frame_dur*2, DynObjLabel::STATIC);
 
     addPointToMap(n1);
     addPointToMap(n2);
@@ -123,12 +123,12 @@ TEST_F(ConsistencyChecksTest, Case1_DistortionEnlargement) {
          GTEST_SKIP() << "Skipping distortion test because enlarge_distort is not > 1.0";
     }
 
-    center_point = createTestPointWithIndices(20.0, 5.0, 0.0, params, 0.1, STATIC, true); // is_distort = true
+    center_point = createTestPointWithIndices(20.0, 5.0, 0.0, params, 0.1, DynObjLabel::STATIC, true); // is_distort = true
     center_point.vec(2) = 15.0f;
     float neighbor_depth = 15.5f; // Choose a depth difference
     float expected_interp_depth = neighbor_depth; // Approx
 
-    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, STATIC, -params.frame_dur * 2);
+    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, DynObjLabel::STATIC, -params.frame_dur * 2);
 
     // Calculate threshold WITHOUT distortion
     float threshold_no_distort = params.interp_thr1;
@@ -159,7 +159,7 @@ TEST_F(ConsistencyChecksTest, Case2_InterpolationSucceedsAndPasses) {
     int map_diff = 3; // Simulate map being 3 steps older
 
     // Add a valid triangle - can include DYNAMIC points if they are old enough
-    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, UNCERTAIN, -params.frame_dur * (map_diff + 1)); // Old enough dynamic points
+    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, DynObjLabel::UNCERTAIN, -params.frame_dur * (map_diff + 1)); // Old enough dynamic points
 
     float threshold = params.interp_thr2 * static_cast<float>(map_diff);
 
@@ -175,7 +175,7 @@ TEST_F(ConsistencyChecksTest, Case2_InterpolationFailsThreshold) {
     float expected_interp_depth = neighbor_depth; // Approx
     int map_diff = 3;
 
-    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, STATIC, -params.frame_dur * (map_diff + 1));
+    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, DynObjLabel::STATIC, -params.frame_dur * (map_diff + 1));
 
     float threshold = params.interp_thr2 * static_cast<float>(map_diff);
 
@@ -190,11 +190,11 @@ TEST_F(ConsistencyChecksTest, Case2_InterpolationFailsNotEnoughValidNeighbors) {
     int map_diff = 3;
 
     // Add only one OLD STATIC neighbor
-    point_soph n1 = createTestPointWithIndices(center_point.local.x()+1, center_point.local.y(), center_point.local.z(), params, center_point.time - params.frame_dur*(map_diff+1), STATIC);
+    point_soph n1 = createTestPointWithIndices(center_point.local.x()+1, center_point.local.y(), center_point.local.z(), params, center_point.time - params.frame_dur*(map_diff+1), DynObjLabel::STATIC);
     n1.vec(2) = 25.1f;
     addPointToMap(n1);
     // Add one RECENT DYNAMIC neighbor (should be ignored by findInterpolationNeighbors for ALL_VALID if time diff < frame_dur)
-    point_soph n2 = createTestPointWithIndices(center_point.local.x()-1, center_point.local.y(), center_point.local.z(), params, center_point.time - params.frame_dur*0.5, UNCERTAIN);
+    point_soph n2 = createTestPointWithIndices(center_point.local.x()-1, center_point.local.y(), center_point.local.z(), params, center_point.time - params.frame_dur*0.5, DynObjLabel::UNCERTAIN);
     n2.vec(2) = 25.1f;
     addPointToMap(n2);
 
@@ -212,7 +212,7 @@ TEST_F(ConsistencyChecksTest, Case3_InterpolationSucceedsAndPasses) {
     float expected_interp_depth = neighbor_depth; // Approx
     int map_diff = 4;
 
-    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, STATIC, -params.frame_dur * (map_diff + 1));
+    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, DynObjLabel::STATIC, -params.frame_dur * (map_diff + 1));
 
     float threshold = params.interp_thr3 * static_cast<float>(map_diff);
 
@@ -229,7 +229,7 @@ TEST_F(ConsistencyChecksTest, Case3_InterpolationFailsThreshold) {
     float expected_interp_depth = neighbor_depth; // Approx
     int map_diff = 4;
 
-    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, STATIC, -params.frame_dur * (map_diff + 1));
+    addInterpolationTriangle(center_point, neighbor_depth, neighbor_depth, neighbor_depth, DynObjLabel::STATIC, -params.frame_dur * (map_diff + 1));
 
     float threshold = params.interp_thr3 * static_cast<float>(map_diff);
 

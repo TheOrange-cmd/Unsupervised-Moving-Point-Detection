@@ -86,9 +86,9 @@ def test_enum_access():
     """Tests accessing the exposed enums."""
     # (Keep this test as is)
     print("\nRunning test_enum_access...")
-    assert mdet.DynObjFlg.STATIC == 0
-    assert mdet.DynObjFlg.CASE1 == 1
-    assert mdet.DynObjFlg.INVALID == 6
+    assert mdet.DynObjFlg.STATIC.value == 0
+    assert mdet.DynObjFlg.APPEARING.value == 1
+    assert mdet.DynObjFlg.INVALID.value == 6
     print("test_enum_access PASSED")
 
 def test_placeholder_labeling_mock_data(initialized_filter):
@@ -99,9 +99,9 @@ def test_placeholder_labeling_mock_data(initialized_filter):
     # Create Minimal Mock Data (5 points)
     points_np = np.array([
         [10.0, 1.0, 0.0, 70.0], # Index 0 -> STATIC (0)
-        [11.0, 1.1, 0.1, 80.0], # Index 1 -> CASE1  (1)
-        [12.0, 1.2, 0.2, 90.0], # Index 2 -> CASE2  (2)
-        [ 5.0,-2.0, 0.5, 60.0], # Index 3 -> CASE3  (3)
+        [11.0, 1.1, 0.1, 80.0], # Index 1 -> APPEARING  (1)
+        [12.0, 1.2, 0.2, 90.0], # Index 2 -> OCCLUDING  (2)
+        [ 5.0,-2.0, 0.5, 60.0], # Index 3 -> DISOCCLUDED  (3)
         [ 6.0,-2.1, 0.6, 50.0], # Index 4 -> SELF   (4)
     ], dtype=np.float32)
     rotation = np.identity(3, dtype=np.float64)

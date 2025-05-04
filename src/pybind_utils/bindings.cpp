@@ -7,7 +7,7 @@
 
 #include "filtering/dyn_obj_filter.h"
 #include "config/config_loader.h" // Needed for DynObjFilter constructor binding
-#include "filtering/dyn_obj_datatypes.h" // Include the header defining dyn_obj_flg
+#include "filtering/dyn_obj_datatypes.h" // Include the header defining DynObjLabel
 #include "pybind_utils/conversions.h" // For numpy_to_pcl
 
 #include <memory> // For std::shared_ptr, std::make_shared
@@ -23,14 +23,14 @@ PYBIND11_MODULE(mpy_detector, m) { // Name must match pybind11_add_module
     // --- Bind Enums ---
     // Keep enums that might be relevant for the filter's *output* or configuration modes
     // If Interpolation* enums are purely internal C++ details now, they can be removed too.
-    py::enum_<dyn_obj_flg>(m, "DynObjFlg")
-        .value("STATIC", dyn_obj_flg::STATIC)       // 0
-        .value("CASE1", dyn_obj_flg::CASE1)         // 1
-        .value("CASE2", dyn_obj_flg::CASE2)         // 2
-        .value("CASE3", dyn_obj_flg::CASE3)         // 3
-        .value("SELF", dyn_obj_flg::SELF)           // 4
-        .value("UNCERTAIN", dyn_obj_flg::UNCERTAIN) // 5
-        .value("INVALID", dyn_obj_flg::INVALID)     // 6
+    py::enum_<DynObjLabel>(m, "DynObjFlg")
+        .value("STATIC", DynObjLabel::STATIC)               // 0
+        .value("APPEARING", DynObjLabel::APPEARING)         // 1
+        .value("OCCLUDING", DynObjLabel::OCCLUDING)         // 2
+        .value("DISOCCLUDED", DynObjLabel::DISOCCLUDED)     // 3
+        .value("SELF", DynObjLabel::SELF)                   // 4
+        .value("UNCERTAIN", DynObjLabel::UNCERTAIN)         // 5
+        .value("INVALID", DynObjLabel::INVALID)             // 6
         .export_values();
 
     // Remove Interpolation enums if they are no longer part of the Python interface
@@ -85,7 +85,7 @@ PYBIND11_MODULE(mpy_detector, m) { // Name must match pybind11_add_module
                  pose.translation() = position;
 
                  // Call the C++ placeholder method
-                 std::vector<dyn_obj_flg> labels;
+                 std::vector<DynObjLabel> labels;
                  try {
                     // Pass only the cloud, as the placeholder doesn't need pose/time
                     labels = self.placeholder_labeling(cloud_ptr);

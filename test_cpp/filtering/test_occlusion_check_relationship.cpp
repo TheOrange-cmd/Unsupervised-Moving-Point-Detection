@@ -28,7 +28,7 @@ protected:
         p_occluded = createTestPointWithIndices(10.0f, 0.0f, 1.0f, params, 0.0); // time=0.0
         p_occluded.vec(2) = 12.0f; // Depth = 12m (farther) - will be adjusted in tests
         p_occluded.local = V3D(12.0, 0.0, 1.2); // Set different local coords
-        p_occluded.dyn = STATIC; // Default to valid static
+        p_occluded.dyn = DynObjLabel::STATIC; // Default to valid static
 
         // Make angles identical by default for angular tests
         p_occluded.vec(0) = p_occluder.vec(0);
@@ -76,7 +76,7 @@ TEST_F(OcclusionRelationshipTest, Case3_Pass_Basic) {
 // --- Failure Cases ---
 
 TEST_F(OcclusionRelationshipTest, Fail_InvalidOccludedStatus) {
-    p_occluded.dyn = INVALID;
+    p_occluded.dyn = DynObjLabel::INVALID;
     EXPECT_FALSE(ConsistencyChecks::checkOcclusionRelationship(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH));
     EXPECT_FALSE(ConsistencyChecks::checkOcclusionRelationship(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE3_OCCLUDED_SEARCH));
 }

@@ -29,6 +29,7 @@
 // External Libraries
 #include <Eigen/Dense> // Includes Core, Geometry, LU, etc. Or include specific modules if preferred.
 #include <omp.h>       // For omp_get_wtime (if keeping timed Reset) - Requires OpenMP flag during compilation
+#include <ostream>
 
 // --- Constants for Dynamic Object Filtering, copied as is from original code ---
 
@@ -53,31 +54,53 @@
 /** @brief Prime number used as the size for caching arrays in point_soph (last_vecs, last_positions). */
 #define HASH_PRIM   19 //37
 
-// /**
-//  * @brief Enumeration defining the classification status of a point regarding dynamic objects.
-//  */
-// enum class DynObjLabel { // Renamed from dyn_obj_flg
-//     STATIC,         ///< Point is considered static.
-//     APPEARING,      ///< Point likely appeared in free space (formerly CASE1).
-//     OCCLUDING,      ///< Point is likely occluding background (formerly CASE2).
-//     DISOCCLUDED,    ///< Point was likely previously occluded (formerly CASE3).
-//     SELF,           ///< Point belongs to the ego-vehicle or sensor platform.
-//     UNCERTAIN,      ///< Point's dynamic status is currently uncertain.
-//     INVALID         ///< Point is considered invalid (e.g., too close, outside FOV).
-// };
-
 /**
  * @brief Enumeration defining the classification status of a point regarding dynamic objects.
  */
-enum dyn_obj_flg {
+enum class DynObjLabel { // Renamed from dyn_obj_flg
     STATIC,         ///< Point is considered static.
-    CASE1,          ///< Point is dynamic according to Case 1 criteria (e.g., appearing in free space).
-    CASE2,          ///< Point is dynamic according to Case 2 criteria (e.g., moving consistently).
-    CASE3,          ///< Point is dynamic according to Case 3 criteria (e.g., occluding static points).
+    APPEARING,      ///< Point likely appeared in free space (formerly CASE1).
+    OCCLUDING,      ///< Point is likely occluding background (formerly CASE2).
+    DISOCCLUDED,    ///< Point was likely previously occluded (formerly CASE3).
     SELF,           ///< Point belongs to the ego-vehicle or sensor platform.
     UNCERTAIN,      ///< Point's dynamic status is currently uncertain.
     INVALID         ///< Point is considered invalid (e.g., too close, outside FOV).
 };
+
+/**
+ * @brief Overload the stream insertion operator for DynObjLabel for easy printing.
+ * @param os The output stream.
+ * @param label The DynObjLabel value to print.
+ * @return The output stream.
+ */
+inline std::ostream& operator<<(std::ostream& os, DynObjLabel label) {
+    switch (label) {
+        case DynObjLabel::STATIC:     os << "STATIC"; break;
+        case DynObjLabel::APPEARING:  os << "APPEARING"; break;
+        case DynObjLabel::OCCLUDING:  os << "OCCLUDING"; break;
+        case DynObjLabel::DISOCCLUDED: os << "DISOCCLUDED"; break;
+        case DynObjLabel::SELF:       os << "SELF"; break;
+        case DynObjLabel::UNCERTAIN:  os << "UNCERTAIN"; break;
+        case DynObjLabel::INVALID:    os << "INVALID"; break;
+        default:
+            // Handle potential unknown values by printing their underlying integer value
+            os << "UNKNOWN(" << static_cast<int>(label) << ")"; break;
+    }
+    return os;
+}
+
+// /**
+//  * @brief Enumeration defining the classification status of a point regarding dynamic objects.
+//  */
+// enum dyn_obj_flg {
+//     STATIC,         ///< Point is considered static.
+//     CASE1,          ///< Point is dynamic according to Case 1 criteria (e.g., appearing in free space).
+//     CASE2,          ///< Point is dynamic according to Case 2 criteria (e.g., moving consistently).
+//     CASE3,          ///< Point is dynamic according to Case 3 criteria (e.g., occluding static points).
+//     SELF,           ///< Point belongs to the ego-vehicle or sensor platform.
+//     UNCERTAIN,      ///< Point's dynamic status is currently uncertain.
+//     INVALID         ///< Point is considered invalid (e.g., too close, outside FOV).
+// };
 
 // --- Forward Declaration ---
 struct point_soph;
@@ -104,7 +127,7 @@ struct point_soph
     V3F          is_occ_vec;      ///< Spherical coordinates of the last point that occluded this point.
     M3D          rot;             ///< Rotation matrix associated with the point's frame/pose.
     V3D          transl;          ///< Translation vector associated with the point's frame/pose.
-    dyn_obj_flg  dyn;             ///< Dynamic object classification flag (@see dyn_obj_flg).
+    DynObjLabel  dyn;             ///< Dynamic object classification flag (@see DynObjLabel).
     V3D          glob;            ///< Global 3D coordinates of the point (double precision).
     V3D          local;           ///< Local 3D coordinates (relative to sensor frame at measurement time).
     V3F          cur_vec;         ///< Current spherical coordinates (potentially updated).
@@ -137,7 +160,7 @@ struct point_soph
         transl.setZero();
         glob = point; // Assume input point is global initially? Or should be set later?
         rot.setIdentity(); // Use Identity for rotation
-        dyn = UNCERTAIN; // Initialize dynamic flag
+        dyn = DynObjLabel::UNCERTAIN; // Initialize dynamic flag
         intensity = 0.0f; // Initialize intensity
         last_depth_interps.fill(0.0f);
         last_vecs.fill(V3F::Zero());
@@ -163,7 +186,7 @@ struct point_soph
         transl.setZero();
         glob.setZero();
         rot.setIdentity(); // Use Identity
-        dyn = UNCERTAIN;
+        dyn = DynObjLabel::UNCERTAIN;
         intensity = 0.0f;
         last_depth_interps.fill(0.0f);
         last_vecs.fill(V3F::Zero());
@@ -196,7 +219,7 @@ struct point_soph
         transl.setZero();
         glob.setZero();
         rot.setIdentity(); // Use Identity
-        dyn = UNCERTAIN;
+        dyn = DynObjLabel::UNCERTAIN;
         intensity = 0.0f;
         last_depth_interps.fill(0.0f);
         last_vecs.fill(V3F::Zero());

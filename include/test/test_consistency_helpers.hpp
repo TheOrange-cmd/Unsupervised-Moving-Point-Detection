@@ -28,7 +28,7 @@ inline point_soph createTestPointWithIndices(
     float x, float y, float z, // Local Cartesian coordinates for projection
     const DynObjFilterParams& params,
     double time = 0.0,
-    dyn_obj_flg status = STATIC,
+    DynObjLabel status = DynObjLabel::STATIC,
     bool is_distort = false)
 {
     point_soph p;
@@ -166,12 +166,12 @@ class ConsistencyChecksTest : public ::testing::Test {
             int delta_ver_ind,
             float depth,
             double time_offset_sec,
-            dyn_obj_flg status = STATIC); // Definition in .cpp
+            DynObjLabel status = DynObjLabel::STATIC); // Definition in .cpp
     
         void addInterpolationTriangle(
             const point_soph& target,
             float depth1, float depth2, float depth3,
-            dyn_obj_flg status = STATIC, double time_offset = -1.0); // Definition in .cpp
+            DynObjLabel status = DynObjLabel::STATIC, double time_offset = -1.0); // Definition in .cpp
     };
 
 #endif // TEST_CONSISTENCY_HELPERS_HPP

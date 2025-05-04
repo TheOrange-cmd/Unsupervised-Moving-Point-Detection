@@ -65,9 +65,9 @@ inline pcl::PointCloud<pcl::PointXYZI>::Ptr numpy_to_pcl(const py::array_t<float
 }
 
 /**
- * @brief Converts a std::vector<dyn_obj_flg> to a NumPy array of integers.
+ * @brief Converts a std::vector<DynObjLabel> to a NumPy array of integers.
  */
-inline py::array_t<int> labels_to_numpy(const std::vector<dyn_obj_flg>& labels) {
+inline py::array_t<int> labels_to_numpy(const std::vector<DynObjLabel>& labels) {
     // Create a NumPy array of the same size, using int32 as dtype
     py::array_t<int> result(labels.size());
     // Get mutable buffer access

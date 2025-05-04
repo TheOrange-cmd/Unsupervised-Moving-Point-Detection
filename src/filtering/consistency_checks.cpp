@@ -196,7 +196,7 @@ namespace ConsistencyChecks {
                     bool time_ok = time_diff < params.frame_dur;
                     bool az_ok = az_diff < hor_thr;
                     bool el_ok = el_diff < ver_thr;
-                    bool status_ok = neighbor.dyn == STATIC;
+                    bool status_ok = neighbor.dyn == DynObjLabel::STATIC;
     
                     // --- DEBUG: Print Filter Results ---
                     std::cout << "[DepthCheck " << case_str << "]   Filters: time_diff=" << time_diff << (time_ok ? " (OK)" : " (FAIL)")
@@ -410,7 +410,7 @@ namespace ConsistencyChecks {
 
 
         // --- Initial Checks ---
-        if (potential_occluded.dyn == INVALID) {
+        if (potential_occluded.dyn == DynObjLabel::INVALID) {
             std::cout << "[OccRelCheck " << case_str << "] -> Returning FALSE (Occluded point dyn status is INVALID)" << std::endl;
             return false;
         }

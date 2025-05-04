@@ -36,12 +36,12 @@ class DynObjFilter {
         // void addScan(const ScanFrame::PointCloudPtr& cloud, const ScanFrame::PoseType& pose, double timestamp);
     
         // Placeholder labeling method - kept for compatibility during transition
-        std::vector<dyn_obj_flg> placeholder_labeling(
+        std::vector<DynObjLabel> placeholder_labeling(
             const ScanFrame::PointCloudPtr& cloud
         );
     
         // --- Add Getters for results later ---
-        // std::vector<dyn_obj_flg> getLatestLabels() const;
+        // std::vector<DynObjLabel> getLatestLabels() const;
         // std::pair<ScanFrame::PointCloudPtr, ScanFrame::PointCloudPtr> getLatestClouds() const;
     
     

@@ -62,7 +62,7 @@ protected:
         int delta_hor, int delta_ver, // Relative to point_to_update
         float depth,
         double neighbor_time, // Absolute time for the neighbor
-        dyn_obj_flg status = STATIC,
+        DynObjLabel status = DynObjLabel::STATIC,
         bool is_distort = false)
     {
         // Calculate neighbor indices relative to point_to_update
@@ -116,7 +116,7 @@ TEST_F(OcclusionSearchTest, Case2_Pass_FindsNeighbor) {
     float neighbor_depth = point_to_update.vec(2) + threshold + 0.1f; // Pass depth check
 
     point_soph& added_neighbor = addConfiguredNeighbor(
-        1, 0, neighbor_depth, neighbor_time, STATIC
+        1, 0, neighbor_depth, neighbor_time, DynObjLabel::STATIC
     );
 
     // Mock: Depth consistency check should pass for this test
@@ -159,7 +159,7 @@ TEST_F(OcclusionSearchTest, Case3_Pass_FindsNeighbor) {
     ASSERT_GT(neighbor_depth, 0.0f);
 
      point_soph& added_neighbor = addConfiguredNeighbor(
-        0, 1, neighbor_depth, neighbor_time, STATIC
+        0, 1, neighbor_depth, neighbor_time, DynObjLabel::STATIC
     );
 
     // Mock: Depth consistency check should pass
@@ -202,7 +202,7 @@ TEST_F(OcclusionSearchTest, Fail_NoNeighborInWindow) {
 
      addConfiguredNeighbor(
         params.occ_hor_num2 + 1, 0, // Outside horizontal range for Case 2
-        neighbor_depth, neighbor_time, STATIC);
+        neighbor_depth, neighbor_time, DynObjLabel::STATIC);
 
     // Mock: Depth checker should NOT be called. Use a mock that fails if called.
     ConsistencyChecks::DepthConsistencyChecker mock_checker_should_not_be_called =
@@ -232,7 +232,7 @@ TEST_F(OcclusionSearchTest, Fail_NeighborFailsOcclusionCheck_Case2_Depth) {
     ASSERT_FALSE(std::isnan(threshold)); ASSERT_GT(threshold, 0.0f);
     float neighbor_depth = point_to_update.vec(2) + threshold - 0.1f; // FAILS depth check
 
-    addConfiguredNeighbor(1, 0, neighbor_depth, neighbor_time, STATIC);
+    addConfiguredNeighbor(1, 0, neighbor_depth, neighbor_time, DynObjLabel::STATIC);
 
     // Mock: Depth checker should NOT be called because occlusion check fails first.
     ConsistencyChecks::DepthConsistencyChecker mock_checker_should_not_be_called =
@@ -259,7 +259,7 @@ TEST_F(OcclusionSearchTest, Fail_NeighborFailsOcclusionCheck_Case3_Time) {
     double neighbor_time = 0.05; // EARLIER than P (0.1), needed LATER for Case 3
     float neighbor_depth = point_to_update.vec(2) - 1.0f; // Make depth valid for Case 3
 
-    addConfiguredNeighbor(0, 1, neighbor_depth, neighbor_time, STATIC);
+    addConfiguredNeighbor(0, 1, neighbor_depth, neighbor_time, DynObjLabel::STATIC);
 
     // Mock: Depth checker should NOT be called.
     ConsistencyChecks::DepthConsistencyChecker mock_checker_should_not_be_called =
@@ -291,7 +291,7 @@ TEST_F(OcclusionSearchTest, Fail_NeighborFailsDepthConsistency) {
     float neighbor_depth = point_to_update.vec(2) + threshold + 0.1f; // Depth passes occlusion
 
     point_soph& added_neighbor = addConfiguredNeighbor(
-        1, 0, neighbor_depth, neighbor_time, STATIC
+        1, 0, neighbor_depth, neighbor_time, DynObjLabel::STATIC
     );
 
     // Mock: Force depth consistency check to return false
@@ -324,7 +324,7 @@ TEST_F(OcclusionSearchTest, Pass_FindsFirstValidNeighbor_Case2) {
     float threshold1 = calculateOcclusionDepthThreshold(point_to_update, dummy1, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH);
     ASSERT_FALSE(std::isnan(threshold1)); ASSERT_GT(threshold1, 0.0f);
     float neighbor1_depth = point_to_update.vec(2) + threshold1 + 0.1f; // Passes occlusion
-    point_soph& added_neighbor1 = addConfiguredNeighbor(0, 1, neighbor1_depth, neighbor1_time, STATIC);
+    point_soph& added_neighbor1 = addConfiguredNeighbor(0, 1, neighbor1_depth, neighbor1_time, DynObjLabel::STATIC);
 
     // Neighbor 2 (Passes both)
     double neighbor2_time = 0.0; // Can be same time
@@ -332,7 +332,7 @@ TEST_F(OcclusionSearchTest, Pass_FindsFirstValidNeighbor_Case2) {
     float threshold2 = calculateOcclusionDepthThreshold(point_to_update, dummy2, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH);
     ASSERT_FALSE(std::isnan(threshold2)); ASSERT_GT(threshold2, 0.0f);
     float neighbor2_depth = point_to_update.vec(2) + threshold2 + 0.1f; // Passes occlusion
-    point_soph& added_neighbor2 = addConfiguredNeighbor(1, 0, neighbor2_depth, neighbor2_time, STATIC);
+    point_soph& added_neighbor2 = addConfiguredNeighbor(1, 0, neighbor2_depth, neighbor2_time, DynObjLabel::STATIC);
 
     // Mock: Return false for neighbor1, true for neighbor2
     ConsistencyChecks::DepthConsistencyChecker mock_checker =
@@ -395,7 +395,7 @@ TEST_F(OcclusionSearchTest, Pass_WrapAroundHorizontal_Case2) {
     neighbor_point.hor_ind = target_neighbor_hor_ind;
     neighbor_point.ver_ind = target_neighbor_ver_ind;
     neighbor_point.position = target_neighbor_pos;
-    neighbor_point.dyn = STATIC;
+    neighbor_point.dyn = DynObjLabel::STATIC;
     float neighbor_az, neighbor_el;
     indicesToSpherical(neighbor_point.hor_ind, neighbor_point.ver_ind, params.hor_resolution_max, params.ver_resolution_max, neighbor_az, neighbor_el);
     neighbor_point.local = sphericalToCartesian(neighbor_az, neighbor_el, neighbor_depth);
@@ -455,7 +455,7 @@ TEST_F(OcclusionSearchTest, Fail_MinDepthOptimization_Case3) {
     ASSERT_GT(neighbor_depth, 0.0f);
 
     point_soph& added_neighbor = addConfiguredNeighbor(
-        1, 0, neighbor_depth, neighbor_time, STATIC
+        1, 0, neighbor_depth, neighbor_time, DynObjLabel::STATIC
     );
 
     // Apply Optimization Condition: Set min_depth_all high for the neighbor's cell
@@ -493,7 +493,7 @@ TEST_F(OcclusionSearchTest, Pass_MinDepthOptimizationNotApplied_Case2) {
     float neighbor_depth = point_to_update.vec(2) + threshold + 0.1f; // Would pass: PN.D > P.D + threshold
 
     point_soph& added_neighbor = addConfiguredNeighbor(
-        1, 0, neighbor_depth, neighbor_time, STATIC
+        1, 0, neighbor_depth, neighbor_time, DynObjLabel::STATIC
     );
 
     // Set Min Depth High (Should NOT affect Case 2)

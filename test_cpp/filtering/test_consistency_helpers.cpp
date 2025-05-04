@@ -42,7 +42,7 @@ point_soph ConsistencyChecksTest::addNeighborInRelativeCell(
     int delta_ver_ind, // e.g., -1, 0, 1
     float depth,
     double time_offset_sec, // Time offset in SECONDS
-    dyn_obj_flg status)
+    DynObjLabel status)
 {
     int neighbor_hor_ind = (target.hor_ind + delta_hor_ind + MAX_1D) % MAX_1D;
     int neighbor_ver_ind = target.ver_ind + delta_ver_ind;
@@ -84,7 +84,7 @@ void ConsistencyChecksTest::addInterpolationTriangle(
     float depth1, 
     float depth2, 
     float depth3,
-    dyn_obj_flg status, 
+    DynObjLabel status, 
     double time_offset) {
 
     int target_hor_ind = target.hor_ind;

@@ -35,18 +35,18 @@ TEST_F(ConsistencyChecksTest, DepthConsistency_NoSuitableNeighbors) {
               << " D=" << PRINT_FLOAT(center_point.vec(2)) << " T=" << PRINT_FLOAT(center_point.time) << std::endl;
 
     // Add neighbors outside the time window
-    auto p_time_out = createTestPointWithIndices(center_point.local.x() + 0.1, center_point.local.y(), center_point.local.z(), params, center_point.time + params.frame_dur * 2.0, STATIC);
+    auto p_time_out = createTestPointWithIndices(center_point.local.x() + 0.1, center_point.local.y(), center_point.local.z(), params, center_point.time + params.frame_dur * 2.0, DynObjLabel::STATIC);
     addPointToMap(p_time_out);
     std::cout << "[TEST DEBUG] Added time-out neighbor: D=" << PRINT_FLOAT(p_time_out.vec(2)) << " T=" << PRINT_FLOAT(p_time_out.time) << " Status=" << p_time_out.dyn << std::endl;
 
     // Add neighbors outside the angular threshold (assuming default thresholds are not huge)
-    auto p_angle_out = createTestPointWithIndices(center_point.local.x() + 5.0, center_point.local.y() + 5.0, center_point.local.z(), params, center_point.time, STATIC);
+    auto p_angle_out = createTestPointWithIndices(center_point.local.x() + 5.0, center_point.local.y() + 5.0, center_point.local.z(), params, center_point.time, DynObjLabel::STATIC);
     addPointToMap(p_angle_out);
      std::cout << "[TEST DEBUG] Added angle-out neighbor: D=" << PRINT_FLOAT(p_angle_out.vec(2)) << " T=" << PRINT_FLOAT(p_angle_out.time) << " Status=" << p_angle_out.dyn
                << " Az=" << PRINT_FLOAT(p_angle_out.vec(0)) << " El=" << PRINT_FLOAT(p_angle_out.vec(1)) << std::endl;
 
     // Add non-static neighbor
-    auto p_non_static = createTestPointWithIndices(center_point.local.x(), center_point.local.y(), center_point.local.z(), params, center_point.time, UNCERTAIN); // Assuming UNCERTAIN is not STATIC
+    auto p_non_static = createTestPointWithIndices(center_point.local.x(), center_point.local.y(), center_point.local.z(), params, center_point.time, DynObjLabel::UNCERTAIN); // Assuming UNCERTAIN is not STATIC
     addPointToMap(p_non_static);
     std::cout << "[TEST DEBUG] Added non-static neighbor: D=" << PRINT_FLOAT(p_non_static.vec(2)) << " T=" << PRINT_FLOAT(p_non_static.time) << " Status=" << p_non_static.dyn << std::endl;
 
@@ -68,7 +68,7 @@ TEST_F(ConsistencyChecksTest, DepthConsistency_PassOneCloseNeighbor) {
     std::cout << "[TEST DEBUG] Max Thr (Case 2): " << PRINT_FLOAT(max_thr) << std::endl;
 
     // Add neighbor in the *same cell* (delta 0,0)
-    point_soph added_neighbor = addNeighborInRelativeCell(center_point, test_map, params, 0, 0, neighbor_depth, -params.frame_dur * 0.5, STATIC);
+    point_soph added_neighbor = addNeighborInRelativeCell(center_point, test_map, params, 0, 0, neighbor_depth, -params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added neighbor: H=" << added_neighbor.hor_ind << " V=" << added_neighbor.ver_ind
               << " D=" << PRINT_FLOAT(added_neighbor.vec(2)) << " T=" << PRINT_FLOAT(added_neighbor.time) << " Status=" << added_neighbor.dyn
               << " (Depth Diff = " << PRINT_FLOAT(depth_diff) << ")" << std::endl;
@@ -98,11 +98,11 @@ TEST_F(ConsistencyChecksTest, DepthConsistency_PassAvgDiffBelowThreshold) {
     std::cout << "[TEST DEBUG] Max Thr (Categorization): " << PRINT_FLOAT(max_thr) << std::endl;
     std::cout << "[TEST DEBUG] Expected Avg Abs Diff (close): " << PRINT_FLOAT(expected_avg_abs_diff) << std::endl;
 
-    auto n1 = addNeighborInRelativeCell(center_point, test_map, params, 0, 0, depth1, -params.frame_dur * 0.5, STATIC);
+    auto n1 = addNeighborInRelativeCell(center_point, test_map, params, 0, 0, depth1, -params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added N1: D=" << PRINT_FLOAT(n1.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n1.vec(2)) << std::endl;
-    auto n2 = addNeighborInRelativeCell(center_point, test_map, params, 1, 0, depth2, -params.frame_dur * 0.5, STATIC);
+    auto n2 = addNeighborInRelativeCell(center_point, test_map, params, 1, 0, depth2, -params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added N2: D=" << PRINT_FLOAT(n2.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n2.vec(2)) << std::endl;
-    auto n3 = addNeighborInRelativeCell(center_point, test_map, params, 0, 1, depth3, -params.frame_dur * 0.5, STATIC);
+    auto n3 = addNeighborInRelativeCell(center_point, test_map, params, 0, 1, depth3, -params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added N3: D=" << PRINT_FLOAT(n3.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n3.vec(2)) << std::endl;
 
     std::cout << "[TEST DEBUG] Expecting TRUE (Rule 1 passes, Rule 2 passes)." << std::endl;
@@ -130,9 +130,9 @@ TEST_F(ConsistencyChecksTest, DepthConsistency_FailAvgDiffAboveThreshold) {
 
     // *** MODIFIED: Use addNeighborInRelativeCell ***
     // Place neighbors in adjacent cells to ensure they are found
-    auto n1 = addNeighborInRelativeCell(center_point, test_map, params, 1, 0, depth1, center_point.time - params.frame_dur * 0.5, STATIC);
+    auto n1 = addNeighborInRelativeCell(center_point, test_map, params, 1, 0, depth1, center_point.time - params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added N1: H=" << n1.hor_ind << " V=" << n1.ver_ind << " D=" << PRINT_FLOAT(n1.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n1.vec(2)) << std::endl;
-    auto n2 = addNeighborInRelativeCell(center_point, test_map, params, -1, 0, depth2, center_point.time - params.frame_dur * 0.5, STATIC);
+    auto n2 = addNeighborInRelativeCell(center_point, test_map, params, -1, 0, depth2, center_point.time - params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added N2: H=" << n2.hor_ind << " V=" << n2.ver_ind << " D=" << PRINT_FLOAT(n2.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n2.vec(2)) << std::endl;
 
     std::cout << "[TEST DEBUG] Expecting FALSE (Rule 1 fails)." << std::endl;
@@ -149,15 +149,15 @@ TEST_F(ConsistencyChecksTest, DepthConsistency_PassOnlyFartherNeighbors) {
     std::cout << "[TEST DEBUG] Max Thr (Categorization): " << PRINT_FLOAT(max_thr) << std::endl;
 
     // Add one close neighbor
-    auto n_close = addNeighborInRelativeCell(center_point, test_map, params, 0, 0, 20.0f, -params.frame_dur * 0.5, STATIC);
+    auto n_close = addNeighborInRelativeCell(center_point, test_map, params, 0, 0, 20.0f, -params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added Close N: D=" << PRINT_FLOAT(n_close.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n_close.vec(2)) << std::endl;
 
     // Add neighbors significantly FARTHER than p (p.depth > neighbor.depth)
     float farther_depth1 = center_point.vec(2) - max_thr * 1.5f;
     float farther_depth2 = center_point.vec(2) - max_thr * 2.0f;
-    auto n_far1 = addNeighborInRelativeCell(center_point, test_map, params, -1, 0, farther_depth1, -params.frame_dur * 0.5, STATIC);
+    auto n_far1 = addNeighborInRelativeCell(center_point, test_map, params, -1, 0, farther_depth1, -params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added Farther N1: D=" << PRINT_FLOAT(n_far1.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n_far1.vec(2)) << std::endl;
-    auto n_far2 = addNeighborInRelativeCell(center_point, test_map, params, 0, -1, farther_depth2, -params.frame_dur * 0.5, STATIC);
+    auto n_far2 = addNeighborInRelativeCell(center_point, test_map, params, 0, -1, farther_depth2, -params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added Farther N2: D=" << PRINT_FLOAT(n_far2.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n_far2.vec(2)) << std::endl;
 
     std::cout << "[TEST DEBUG] Expecting TRUE (Rule 1 passes/skipped, Rule 2 passes - only farther)." << std::endl;
@@ -174,15 +174,15 @@ TEST_F(ConsistencyChecksTest, DepthConsistency_PassOnlyCloserNeighbors) {
     std::cout << "[TEST DEBUG] Max Thr (Categorization): " << PRINT_FLOAT(max_thr) << std::endl;
 
     // Add one close neighbor
-    auto n_close = addNeighborInRelativeCell(center_point, test_map, params, 0, 0, 20.0f, -params.frame_dur * 0.5, STATIC);
+    auto n_close = addNeighborInRelativeCell(center_point, test_map, params, 0, 0, 20.0f, -params.frame_dur * 0.5, DynObjLabel::STATIC);
      std::cout << "[TEST DEBUG] Added Close N: D=" << PRINT_FLOAT(n_close.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n_close.vec(2)) << std::endl;
 
     // Add neighbors significantly CLOSER than p (p.depth < neighbor.depth)
     float closer_depth1 = center_point.vec(2) + max_thr * 1.5f;
     float closer_depth2 = center_point.vec(2) + max_thr * 2.0f;
-    auto n_close1 = addNeighborInRelativeCell(center_point, test_map, params, 1, 1, closer_depth1, -params.frame_dur * 0.5, STATIC);
+    auto n_close1 = addNeighborInRelativeCell(center_point, test_map, params, 1, 1, closer_depth1, -params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added Closer N1: D=" << PRINT_FLOAT(n_close1.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n_close1.vec(2)) << std::endl;
-    auto n_close2 = addNeighborInRelativeCell(center_point, test_map, params, 0, 2, closer_depth2, -params.frame_dur * 0.5, STATIC);
+    auto n_close2 = addNeighborInRelativeCell(center_point, test_map, params, 0, 2, closer_depth2, -params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added Closer N2: D=" << PRINT_FLOAT(n_close2.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n_close2.vec(2)) << std::endl;
 
     std::cout << "[TEST DEBUG] Expecting TRUE (Rule 1 passes/skipped, Rule 2 passes - only closer)." << std::endl;
@@ -200,17 +200,17 @@ TEST_F(ConsistencyChecksTest, DepthConsistency_FailMixedCloserFartherNeighbors) 
 
     // *** MODIFIED: Use addNeighborInRelativeCell ***
     // Add one close neighbor (in the same cell)
-    auto n_close = addNeighborInRelativeCell(center_point, test_map, params, 0, 0, 20.0f, center_point.time - params.frame_dur * 0.5, STATIC);
+    auto n_close = addNeighborInRelativeCell(center_point, test_map, params, 0, 0, 20.0f, center_point.time - params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added Close N: H=" << n_close.hor_ind << " V=" << n_close.ver_ind << " D=" << PRINT_FLOAT(n_close.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n_close.vec(2)) << std::endl;
 
     // Add one significantly FARTHER neighbor (in an adjacent cell)
     float farther_depth = center_point.vec(2) - max_thr * 1.5f;
-    auto n_far = addNeighborInRelativeCell(center_point, test_map, params, -1, 0, farther_depth, center_point.time - params.frame_dur * 0.5, STATIC);
+    auto n_far = addNeighborInRelativeCell(center_point, test_map, params, -1, 0, farther_depth, center_point.time - params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added Farther N: H=" << n_far.hor_ind << " V=" << n_far.ver_ind << " D=" << PRINT_FLOAT(n_far.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n_far.vec(2)) << std::endl;
 
     // Add one significantly CLOSER neighbor (in another adjacent cell)
     float closer_depth = center_point.vec(2) + max_thr * 1.5f;
-    auto n_closer = addNeighborInRelativeCell(center_point, test_map, params, 0, 1, closer_depth, center_point.time - params.frame_dur * 0.5, STATIC);
+    auto n_closer = addNeighborInRelativeCell(center_point, test_map, params, 0, 1, closer_depth, center_point.time - params.frame_dur * 0.5, DynObjLabel::STATIC);
     std::cout << "[TEST DEBUG] Added Closer N: H=" << n_closer.hor_ind << " V=" << n_closer.ver_ind << " D=" << PRINT_FLOAT(n_closer.vec(2)) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - n_closer.vec(2)) << std::endl;
 
     std::cout << "[TEST DEBUG] Expecting FALSE (Rule 1 passes/skipped, Rule 2 fails - mixed)." << std::endl;
@@ -237,12 +237,12 @@ TEST_F(ConsistencyChecksTest, DepthConsistency_UsesCase3Params) {
 
     // Add one significantly CLOSER neighbor (using CASE3 max_thr)
     float closer_depth = center_point.vec(2) + params.depth_cons_depth_max_thr3 * 1.5f;
-    auto n_closer = addPointToMap(createTestPointWithIndices(center_point.local.x() + 0.01, center_point.local.y(), closer_depth, params, center_point.time - params.frame_dur * 0.5, STATIC));
+    auto n_closer = addPointToMap(createTestPointWithIndices(center_point.local.x() + 0.01, center_point.local.y(), closer_depth, params, center_point.time - params.frame_dur * 0.5, DynObjLabel::STATIC));
     std::cout << "[TEST DEBUG] Added Closer N (for Case 3): D=" << PRINT_FLOAT(closer_depth) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - closer_depth) << std::endl;
 
     // Add one significantly FARTHER neighbor (using CASE3 max_thr)
     float farther_depth = center_point.vec(2) - params.depth_cons_depth_max_thr3 * 1.5f;
-    auto n_far = addPointToMap(createTestPointWithIndices(center_point.local.x() - 0.01, center_point.local.y(), farther_depth, params, center_point.time - params.frame_dur * 0.5, STATIC));
+    auto n_far = addPointToMap(createTestPointWithIndices(center_point.local.x() - 0.01, center_point.local.y(), farther_depth, params, center_point.time - params.frame_dur * 0.5, DynObjLabel::STATIC));
     std::cout << "[TEST DEBUG] Added Farther N (for Case 3): D=" << PRINT_FLOAT(farther_depth) << " Diff=" << PRINT_FLOAT(center_point.vec(2) - farther_depth) << std::endl;
 
     std::cout << "[TEST DEBUG] Expecting FALSE for CASE 3 (Rule 2 fails - mixed)." << std::endl;

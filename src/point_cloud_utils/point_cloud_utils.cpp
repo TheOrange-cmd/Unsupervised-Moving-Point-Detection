@@ -338,7 +338,7 @@ namespace PointCloudUtils {
                     if (type == InterpolationNeighborType::ALL_VALID) {
                         use_neighbor = true;
                     } else if (type == InterpolationNeighborType::STATIC_ONLY) {
-                        if (neighbor_ptr->dyn == STATIC) {
+                        if (neighbor_ptr->dyn == DynObjLabel::STATIC) {
                             use_neighbor = true;
                         }
                     }

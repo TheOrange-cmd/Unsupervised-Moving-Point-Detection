@@ -28,7 +28,7 @@ protected:
 
     // Helper to create a point_soph with global coords and time, calculating projection
     // NOTE: Uses boost::shared_ptr based on dyn_obj_datatypes.h definition
-    point_soph::Ptr createManagedTestPoint(const V3D &global_pos, double time, dyn_obj_flg dyn_status = STATIC)
+    point_soph::Ptr createManagedTestPoint(const V3D &global_pos, double time, DynObjLabel dyn_status = DynObjLabel::STATIC)
     {
         // Create a dummy point_soph just to call GetVec - this is slightly awkward
         // A better approach might be a static helper in point_soph or PointCloudUtils
@@ -154,9 +154,9 @@ TEST_F(InterpolationTest, BasicSuccessAll)
     V3D n2_glob(10.0, -10.0 * tan(small_angle), 10.0 * tan(small_angle));  // Dynamic
     V3D n3_glob(10.0, -10.0 * tan(small_angle), -10.0 * tan(small_angle)); // Static
 
-    auto n1 = createManagedTestPoint(n1_glob, 0.0, STATIC);
-    auto n2 = createManagedTestPoint(n2_glob, 0.0, CASE1); // Mark as dynamic
-    auto n3 = createManagedTestPoint(n3_glob, 0.0, STATIC);
+    auto n1 = createManagedTestPoint(n1_glob, 0.0, DynObjLabel::STATIC);
+    auto n2 = createManagedTestPoint(n2_glob, 0.0, DynObjLabel::APPEARING); // Mark as dynamic
+    auto n3 = createManagedTestPoint(n3_glob, 0.0, DynObjLabel::STATIC);
     addPointToMap(n1);
     addPointToMap(n2);
     addPointToMap(n3);
@@ -182,9 +182,9 @@ TEST_F(InterpolationTest, StaticOnlyIgnoresDynamic)
     V3D n2_glob(10.0, -10.0 * tan(small_angle), 10.0 * tan(small_angle));  // Dynamic
     V3D n3_glob(10.0, -10.0 * tan(small_angle), -10.0 * tan(small_angle)); // Static
 
-    auto n1 = createManagedTestPoint(n1_glob, 0.0, STATIC);
-    auto n2 = createManagedTestPoint(n2_glob, 0.0, CASE1); // Dynamic
-    auto n3 = createManagedTestPoint(n3_glob, 0.0, STATIC);
+    auto n1 = createManagedTestPoint(n1_glob, 0.0, DynObjLabel::STATIC);
+    auto n2 = createManagedTestPoint(n2_glob, 0.0, DynObjLabel::APPEARING); // Dynamic
+    auto n3 = createManagedTestPoint(n3_glob, 0.0, DynObjLabel::STATIC);
     addPointToMap(n1);
     addPointToMap(n2);
     addPointToMap(n3);
