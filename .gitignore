@@ -1,1 +1,4 @@
 build/*
+backup/*
+.vscode
+.pytest_cache

@@ -17,66 +17,29 @@
 #include <Eigen/Geometry>       // For Eigen::Isometry3d
 
 
-// /**
-//  * @brief Structure to hold data for a single lidar scan, including the point cloud,
-//  *        timestamp, and sensor pose.
-//  */
-// struct ScanFrame {
-//     // ... Type Aliases ...
-//     using PointCloudType = pcl::PointCloud<pcl::PointXYZI>;
-//     using PointCloudPtr = PointCloudType::Ptr;
-//     using PoseType = Eigen::Isometry3d;
-
-//     // --- Member Variables ---
-//     double timestamp = 0.0;
-//     PointCloudPtr cloud = nullptr;
-//     PoseType sensor_pose = PoseType::Identity();
-//     uint64_t seq_id = 0; // Unique sequence ID for this scan
-//     // bool processed = false; // Alternative state tracking
-
-//     // --- Constructors ---
-//     ScanFrame() = default;
-
-//     // Constructor now includes seq_id
-//     ScanFrame(double ts, PointCloudPtr pc, const PoseType& pose, uint64_t id) :
-//         timestamp(ts), cloud(std::move(pc)), sensor_pose(pose), seq_id(id) {}
-
-//     // --- Special Member Functions (Move Semantics & Copy Control) ---
-//     // Allow moving ScanFrames (efficient transfer of ownership, especially for the cloud pointer)
-//     ScanFrame(ScanFrame&& other) noexcept = default;
-//     ScanFrame& operator=(ScanFrame&& other) noexcept = default;
-
-//     // Prevent copying by default: Copying a ScanFrame would involve deciding
-//     // whether to do a shallow copy (both ScanFrames point to the *same* cloud)
-//     // or a deep copy (create a new copy of the potentially large point cloud).
-//     // Deleting the copy operations forces the user to be explicit if copying is needed.
-//     ScanFrame(const ScanFrame&) = delete;
-//     ScanFrame& operator=(const ScanFrame&) = delete;
-// };
-
 /**
  * @brief Structure to hold data for a single lidar scan, including the point cloud,
  *        timestamp, and sensor pose.
  */
 struct ScanFrame {
-    // --- Type Aliases ---
-    using PointCloudType = pcl::PointCloud<pcl::PointXYZI>; // Define point type used
-    using PointCloudPtr = PointCloudType::Ptr;              // Alias for shared pointer to cloud
-    using PoseType = Eigen::Isometry3d;                     // Alias for 3D pose transformation (rotation + translation)
+    // ... Type Aliases ...
+    using PointCloudType = pcl::PointCloud<pcl::PointXYZI>;
+    using PointCloudPtr = PointCloudType::Ptr;
+    using PoseType = Eigen::Isometry3d;
 
     // --- Member Variables ---
-    double timestamp = 0.0;         // Time when the scan was captured/received (e.g., seconds since epoch)
-    PointCloudPtr cloud = nullptr;   // Shared pointer to the point cloud data (allows efficient sharing)
-    PoseType sensor_pose = PoseType::Identity(); // Sensor pose in the world frame at 'timestamp'
+    double timestamp = 0.0;
+    PointCloudPtr cloud = nullptr;
+    PoseType sensor_pose = PoseType::Identity();
+    uint64_t seq_id = 0; // Unique sequence ID for this scan
+    // bool processed = false; // Alternative state tracking
 
     // --- Constructors ---
-    // Default constructor: Creates an empty ScanFrame
     ScanFrame() = default;
 
-    // Constructor for convenience: Initializes members directly.
-    // Takes ownership of the cloud pointer via std::move.
-    ScanFrame(double ts, PointCloudPtr pc, const PoseType& pose) :
-        timestamp(ts), cloud(std::move(pc)), sensor_pose(pose) {}
+    // Constructor now includes seq_id
+    ScanFrame(double ts, PointCloudPtr pc, const PoseType& pose, uint64_t id) :
+        timestamp(ts), cloud(std::move(pc)), sensor_pose(pose), seq_id(id) {}
 
     // --- Special Member Functions (Move Semantics & Copy Control) ---
     // Allow moving ScanFrames (efficient transfer of ownership, especially for the cloud pointer)

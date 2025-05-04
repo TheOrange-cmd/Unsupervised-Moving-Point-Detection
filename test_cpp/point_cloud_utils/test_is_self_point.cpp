@@ -1,82 +1,73 @@
-#include "gtest/gtest.h" // Google Test framework
-#include "point_cloud_utils/point_cloud_utils.h" // Your header to test
+// test_cpp/point_cloud_utils/test_is_self_point.cpp
+#include "gtest/gtest.h"
+#include "point_cloud_utils/point_cloud_utils.h" // Header for the function under test
 #include "config/config_loader.h"     // For DynObjFilterParams
-#include "filtering/dyn_obj_datatypes.h" // For point_soph, V3D, M3D etc.
-#include <Eigen/Geometry>      // For Eigen::AngleAxisd
+#include "filtering/dyn_obj_datatypes.h" // For V3D
 
-// Define constants for testing
-const int DATASET_SELF_CHECK = 0;
-const int DATASET_OTHER = 1;
+namespace {
+    // Helper to create points easily
+    V3D p(float x, float y, float z) { return V3D(x, y, z); }
+} // anonymous namespace
 
-// Helper to create points easily
-V3D p(float x, float y, float z) { return V3D(x, y, z); }
+// Create a fixture to hold default params for tests
+class SelfPointCheckTest : public ::testing::Test {
+protected:
+    DynObjFilterParams test_params;
 
-TEST(SelfPointCheckTest, NonApplicableDataset) {
-    // A point that would be inside Box 1 if dataset was 0
-    V3D point_in_box1 = p(-1.0, -1.5, -0.5);
-    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_in_box1,  DATASET_OTHER))
-        << "Should return false for non-zero dataset ID";
+    void SetUp() override {
+        // Define the self-box used for testing here
+        test_params.self_x_b = -1.5; // Back
+        test_params.self_x_f =  2.0; // Front
+        test_params.self_y_r = -0.8; // Right
+        test_params.self_y_l =  0.8; // Left
+    }
+};
 
-    // A point outside any box
-    V3D point_outside = p(0.0, 0.0, 0.0);
-     ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_outside,  DATASET_OTHER))
-        << "Should return false for non-zero dataset ID";
+TEST_F(SelfPointCheckTest, PointInsideBox) {
+    V3D point_center = p(0.0, 0.0, 0.0); // Origin
+    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_center, test_params));
+
+    V3D point_front_left = p(1.9, 0.7, 10.0); // Near front-left corner (Z ignored)
+    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_front_left, test_params));
+
+    V3D point_back_right = p(-1.4, -0.7, -5.0); // Near back-right corner (Z ignored)
+    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_back_right, test_params));
 }
 
-TEST(SelfPointCheckTest, DatasetZero_OutsideAllBoxes) {
-    V3D point_outside = p(0.0, 0.0, 0.0); // Origin is not in any box
-    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_outside,  DATASET_SELF_CHECK));
+TEST_F(SelfPointCheckTest, PointOutsideBox) {
+    V3D point_too_far_front = p(2.1, 0.0, 0.0);
+    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_too_far_front, test_params));
+
+    V3D point_too_far_back = p(-1.6, 0.0, 0.0);
+    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_too_far_back, test_params));
+
+    V3D point_too_far_left = p(0.0, 0.9, 0.0);
+    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_too_far_left, test_params));
+
+    V3D point_too_far_right = p(0.0, -0.9, 0.0);
+    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_too_far_right, test_params));
 
     V3D point_far_away = p(100.0, 100.0, 100.0);
-    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_far_away,  DATASET_SELF_CHECK));
+    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_far_away, test_params));
 }
 
-// --- Tests for each Box when dataset == 0 ---
+TEST_F(SelfPointCheckTest, PointOnBoundary) {
+    // Test points exactly on the boundary (inclusive check >=, <=)
+    V3D point_on_back_boundary = p(test_params.self_x_b, 0.0, 0.0);
+    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_on_back_boundary, test_params));
 
-TEST(SelfPointCheckTest, DatasetZero_InsideBox1) {
-    V3D point_center = p(-0.8, -1.35, -0.525); // Center of box 1 approx
-    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_center,  DATASET_SELF_CHECK));
-}
+    V3D point_on_front_boundary = p(test_params.self_x_f, 0.0, 0.0);
+    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_on_front_boundary, test_params));
 
-TEST(SelfPointCheckTest, DatasetZero_InsideBox2) {
-    V3D point_center = p(-1.3, 1.3, -0.575); // Center of box 2 approx
-    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_center,  DATASET_SELF_CHECK));
-}
+    V3D point_on_left_boundary = p(0.0, test_params.self_y_l, 0.0);
+    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_on_left_boundary, test_params));
 
-TEST(SelfPointCheckTest, DatasetZero_InsideBox3) {
-    V3D point_center = p(1.55, -1.1, -0.7); // Center of box 3 approx
-    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_center,  DATASET_SELF_CHECK));
-}
+    V3D point_on_right_boundary = p(0.0, test_params.self_y_r, 0.0);
+    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_on_right_boundary, test_params));
 
-TEST(SelfPointCheckTest, DatasetZero_InsideBox4) {
-    V3D point_center = p(2.525, -0.525, -0.95); // Center of box 4 approx
-    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_center,  DATASET_SELF_CHECK));
-}
-
-TEST(SelfPointCheckTest, DatasetZero_InsideBox5) {
-    V3D point_center = p(2.525, 0.525, -0.95); // Center of box 5 approx
-    ASSERT_TRUE(PointCloudUtils::isSelfPoint(point_center,  DATASET_SELF_CHECK));
-}
-
-// --- Tests for Boundaries (Exclusive) ---
-
-TEST(SelfPointCheckTest, DatasetZero_BoundaryBox1) {
-    // Point exactly on min x boundary of box 1
-    V3D point_on_boundary = p(-1.2, -1.5, -0.5);
-    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_on_boundary,  DATASET_SELF_CHECK));
-    // Point exactly on max y boundary of box 1
-    point_on_boundary = p(-1.0, -1.0, -0.5);
-    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_on_boundary,  DATASET_SELF_CHECK));
-    // ... add more boundary checks for other faces/boxes as needed ...
-}
-
-// --- Test points slightly outside ---
-TEST(SelfPointCheckTest, DatasetZero_SlightlyOutsideBox1) {
-    // Just below min x
-    V3D point_outside = p(-1.21, -1.5, -0.5);
-    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_outside,  DATASET_SELF_CHECK));
-     // Just above max x
-    point_outside = p(-0.39, -1.5, -0.5);
-    ASSERT_FALSE(PointCloudUtils::isSelfPoint(point_outside,  DATASET_SELF_CHECK));
-    // ... add more for other dimensions/boxes ...
+    // Test corners
+    V3D corner_bl = p(test_params.self_x_b, test_params.self_y_l, 0.0);
+    ASSERT_TRUE(PointCloudUtils::isSelfPoint(corner_bl, test_params));
+    V3D corner_fr = p(test_params.self_x_f, test_params.self_y_r, 0.0);
+    ASSERT_TRUE(PointCloudUtils::isSelfPoint(corner_fr, test_params));
 }

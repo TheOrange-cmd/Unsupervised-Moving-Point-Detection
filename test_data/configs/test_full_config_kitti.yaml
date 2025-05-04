@@ -1,8 +1,7 @@
 dataset:
-  name: nuscenes # helpful for clarity, not strictly necessary 
-  version: v1.0-mini
-  # --- !!! USE ~ for home directory ---
-  dataroot: /datasets/nuscenes 
+  kitti_basedir: /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/kitti
+  kitti_date: '2011_09_26' # Example date
+  kitti_drive: '0005'      # Example drive
 
 dyn_obj:
   points_topic: "/cloud_registered_body"
@@ -10,11 +9,7 @@ dyn_obj:
   frame_id: "camera_init"
   pc_topic: "/lidar_top"
 
-  dataset: 1 #0 for kitti, 1 for nuscenes, 2 for waymo, 3 for avia
-  enable_invalid_box_check: true 
-  invalid_box_x_half_width: 0.1
-  invalid_box_y_half_width: 1.0
-  invalid_box_z_half_width: 0.1
+  dataset: 0 #0 for kitti, 1 for nuscenes, 2 for waymo, 3 for avia
   buffer_delay: 0.1
   buffer_size: 500000
   history_length: 10 # added config during refactor
@@ -105,9 +100,9 @@ dyn_obj:
   cluster_min_pixel_number: 3
   cluster_Voxel_revolusion: 0.3
 
-  debug_en: true
+  
 
-  dyn_filter_en: true
+  dyn_filter_en: false
   debug_publish: false
 
 

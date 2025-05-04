@@ -311,7 +311,8 @@ message(STATUS "Using Python executable for tests: ${PYTHON_TEST_EXECUTABLE} (Fo
 # --- Define the Pytest Command ---
 add_test(
     NAME PythonBindingsTest
-    COMMAND ${PYTHON_TEST_EXECUTABLE} -m pytest ${CMAKE_CURRENT_SOURCE_DIR}/test_py
+    # Add '-v' to the pytest command
+    COMMAND ${PYTHON_TEST_EXECUTABLE} -m pytest -v -s ${CMAKE_CURRENT_SOURCE_DIR}/test_py
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 

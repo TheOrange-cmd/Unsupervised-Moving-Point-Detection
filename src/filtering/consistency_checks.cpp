@@ -7,14 +7,14 @@
 namespace ConsistencyChecks {
 
     // Helper to convert InterpolationStatus to string for printing
-    inline const char* interpolationStatusToString(PointCloudUtils::InterpolationStatus status) {
-        switch (status) {
-            case PointCloudUtils::InterpolationStatus::SUCCESS: return "SUCCESS";
-            case PointCloudUtils::InterpolationStatus::NOT_ENOUGH_NEIGHBORS: return "NOT_ENOUGH_NEIGHBORS";
-            case PointCloudUtils::InterpolationStatus::NO_VALID_TRIANGLE: return "NO_VALID_TRIANGLE";
-            default: return "UNKNOWN_STATUS";
-        }
-    }
+    // inline const char* interpolationStatusToString(PointCloudUtils::InterpolationStatus status) {
+    //     switch (status) {
+    //         case PointCloudUtils::InterpolationStatus::SUCCESS: return "SUCCESS";
+    //         case PointCloudUtils::InterpolationStatus::NOT_ENOUGH_NEIGHBORS: return "NOT_ENOUGH_NEIGHBORS";
+    //         case PointCloudUtils::InterpolationStatus::NO_VALID_TRIANGLE: return "NO_VALID_TRIANGLE";
+    //         default: return "UNKNOWN_STATUS";
+    //     }
+    // }
 
     bool checkMapConsistency(
         const point_soph& p,
@@ -28,90 +28,111 @@ namespace ConsistencyChecks {
         float base_interp_threshold = 0.0f;
         float threshold_scaling = 1.0f;
         const char* case_str = ""; // For printing
-
+    
         switch (check_type) {
             case ConsistencyCheckType::CASE1_FALSE_REJECTION:
                 case_str = "CASE1";
                 interp_neighbor_type = PointCloudUtils::InterpolationNeighborType::STATIC_ONLY;
+                // --- Use interp_thr1 for CASE1 threshold base ---
                 base_interp_threshold = params.interp_thr1;
                 if (p.vec(2) > params.interp_start_depth1) {
                     base_interp_threshold += ((p.vec(2) - params.interp_start_depth1) * params.interp_kp1 + params.interp_kd1);
                 }
-                if (params.dataset == 0 && p.is_distort) {
-                    // Assuming enlarge_distort > 1.0 only when distortion enlargement is active
-                    if (params.enlarge_distort > 1.0f) {
-                       base_interp_threshold *= params.enlarge_distort;
-                    }
+                if (params.dataset == 0 && p.is_distort && params.enlarge_distort > 1.0f) {
+                   base_interp_threshold *= params.enlarge_distort;
                 }
                 break;
-
+    
             case ConsistencyCheckType::CASE2_OCCLUDER_SEARCH:
                 case_str = "CASE2";
                 interp_neighbor_type = PointCloudUtils::InterpolationNeighborType::ALL_VALID;
+                // --- Use interp_thr2 for CASE2 threshold base ---
                 base_interp_threshold = params.interp_thr2;
                 threshold_scaling = static_cast<float>(std::max(1, map_index_diff));
                 break;
-
+    
             case ConsistencyCheckType::CASE3_OCCLUDED_SEARCH:
             default:
                 case_str = "CASE3"; // Default to Case 3 settings
                 interp_neighbor_type = PointCloudUtils::InterpolationNeighborType::ALL_VALID;
+                 // --- Use interp_thr3 for CASE3 threshold base ---
                 base_interp_threshold = params.interp_thr3;
                 threshold_scaling = static_cast<float>(std::max(1, map_index_diff));
                 break;
         }
-
         float current_interp_threshold = base_interp_threshold * threshold_scaling;
-
+    
         // --- DEBUG: Print Input and Parameters ---
-        std::cout << std::fixed << std::setprecision(5); // Ensure consistent float output
+        // (Keep these prints as they are helpful)
+        std::cout << std::fixed << std::setprecision(5);
         std::cout << "[MapCheck " << case_str << "] Point p: H=" << p.hor_ind << " V=" << p.ver_ind
                   << " Az=" << p.vec(0) << " El=" << p.vec(1) << " D=" << p.vec(2) << " T=" << p.time
                   << " Distort=" << p.is_distort << std::endl;
         std::cout << "[MapCheck " << case_str << "] Params: BaseThr=" << base_interp_threshold
                   << " Scale=" << threshold_scaling << " FinalThr=" << current_interp_threshold
                   << " MapDiff=" << map_index_diff << " InterpType=" << static_cast<int>(interp_neighbor_type) << std::endl;
-
-
+    
+    
         // --- 2. Check if Point is in Self-Region ---
         bool point_is_inside_self_box =
             (p.local.x() >= params.self_x_b && p.local.x() <= params.self_x_f &&
              p.local.y() >= params.self_y_r && p.local.y() <= params.self_y_l);
-
+    
         if (point_is_inside_self_box) {
              std::cout << "[MapCheck " << case_str << "] Point Local Coords: (" << p.local.x() << ", " << p.local.y() << ", " << p.local.z() << ")" << std::endl;
              std::cout << "[MapCheck " << case_str << "] Self Box X: [" << params.self_x_b << ", " << params.self_x_f << "], Y: [" << params.self_y_r << ", " << params.self_y_l << "]" << std::endl;
              std::cout << "[MapCheck " << case_str << "] -> Returning FALSE (Point inside self-box)" << std::endl;
             return false;
         }
-
+    
         // --- 3. Perform Interpolation ---
-        // Assuming PointCloudUtils::interpolateDepth also includes its own debug prints now
         PointCloudUtils::InterpolationResult result = PointCloudUtils::interpolateDepth(
             p, map_info, params, interp_neighbor_type);
-
+    
         // --- 4. Evaluate Result ---
         if (result.status == PointCloudUtils::InterpolationStatus::SUCCESS) {
-            float actual_diff = std::fabs(result.depth - p.vec(2));
-            bool is_consistent = actual_diff < current_interp_threshold;
-
+            float depth_diff = p.vec(2) - result.depth; // current_depth - interpolated_depth
+            bool is_consistent = false;
+    
+            // --- REVERTED/CORRECTED CONSISTENCY LOGIC PER CASE ---
+            switch (check_type) {
+                case ConsistencyCheckType::CASE1_FALSE_REJECTION:
+                    // Consistent if current point is NOT significantly IN FRONT of the interpolated static surface.
+                    is_consistent = (depth_diff >= -current_interp_threshold);
+                    break;
+                case ConsistencyCheckType::CASE2_OCCLUDER_SEARCH:
+                     // Consistent if current point IS significantly IN FRONT of the interpolated surface.
+                     is_consistent = (depth_diff < -current_interp_threshold);
+                     break;
+                case ConsistencyCheckType::CASE3_OCCLUDED_SEARCH:
+                     // Consistent if current point IS significantly BEHIND the interpolated surface.
+                     is_consistent = (depth_diff > current_interp_threshold);
+                     break;
+                default:
+                     // Fallback: check if close (absolute difference)
+                     is_consistent = (std::fabs(depth_diff) <= current_interp_threshold);
+                     break;
+            }
+            // --- END REVERTED/CORRECTED LOGIC ---
+    
             // --- DEBUG: Print Final Comparison ---
             std::cout << "[MapCheck " << case_str << "] Interpolation SUCCESS: CenterDepth=" << p.vec(2)
                       << ", InterpDepth=" << result.depth
-                      << ", AbsDiff=" << actual_diff
+                      << ", Diff=" << depth_diff // Signed diff is more informative here
                       << ", Threshold=" << current_interp_threshold
                       << ". Consistent=" << (is_consistent ? "TRUE" : "FALSE") << std::endl;
             std::cout << "[MapCheck " << case_str << "] -> Returning " << (is_consistent ? "TRUE" : "FALSE") << std::endl;
-
+    
             return is_consistent;
+    
         } else {
-            // Interpolation failed
-            // --- DEBUG: Print Interpolation Failure ---
+            // Interpolation failed (NOT_ENOUGH_NEIGHBORS or NO_VALID_TRIANGLE or other)
+            // --- REVERTED: ANY failure means inconsistent ---
             std::cout << "[MapCheck " << case_str << "] Interpolation FAILED: Status="
-                      << interpolationStatusToString(result.status) << std::endl;
+                      << PointCloudUtils::interpolationStatusToString(result.status) << std::endl;
             std::cout << "[MapCheck " << case_str << "] -> Returning FALSE" << std::endl;
-
-            return false; // Inconsistent - couldn't verify via interpolation
+            return false;
+            // --- END REVERTED LOGIC ---
         }
     }
 
@@ -415,21 +436,13 @@ namespace ConsistencyChecks {
             return false;
         }
 
-        if (params.dataset == 0 && (potential_occluded.is_distort || potential_occluder.is_distort)) {
-             std::cout << "[OccRelCheck " << case_str << "] -> Returning FALSE (Dataset 0 distortion check failed: PO.dist="
-                       << potential_occluded.is_distort << ", P.dist=" << potential_occluder.is_distort << ")" << std::endl;
-            return false;
-        }
+        // *** Replace manual self-check with calls to isSelfPoint ***
+        bool p_in_self = PointCloudUtils::isSelfPoint(potential_occluder.local, params);
+        bool pocc_in_self = PointCloudUtils::isSelfPoint(potential_occluded.local, params);
+        // **********************************************************
 
-        const auto& p_local = potential_occluder.local;
-        const auto& p_occ_local = potential_occluded.local;
-        bool p_in_self = (p_local.x() >= params.self_x_b && p_local.x() <= params.self_x_f && p_local.y() >= params.self_y_r && p_local.y() <= params.self_y_l);
-        bool pocc_in_self = (p_occ_local.x() >= params.self_x_b && p_occ_local.x() <= params.self_x_f && p_occ_local.y() >= params.self_y_r && p_occ_local.y() <= params.self_y_l);
         if (p_in_self || pocc_in_self) {
              std::cout << "[OccRelCheck " << case_str << "] -> Returning FALSE (Self-occlusion check failed: P_in=" << p_in_self << ", PO_in=" << pocc_in_self << ")" << std::endl;
-             // Optional: Print local coords and box for more detail
-             // std::cout << "[OccRelCheck " << case_str << "] P Local: (" << p_local.x() << "," << p_local.y() << ") PO Local: (" << p_occ_local.x() << "," << p_occ_local.y() << ")" << std::endl;
-             // std::cout << "[OccRelCheck " << case_str << "] Self Box X: [" << params.self_x_b << "," << params.self_x_f << "] Y: [" << params.self_y_r << "," << params.self_y_l << "]" << std::endl;
             return false;
         }
 

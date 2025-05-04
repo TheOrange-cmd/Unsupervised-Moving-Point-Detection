@@ -1,195 +1,165 @@
-#include "gtest/gtest.h" // Google Test framework
-#include "point_cloud_utils/point_cloud_utils.h" // header to test
-#include "config/config_loader.h"     // For DynObjFilterParams
-#include "filtering/dyn_obj_datatypes.h" // For point_soph, V3D, M3D etc.
-#include <Eigen/Geometry>      // For Eigen::AngleAxisd
+#include "gtest/gtest.h"
+#include "point_cloud_utils/point_cloud_utils.h"
+#include "config/config_loader.h"
+#include "filtering/dyn_obj_datatypes.h" // For V3D
+#include <cmath> // For std::fabs
 
-// Define some constants for testing
-const float TEST_BLIND_DISTANCE = 1.0f;
-const int DATASET_OTHER = 0;
-const int DATASET_SPECIAL = 1;
+namespace {
+    // Helper to create points easily
+    V3D p(float x, float y, float z) { return V3D(x, y, z); }
+} // anonymous namespace
 
-TEST(InvalidPointCheckTest, PointTooClose) {
-    V3D point_inside(0.5, 0.0, 0.0); // Distance 0.5 < 1.0
-    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point_inside, TEST_BLIND_DISTANCE, DATASET_OTHER));
-    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point_inside, TEST_BLIND_DISTANCE, DATASET_SPECIAL));
+// Create a fixture to hold default params for tests
+class InvalidPointCheckTest : public ::testing::Test {
+    protected:
+        DynObjFilterParams test_params;
+    
+        void SetUp() override {
+            // Use defaults from config_loader.h constructor initially
+            // We will override specific ones in tests
+            test_params = DynObjFilterParams(); // Get defaults
+    
+            // Set specific values relevant for these tests
+            test_params.blind_dis = 0.2f;
+            test_params.invalid_box_x_half_width = 0.5f; // Example box dimensions
+            test_params.invalid_box_y_half_width = 1.0f;
+            test_params.invalid_box_z_half_width = 0.5f;
+        }
+    };
+
+// --- Tests for Blind Distance ---
+
+TEST_F(InvalidPointCheckTest, PointTooClose) {
+    V3D point_inside = p(0.1f, 0.0f, 0.0f); // norm = 0.1 < blind_dis (0.2)
+    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point_inside, test_params))
+        << "Point inside blind distance should always be invalid.";
+    
+    // Also test with box check enabled, should still be invalid due to distance
+    test_params.enable_invalid_box_check = true;
+    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point_inside, test_params)) 
+        << "Point inside blind distance should be invalid even if box check is enabled.";
 }
 
-TEST(InvalidPointCheckTest, PointAtBlindDistance) {
-    V3D point_on_boundary(1.0, 0.0, 0.0); // Distance 1.0 == 1.0
+TEST_F(InvalidPointCheckTest, PointAtBlindDistance) {
+    V3D point_on_boundary = p(1.0, 0.0, 0.0); // Distance 1.0 == 1.0
     // squaredNorm (1.0) is NOT < blind_distance^2 (1.0)
-    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_on_boundary, TEST_BLIND_DISTANCE, DATASET_OTHER));
-    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_on_boundary, TEST_BLIND_DISTANCE, DATASET_SPECIAL));
+    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_on_boundary, test_params))
+        << "Point exactly at blind distance boundary should be valid.";
+
+    // Test with box enabled (point is outside the box)
+    test_params.enable_invalid_box_check = true;
+     ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_on_boundary, test_params))
+        << "Point at blind distance boundary should be valid even if box check is enabled (and point is outside box).";
 }
 
-TEST(InvalidPointCheckTest, PointOutsideBlindDistance) {
-    V3D point_outside(1.5, 0.0, 0.0); // Distance 1.5 > 1.0
-    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_outside, TEST_BLIND_DISTANCE, DATASET_OTHER));
-    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_outside, TEST_BLIND_DISTANCE, DATASET_SPECIAL));
+TEST_F(InvalidPointCheckTest, PointOutsideBlindDistance) {
+    V3D point_outside = p(1.5, 0.0, 0.0); // Distance 1.5 > 1.0
+    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_outside, test_params))
+         << "Point clearly outside blind distance should be valid (box check disabled).";
+
+    // Test with box enabled (point is outside the box)
+    test_params.enable_invalid_box_check = true;
+     ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_outside, test_params))
+        << "Point clearly outside blind distance should be valid (box check enabled, point outside box).";
 }
 
-TEST(InvalidPointCheckTest, SpecialDatasetBox_OutsideDistance_InsideBox) {
-    V3D point(0.05, 0.5, 0.05); // Outside blind distance (norm > 1), but inside special box
-    
-    // Debug info for first assertion
-    float squaredNorm = point.squaredNorm();
-    float squaredBlindDistance = TEST_BLIND_DISTANCE * TEST_BLIND_DISTANCE;
-    bool inBlindZone = squaredNorm < squaredBlindDistance;
-    bool inSpecialBox = std::fabs(point.x()) < 0.1f && 
-                        std::fabs(point.y()) < 1.0f && 
-                        std::fabs(point.z()) < 0.1f;
-    
-    std::cout << "Point (" << point.x() << ", " << point.y() << ", " << point.z() 
-              << "), Dataset: OTHER" << std::endl;
-    std::cout << "  squaredNorm: " << squaredNorm << ", squaredBlindDistance: " 
-              << squaredBlindDistance << std::endl;
-    std::cout << "  inBlindZone: " << (inBlindZone ? "true" : "false") 
-              << ", inSpecialBox: " << (inSpecialBox ? "true" : "false") << std::endl;
-    
-    // Assertion for DATASET_OTHER: Should be TRUE (invalid) because it's too close
-    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_OTHER))
-        << "Point inside blind distance should be invalid regardless of dataset.";
-    
-    // Debug info for second assertion
-    std::cout << "Point (" << point.x() << ", " << point.y() << ", " << point.z() 
-              << "), Dataset: SPECIAL" << std::endl;
-    std::cout << "  squaredNorm: " << squaredNorm << ", squaredBlindDistance: " 
-              << squaredBlindDistance << std::endl;
-    std::cout << "  inBlindZone: " << (inBlindZone ? "true" : "false") 
-              << ", inSpecialBox: " << (inSpecialBox ? "true" : "false") << std::endl;
-    std::cout << "  x in range: " << (std::fabs(point.x()) < 0.1f ? "true" : "false") 
-              << ", y in range: " << (std::fabs(point.y()) < 1.0f ? "true" : "false") 
-              << ", z in range: " << (std::fabs(point.z()) < 0.1f ? "true" : "false") << std::endl;
-    
-    // Assertion for DATASET_SPECIAL: Should be TRUE (invalid) because it's too close
-    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_SPECIAL))
-        << "Point inside blind distance should be invalid regardless of dataset.";
+// --- Tests for Invalid Box ---
+
+TEST_F(InvalidPointCheckTest, BoxCheckDisabled_PointInBoxRegion) {
+    // Point outside blind distance, but would be inside the box if enabled
+    V3D point_in_box_region = p(0.05, 0.5, 0.05); // norm > 1.0
+    point_in_box_region = point_in_box_region.normalized() * 1.1f; // Ensure > blind_dis
+    ASSERT_GT(point_in_box_region.norm(), test_params.blind_dis); // Sanity check
+
+    test_params.enable_invalid_box_check = false; // Explicitly disable
+    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_in_box_region, test_params))
+        << "Point in box region should be VALID when box check is disabled.";
 }
 
-TEST(InvalidPointCheckTest, SpecialDatasetBox_OutsideDistance_OutsideBoxX) {
-    V3D point(0.2, 0.5, 0.05); // Outside blind distance, outside special box (x too large)
-    
-    // Debug info
-    float squaredNorm = point.squaredNorm();
-    float squaredBlindDistance = TEST_BLIND_DISTANCE * TEST_BLIND_DISTANCE;
-    bool inBlindZone = squaredNorm < squaredBlindDistance;
-    bool inSpecialBox = std::fabs(point.x()) < 0.1f && 
-                        std::fabs(point.y()) < 1.0f && 
-                        std::fabs(point.z()) < 0.1f;
-    
-    std::cout << "Point (" << point.x() << ", " << point.y() << ", " << point.z() 
-              << "), Dataset: OTHER" << std::endl;
-    std::cout << "  squaredNorm: " << squaredNorm << ", squaredBlindDistance: " 
-              << squaredBlindDistance << std::endl;
-    std::cout << "  inBlindZone: " << (inBlindZone ? "true" : "false") 
-              << ", inSpecialBox: " << (inSpecialBox ? "true" : "false") << std::endl;
-    
-    // Assertion for DATASET_OTHER: Should be TRUE (invalid) because it's too close
-    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_OTHER))
-        << "Point inside blind distance should be invalid regardless of dataset.";
-    
-    // Debug for second assertion
-    std::cout << "Point (" << point.x() << ", " << point.y() << ", " << point.z() 
-              << "), Dataset: SPECIAL" << std::endl;
-    std::cout << "  x in range: " << (std::fabs(point.x()) < 0.1f ? "true" : "false") 
-              << ", y in range: " << (std::fabs(point.y()) < 1.0f ? "true" : "false") 
-              << ", z in range: " << (std::fabs(point.z()) < 0.1f ? "true" : "false") << std::endl;
-    
+// Test case for when the box check is enabled
+TEST_F(InvalidPointCheckTest, BoxCheckEnabled) {
+    test_params.enable_invalid_box_check = true; // Enable the check
 
-    // Assertion for DATASET_SPECIAL: Should be TRUE (invalid) because it's too close
-    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_SPECIAL))
-        << "Point inside blind distance should be invalid regardless of dataset.";
+    // Case 1: Point inside blind distance (should be invalid)
+    V3D point_too_close = p(0.1f, 0.0f, 0.0f); // norm = 0.1 < blind_dis
+    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point_too_close, test_params))
+        << "Point inside blind distance should always be invalid.";
+
+    // Case 2: Point outside blind distance AND inside the invalid box (should be invalid)
+    V3D point_in_box = p(0.4f, 0.9f, -0.4f); // norm > blind_dis, |x|<0.5, |y|<1.0, |z|<0.5
+    ASSERT_GT(point_in_box.norm(), test_params.blind_dis); // Verify outside blind
+    ASSERT_LT(std::fabs(point_in_box.x()), test_params.invalid_box_x_half_width); // Verify inside box X
+    ASSERT_LT(std::fabs(point_in_box.y()), test_params.invalid_box_y_half_width); // Verify inside box Y
+    ASSERT_LT(std::fabs(point_in_box.z()), test_params.invalid_box_z_half_width); // Verify inside box Z
+    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point_in_box, test_params))
+        << "Point outside blind distance but inside the box should be INVALID when box check is enabled.";
+
+    // Case 3: Point outside blind distance AND outside the invalid box (should be valid)
+    V3D point_outside_box_x = p(0.6f, 0.5f, 0.0f); // norm > blind_dis, |x| > 0.5
+    ASSERT_GT(point_outside_box_x.norm(), test_params.blind_dis); // Verify outside blind
+    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_outside_box_x, test_params))
+        << "Point outside blind distance and outside the box (X) should be VALID when box check is enabled.";
+
+    V3D point_outside_box_y = p(0.3f, 1.1f, 0.0f); // norm > blind_dis, |y| > 1.0
+    ASSERT_GT(point_outside_box_y.norm(), test_params.blind_dis); // Verify outside blind
+    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_outside_box_y, test_params))
+        << "Point outside blind distance and outside the box (Y) should be VALID when box check is enabled.";
+
+    V3D point_far_away = p(10.0f, 10.0f, 10.0f); // Clearly outside both
+     ASSERT_GT(point_far_away.norm(), test_params.blind_dis); // Verify outside blind
+    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_far_away, test_params))
+        << "Far away point should be VALID when box check is enabled.";
 }
 
-TEST(InvalidPointCheckTest, SpecialDatasetBox_OutsideDistance_OutsideBoxY) {
-    V3D point(0.05, 1.5, 0.05); // Outside blind distance, outside special box (y too large)
-    
-    // Debug info
-    float squaredNorm = point.squaredNorm();
-    float squaredBlindDistance = TEST_BLIND_DISTANCE * TEST_BLIND_DISTANCE;
-    bool inBlindZone = squaredNorm < squaredBlindDistance;
-    bool inSpecialBox = std::fabs(point.x()) < 0.1f && 
-                        std::fabs(point.y()) < 1.0f && 
-                        std::fabs(point.z()) < 0.1f;
-    
-    std::cout << "Point (" << point.x() << ", " << point.y() << ", " << point.z() 
-              << "), Dataset: OTHER" << std::endl;
-    std::cout << "  squaredNorm: " << squaredNorm << ", squaredBlindDistance: " 
-              << squaredBlindDistance << std::endl;
-    std::cout << "  inBlindZone: " << (inBlindZone ? "true" : "false") 
-              << ", inSpecialBox: " << (inSpecialBox ? "true" : "false") << std::endl;
-    
-    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_OTHER));
-    
-    // Debug for second assertion
-    std::cout << "Point (" << point.x() << ", " << point.y() << ", " << point.z() 
-              << "), Dataset: SPECIAL" << std::endl;
-    std::cout << "  x in range: " << (std::fabs(point.x()) < 0.1f ? "true" : "false") 
-              << ", y in range: " << (std::fabs(point.y()) < 1.0f ? "true" : "false") 
-              << ", z in range: " << (std::fabs(point.z()) < 0.1f ? "true" : "false") << std::endl;
-    
-    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_SPECIAL));
+TEST_F(InvalidPointCheckTest, BoxCheckEnabled_PointOutsideBoxX) {
+    // Point outside blind distance, outside box (X too large)
+    V3D point_outside_box = p(0.6f, 0.5f, 0.0f); // |x|>=0.5, norm=sqrt(0.36+0.25) > 0.2
+    ASSERT_GT(point_outside_box.norm(), test_params.blind_dis); // Sanity check
+    ASSERT_GE(std::fabs(point_outside_box.x()), test_params.invalid_box_x_half_width); // Check >= 0.5
+    ASSERT_LT(std::fabs(point_outside_box.y()), test_params.invalid_box_y_half_width); // Check < 1.0 (inside Y)
+    ASSERT_LT(std::fabs(point_outside_box.z()), test_params.invalid_box_z_half_width); // Check < 0.5 (inside Z)
+
+    test_params.enable_invalid_box_check = true; // Enable the check
+    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_outside_box, test_params))
+        << "Point outside blind distance AND outside the box (X) should be VALID when box check is enabled.";
 }
 
-TEST(InvalidPointCheckTest, SpecialDatasetBox_OutsideDistance_OutsideBoxZ) {
-    // Test the nuance of the original logic: Z check only matters if dataset=1 and X/Y are in range
-    V3D point(0.05, 0.5, 0.2); // Outside blind distance, X/Y inside box, Z outside box
-    
-    // Debug info
-    float squaredNorm = point.squaredNorm();
-    float squaredBlindDistance = TEST_BLIND_DISTANCE * TEST_BLIND_DISTANCE;
-    bool inBlindZone = squaredNorm < squaredBlindDistance;
-    bool inSpecialBox = std::fabs(point.x()) < 0.1f && 
-                        std::fabs(point.y()) < 1.0f && 
-                        std::fabs(point.z()) < 0.1f;
-    
-    std::cout << "Point (" << point.x() << ", " << point.y() << ", " << point.z() 
-              << "), Dataset: OTHER" << std::endl;
-    std::cout << "  squaredNorm: " << squaredNorm << ", squaredBlindDistance: " 
-              << squaredBlindDistance << std::endl;
-    std::cout << "  inBlindZone: " << (inBlindZone ? "true" : "false") 
-              << ", inSpecialBox: " << (inSpecialBox ? "true" : "false") << std::endl;
-    
-    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_OTHER));
-    
-    // Debug for second assertion with focus on Z dimension
-    std::cout << "Point (" << point.x() << ", " << point.y() << ", " << point.z() 
-              << "), Dataset: SPECIAL" << std::endl;
-    std::cout << "  x in range: " << (std::fabs(point.x()) < 0.1f ? "true" : "false") 
-              << ", y in range: " << (std::fabs(point.y()) < 1.0f ? "true" : "false") 
-              << ", z in range: " << (std::fabs(point.z()) < 0.1f ? "true" : "false") << std::endl;
-    std::cout << "  Point should be valid because z=" << point.z() << " is outside special box bounds" << std::endl;
-    
-    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_SPECIAL)); // Z check makes it valid for dataset 1
+TEST_F(InvalidPointCheckTest, BoxCheckEnabled_PointOutsideBoxY) {
+    // Point outside blind distance, outside box (Y too large)
+    V3D point_outside_box = p(0.05, 1.1, 0.05); // y >= invalid_box_y_half_width (1.0)
+    point_outside_box = point_outside_box.normalized() * 1.1f; // Ensure > blind_dis
+    ASSERT_GT(point_outside_box.norm(), test_params.blind_dis); // Sanity check
+    ASSERT_GE(std::fabs(point_outside_box.y()), test_params.invalid_box_y_half_width);
+
+    test_params.enable_invalid_box_check = true; // Enable the check
+    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_outside_box, test_params))
+        << "Point outside blind distance AND outside the box (Y) should be VALID when box check is enabled.";
 }
 
-TEST(InvalidPointCheckTest, SpecialDatasetBox_InsideDistance_InsideBox) {
-    V3D point(0.05, 0.5, 0.05);
-    // Make it closer than blind distance
-    point = point.normalized() * (TEST_BLIND_DISTANCE * 0.5f);
-    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_OTHER)); // Invalid due to distance
-    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_SPECIAL)); // Invalid due to distance (even though also in box)
+TEST_F(InvalidPointCheckTest, BoxCheckEnabled_PointOutsideBoxZ) {
+    // Point outside blind distance, outside box (Z too large)
+    V3D point_outside_box = p(0.1f, 0.5f, 0.6f); // |z|>=0.5, norm=sqrt(0.01+0.25+0.36) > 0.2
+    ASSERT_GT(point_outside_box.norm(), test_params.blind_dis); // Sanity check
+    ASSERT_LT(std::fabs(point_outside_box.x()), test_params.invalid_box_x_half_width); // Check < 0.5 (inside X)
+    ASSERT_LT(std::fabs(point_outside_box.y()), test_params.invalid_box_y_half_width); // Check < 1.0 (inside Y)
+    ASSERT_GE(std::fabs(point_outside_box.z()), test_params.invalid_box_z_half_width); // Check >= 0.5
+
+    test_params.enable_invalid_box_check = true; // Enable the check
+    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point_outside_box, test_params))
+        << "Point outside blind distance AND outside the box (Z) should be VALID when box check is enabled.";
 }
 
-TEST(InvalidPointCheckTest, SpecialDatasetBox_OutsideDistance_InsideBox_TrueOutside) {
-    // Point with sqNorm > 1.0 AND |x|<0.1, |y|<1.0, |z|<0.1
-    V3D point(0.0f, 0.999f, 0.09f); // sqNorm = 1.006101 > 1.0. Inside box.
+TEST_F(InvalidPointCheckTest, BoxCheckEnabled_PointInsideBlindAndBox) {
+    // Point inside blind distance AND inside the box region
+    V3D point_inside_both = p(0.05f, 0.1f, 0.05f); // norm=sqrt(0.0025+0.01+0.0025)=sqrt(0.015) approx 0.12 < 0.2
+    ASSERT_LT(point_inside_both.norm(), test_params.blind_dis); // Sanity check: norm < 0.2
+    // Check it's also inside the box bounds (it is: |x|<0.5, |y|<1.0, |z|<0.5)
+    ASSERT_LT(std::fabs(point_inside_both.x()), test_params.invalid_box_x_half_width);
+    ASSERT_LT(std::fabs(point_inside_both.y()), test_params.invalid_box_y_half_width);
+    ASSERT_LT(std::fabs(point_inside_both.z()), test_params.invalid_box_z_half_width);
 
-    // Assertion for DATASET_OTHER: Should be FALSE (valid) - outside distance, dataset not 1
-    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_OTHER));
-
-    // Assertion for DATASET_SPECIAL: Should be TRUE (invalid) - outside distance, but dataset=1 AND inside box
-    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_SPECIAL));
-}
-
-// NEW TEST: Point OUTSIDE blind distance, OUTSIDE special box (X)
-TEST(InvalidPointCheckTest, SpecialDatasetBox_OutsideDistance_OutsideBoxX_TrueOutside) {
-    // Point outside distance (sqNorm > 1.0), outside box because x >= 0.1
-    V3D point(1.1f, 0.5f, 0.05f); // sqNorm = 1.4625 > 1.0. Outside box (x).
-
-    // Assertion for DATASET_OTHER: Should be FALSE (valid) - outside distance
-    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_OTHER));
-
-    // Assertion for DATASET_SPECIAL: Should be FALSE (valid) - outside distance AND outside box
-    ASSERT_FALSE(PointCloudUtils::isPointInvalid(point, TEST_BLIND_DISTANCE, DATASET_SPECIAL));
+    test_params.enable_invalid_box_check = true; // Enable the check
+    // Function should return true because blind distance check comes first
+    ASSERT_TRUE(PointCloudUtils::isPointInvalid(point_inside_both, test_params))
+        << "Point inside blind distance AND inside the box should be INVALID (due to blind distance).";
 }

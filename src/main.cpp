@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
   std::cout << "  Case 2 Vel Min Thr:   " << params.v_min_thr2 << std::endl;
   std::cout << "  Case 3 Occl Times Thr:" << params.occluding_times_thr3
             << std::endl;
-  std::cout << "  Cluster Voxel Res:    " << params.Cluster_Voxel_revolusion
+  std::cout << "  Cluster Voxel Res:    " << params.Cluster_Voxel_resolution
             << std::endl;
   std::cout << "-------------------------------------" << std::endl;
 

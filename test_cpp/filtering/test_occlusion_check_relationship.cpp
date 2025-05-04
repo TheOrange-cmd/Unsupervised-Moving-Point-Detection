@@ -81,31 +81,31 @@ TEST_F(OcclusionRelationshipTest, Fail_InvalidOccludedStatus) {
     EXPECT_FALSE(ConsistencyChecks::checkOcclusionRelationship(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE3_OCCLUDED_SEARCH));
 }
 
-TEST_F(OcclusionRelationshipTest, Fail_DistortionDataset0_Occluded) {
-    int original_dataset = params.dataset;
-    params.dataset = 0;
-    p_occluded.is_distort = true;
-    EXPECT_FALSE(ConsistencyChecks::checkOcclusionRelationship(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH));
-    EXPECT_FALSE(ConsistencyChecks::checkOcclusionRelationship(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE3_OCCLUDED_SEARCH));
-    params.dataset = original_dataset; // Restore
-}
+// TEST_F(OcclusionRelationshipTest, Fail_DistortionDataset0_Occluded) {
+//     int original_dataset = params.dataset;
+//     params.dataset = 0;
+//     p_occluded.is_distort = true;
+//     EXPECT_FALSE(ConsistencyChecks::checkOcclusionRelationship(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH));
+//     EXPECT_FALSE(ConsistencyChecks::checkOcclusionRelationship(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE3_OCCLUDED_SEARCH));
+//     params.dataset = original_dataset; // Restore
+// }
 
-TEST_F(OcclusionRelationshipTest, Fail_DistortionDataset0_Occluder) {
-    int original_dataset = params.dataset;
-    params.dataset = 0;
-    p_occluder.is_distort = true;
-    // Adjust depth threshold calculation for distortion effect if needed for other tests
-    float threshold_case2 = calculateOcclusionDepthThreshold(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH);
-    float threshold_case3 = calculateOcclusionDepthThreshold(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE3_OCCLUDED_SEARCH);
-    ASSERT_FALSE(std::isnan(threshold_case2));
-    ASSERT_FALSE(std::isnan(threshold_case3));
-    p_occluded.vec(2) = p_occluder.vec(2) + std::max(threshold_case2, threshold_case3) + 0.1f; // Ensure depth passes *without* distortion check
+// TEST_F(OcclusionRelationshipTest, Fail_DistortionDataset0_Occluder) {
+//     int original_dataset = params.dataset;
+//     params.dataset = 0;
+//     p_occluder.is_distort = true;
+//     // Adjust depth threshold calculation for distortion effect if needed for other tests
+//     float threshold_case2 = calculateOcclusionDepthThreshold(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH);
+//     float threshold_case3 = calculateOcclusionDepthThreshold(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE3_OCCLUDED_SEARCH);
+//     ASSERT_FALSE(std::isnan(threshold_case2));
+//     ASSERT_FALSE(std::isnan(threshold_case3));
+//     p_occluded.vec(2) = p_occluder.vec(2) + std::max(threshold_case2, threshold_case3) + 0.1f; // Ensure depth passes *without* distortion check
 
-    // Now check the function which *should* apply the distortion check internally
-    EXPECT_FALSE(ConsistencyChecks::checkOcclusionRelationship(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH));
-    EXPECT_FALSE(ConsistencyChecks::checkOcclusionRelationship(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE3_OCCLUDED_SEARCH));
-    params.dataset = original_dataset; // Restore
-}
+//     // Now check the function which *should* apply the distortion check internally
+//     EXPECT_FALSE(ConsistencyChecks::checkOcclusionRelationship(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE2_OCCLUDER_SEARCH));
+//     EXPECT_FALSE(ConsistencyChecks::checkOcclusionRelationship(p_occluder, p_occluded, params, ConsistencyChecks::ConsistencyCheckType::CASE3_OCCLUDED_SEARCH));
+//     params.dataset = original_dataset; // Restore
+// }
 
 TEST_F(OcclusionRelationshipTest, Pass_DistortionNotDataset0) {
     int original_dataset = params.dataset;

@@ -8,11 +8,25 @@
 #include <algorithm>  // For std::min, std::max
 #include <iostream>
 
-constexpr double CACHE_VALID_THRESHOLD = 10e-5; // Or 1e-5
 // Define a small epsilon for floating-point comparisons in barycentric calculation
+constexpr double CACHE_VALID_THRESHOLD = 10e-5; // Or 1e-5
+
+
+
+
 
 
 namespace PointCloudUtils {
+
+    std::string interpolationStatusToString(InterpolationStatus status) {
+        switch (status) {
+            case InterpolationStatus::SUCCESS: return "SUCCESS";
+            case InterpolationStatus::NOT_ENOUGH_NEIGHBORS: return "NOT_ENOUGH_NEIGHBORS";
+            case InterpolationStatus::NO_VALID_TRIANGLE: return "NO_VALID_TRIANGLE";
+            // Add other cases like DEGENERACY if you define them
+            default: return "UNKNOWN_STATUS";
+        }
+    }
 
     void SphericalProjection(point_soph &p, int depth_index, const M3D &rot, 
       const V3D &transl, const DynObjFilterParams& params, point_soph &p_spherical)
@@ -45,24 +59,25 @@ namespace PointCloudUtils {
         }
     }
 
-    bool isPointInvalid(const V3D& point, float blind_distance, int dataset_id) {
-        // Check 1: Too close to the origin
+    bool isPointInvalid(const V3D& point, const DynObjFilterParams& params) {
+        // Check 1: Too close to the origin (Blind Distance Sphere)
         // Using squaredNorm for efficiency (avoids sqrt)
-        if (point.squaredNorm() < (blind_distance * blind_distance)) {
+        if (point.squaredNorm() < (params.blind_dis * params.blind_dis)) {
             return true;
         }
-    
-        // Check 2: Specific bounding box for dataset 1 (Combined condition)
-        if (dataset_id == 1 &&
-            std::fabs(point.x()) < 0.1f &&
-            std::fabs(point.y()) < 1.0f &&
-            std::fabs(point.z()) < 0.1f) { // Z check is part of the main condition
-            return true;
+
+        // Check 2: Inside the optional invalid bounding box near the origin
+        if (params.enable_invalid_box_check) {
+            if (std::fabs(point.x()) < params.invalid_box_x_half_width &&
+                std::fabs(point.y()) < params.invalid_box_y_half_width &&
+                std::fabs(point.z()) < params.invalid_box_z_half_width) {
+                return true; // Invalid if enabled and inside the box
+            }
         }
 
         // If none of the invalid conditions are met
         return false;
-        }
+    }
 
     // Define the boxes for dataset 0 (using the optional struct)
     // Note: Using V3D constructor assuming V3D(x, y, z)
@@ -75,19 +90,13 @@ namespace PointCloudUtils {
     };
 
 
-    bool isSelfPoint(const V3D& point, int dataset_id) { 
-        if (dataset_id != 0) {
-            return false; // This check only applies to dataset 0
-        }
-
-        // Check against predefined boxes for dataset 0
-        for (const auto& box : self_boxes_dataset0) {
-            if (isInsideAABB(point, box)) {
-                return true; // Point is inside one of the self-filter boxes
-            }
-        }
-
-        return false; // Point is not inside any self-filter box for dataset 0
+    bool isSelfPoint(const V3D& local_point, const DynObjFilterParams& params) {
+        // Check if the point's X and Y coordinates fall within the rectangular region
+        // defined by the parameters. Assuming Z is not used for self-filtering here.
+        return (local_point.x() >= params.self_x_b && local_point.x() <= params.self_x_f &&
+                local_point.y() >= params.self_y_r && local_point.y() <= params.self_y_l);
+        // Note: Uses >= and <= matching the checkOcclusionRelationship implementation.
+        // Adjust if strict inequality (>) was intended.
     }
 
     // Optional helper function implementation
@@ -273,6 +282,14 @@ namespace PointCloudUtils {
         // If no neighbors were found, min_depth/max_depth remain unchanged from caller's initialization.
     }
 
+    std::string interpolationNeighborTypeToString(InterpolationNeighborType type) {
+        switch (type) {
+            case InterpolationNeighborType::ALL_VALID: return "ALL_VALID";
+            case InterpolationNeighborType::STATIC_ONLY: return "STATIC_ONLY";
+            default: return "UNKNOWN";
+        }
+    }
+
     std::vector<V3F> findInterpolationNeighbors(
         const point_soph& p,
         const DepthMap& map_info,
@@ -280,80 +297,149 @@ namespace PointCloudUtils {
         InterpolationNeighborType type)
     {
         std::vector<V3F> neighbors;
-        // Consider reserving space based on expected density and search area
-        // neighbors.reserve( estimate );
-
-        // --- Input Sanity Checks (Performed by forEachNeighborCell and within lambda) ---
-        if (map_info.depth_map.empty()) {
-             std::cerr << "Warning in findInterpolationNeighbors: map_info.depth_map is empty." << std::endl;
+        // neighbors.reserve( estimate ); // Consider adding reservation
+    
+        // --- Input Sanity Checks ---
+        if (map_info.depth_map.empty() || map_info.depth_map.size() != MAX_2D_N) {
+             std::cerr << "Warning in findInterpolationNeighbors: map_info.depth_map invalid." << std::endl;
              return neighbors;
         }
-        if (map_info.depth_map.size() != MAX_2D_N) {
-             std::cerr << "Warning in findInterpolationNeighbors: map_info.depth_map size does not match MAX_2D_N." << std::endl;
-             // Proceed cautiously, lambda will handle indices.
+    
+        // *** ADD DEBUG PRINT (Outer) ***
+        bool is_bg_point_debug = p.local.x() > 40.0; // Heuristic for this specific test
+        if (params.debug_en && is_bg_point_debug && type == InterpolationNeighborType::STATIC_ONLY) {
+            std::cout << "[findInterpNeighbors DEBUG BG Point] Center H=" << p.hor_ind << ", V=" << p.ver_ind
+                      << " (Depth=" << p.vec(2) << ", LocX="<< p.local.x() <<") Checking MapIdx=" << map_info.map_index
+                      << " for Type=" << interpolationNeighborTypeToString(type) << std::endl;
         }
-
+        // *** END DEBUG PRINT ***
+    
         // Use the helper, enabling wrap-around, including center
-        forEachNeighborCell(p, params.interp_hor_num, params.interp_ver_num, true, true, // include_center=true, wrap_horizontal=true
+        forEachNeighborCell(p, params.interp_hor_num, params.interp_ver_num, true, true,
             // Lambda captures necessary variables
             [&](int pos) {
                  // Check if index is valid for the map_info.depth_map (safety check)
                  if (pos < 0 || pos >= map_info.depth_map.size()) {
                      return; // Skip invalid index
                  }
-
+    
                 // Get the points in the neighbor cell
                 const auto& cell_points = map_info.depth_map[pos];
-
+    
+                // *** ADD DEBUG PRINT (Inner Setup) ***
+                int found_in_cell = 0;
+                int valid_for_interp_in_cell = 0;
+                int passed_time_filter = 0;
+                int passed_angular_filter = 0;
+                int passed_label_filter = 0;
+                bool is_center_cell = false; // Flag for more detailed printing of center cell
+                 if (!cell_points.empty()) {
+                    found_in_cell = cell_points.size();
+                    int current_h_idx_dbg = pos % MAX_1D;
+                    int current_v_idx_dbg = pos / MAX_1D;
+                    is_center_cell = (current_h_idx_dbg == p.hor_ind && current_v_idx_dbg == p.ver_ind);
+                }
+                // *** END DEBUG PRINT (Inner Setup) ***
+    
                 if (cell_points.empty()) {
+                     // *** ADD DEBUG PRINT (Inner - Empty Cell) ***
+                     if (params.debug_en && is_bg_point_debug && type == InterpolationNeighborType::STATIC_ONLY) {
+                         int current_h_idx = pos % MAX_1D;
+                         int current_v_idx = pos / MAX_1D;
+                         // Only print if it's a cell within the search range
+                         if (std::abs(current_h_idx - p.hor_ind) <= params.interp_hor_num && std::abs(current_v_idx - p.ver_ind) <= params.interp_ver_num) {
+                             // Adjust for wrap-around in horizontal check if necessary
+                             int hor_diff_abs = std::abs(current_h_idx - p.hor_ind);
+                             if (hor_diff_abs > MAX_1D / 2) hor_diff_abs = MAX_1D - hor_diff_abs; // Handle wrap
+                             if (hor_diff_abs <= params.interp_hor_num) {
+                                std::cout << "[findInterpNeighbors DEBUG BG Point]  Cell H=" << current_h_idx << ", V=" << current_v_idx
+                                          << ": Found=0" << std::endl;
+                             }
+                         }
+                     }
+                     // *** END DEBUG PRINT ***
                     return; // Skip empty cells
                 }
-
+    
                 // Iterate through points within that cell
-                for (const auto& neighbor_ptr : cell_points) { // Use auto& or const auto&
+                for (const auto& neighbor_ptr : cell_points) {
                     if (!neighbor_ptr) continue; // Skip null pointers
-
+    
                     // --- Apply original filtering logic ---
-
+                    bool time_ok = false, angular_ok = false, label_ok = false, use_neighbor = false;
+    
                     // Filter 1: Time difference check
                     float time_diff = std::fabs(neighbor_ptr->time - p.time);
-                    if (time_diff < params.frame_dur) { // Skip points too close in time
-                        continue;
-                    }
-
+                    time_ok = (time_diff >= params.frame_dur);
+                    if (time_ok) passed_time_filter++; else continue; // Continue if time fails
+    
                     // Filter 2: Projection distance check (angular distance)
                     float hor_diff_raw = neighbor_ptr->vec.x() - p.vec.x();
                     float ver_diff = neighbor_ptr->vec.y() - p.vec.y();
-                    // Handle azimuth wrap-around for difference
                     float hor_diff = hor_diff_raw;
                     if (hor_diff > M_PI) hor_diff -= 2.0f * M_PI;
                     else if (hor_diff < -M_PI) hor_diff += 2.0f * M_PI;
-
-                    if (std::fabs(hor_diff) >= params.interp_hor_thr || std::fabs(ver_diff) >= params.interp_ver_thr) {
-                        continue; // Skip points too far angularly
-                    }
-
+                    angular_ok = (std::fabs(hor_diff) < params.interp_hor_thr && std::fabs(ver_diff) < params.interp_ver_thr);
+                     if (angular_ok) passed_angular_filter++; else continue; // Continue if angular fails
+    
                     // Filter 3: Neighbor Type check
-                    bool use_neighbor = false;
                     if (type == InterpolationNeighborType::ALL_VALID) {
-                        use_neighbor = true;
+                        label_ok = true; // Always true for ALL_VALID
                     } else if (type == InterpolationNeighborType::STATIC_ONLY) {
-                        if (neighbor_ptr->dyn == DynObjLabel::STATIC) {
-                            use_neighbor = true;
-                        }
-                    }
-                    // Add other types if needed
+                        label_ok = (neighbor_ptr->dyn == DynObjLabel::STATIC);
+                        // *** ADD DEBUG PRINT ON LABEL FAILURE ***
+                        if (!label_ok && params.debug_en && is_bg_point_debug) { // is_bg_point_debug is the outer heuristic check (p.local.x() > 40.0)
+                            // This block executes ONLY if the STATIC check fails for a background point neighbor search
+                            std::cout << "[findInterpNeighbors DEBUG BG Point]    #### LABEL CHECK FAILED ####" << std::endl;
+                            std::cout << "[findInterpNeighbors DEBUG BG Point]    Checking against MapIdx=" << map_info.map_index << std::endl;
+                            std::cout << "[findInterpNeighbors DEBUG BG Point]    Neighbor Point in Cell H=" << (pos % MAX_1D) << ", V=" << (pos / MAX_1D) << std::endl;
+                            std::cout << "[findInterpNeighbors DEBUG BG Point]    Neighbor's Actual Label = " << static_cast<int>(neighbor_ptr->dyn)
+                                    << " (Expected STATIC = " << static_cast<int>(DynObjLabel::STATIC) << ")" << std::endl;
+                            std::cout << "[findInterpNeighbors DEBUG BG Point]    Neighbor's Time = " << neighbor_ptr->time
+                                    << ", Depth = " << neighbor_ptr->vec(2) << std::endl;
+                            std::cout << "[findInterpNeighbors DEBUG BG Point]    (Center Point Time = " << p.time
+                                    << ", Depth = " << p.vec(2) << ")" << std::endl;
 
-                    // Add the neighbor's vector if it passed all filters
-                    if (use_neighbor) {
-                        neighbors.push_back(neighbor_ptr->vec);
-                    }
+                        }
+                        // *** END DEBUG PRINT ***
+                        }
+                    if (label_ok) passed_label_filter++; else continue; // Continue if label fails
+    
+                    // If all filters passed
+                    use_neighbor = true; // Redundant now, but follows structure
+                    neighbors.push_back(neighbor_ptr->vec);
+                    valid_for_interp_in_cell++;
+    
                 } // End loop through points in cell
+    
+                // *** ADD DEBUG PRINT (Inner Summary) ***
+                if (params.debug_en && is_bg_point_debug && type == InterpolationNeighborType::STATIC_ONLY) {
+                     int current_h_idx = pos % MAX_1D;
+                     int current_v_idx = pos / MAX_1D;
+                     std::cout << "[findInterpNeighbors DEBUG BG Point]  Cell H=" << current_h_idx << ", V=" << current_v_idx
+                               << ": Found=" << found_in_cell << ", PassTime=" << passed_time_filter
+                               << ", PassAng=" << passed_angular_filter << ", PassLabel(STATIC)=" << passed_label_filter
+                               << " -> ValidForInterp=" << valid_for_interp_in_cell << std::endl;
+                     // Optional: More detail for the center cell if interpolation fails
+                     if (is_center_cell && valid_for_interp_in_cell == 0 && found_in_cell > 0) {
+                         std::cout << "    Center Cell Detail: Points found but none valid. Check filters." << std::endl;
+                         // Could add printout of the first few points in cell_points here if needed
+                     }
+                }
+                // *** END DEBUG PRINT ***
+    
             } // End of lambda
         ); // End of forEachNeighborCell call
-
+    
+        // *** ADD DEBUG PRINT (Final) ***
+         if (params.debug_en && is_bg_point_debug && type == InterpolationNeighborType::STATIC_ONLY) {
+            std::cout << "[findInterpNeighbors DEBUG BG Point] Total Valid Neighbors Found For Interpolation: " << neighbors.size() << std::endl;
+         }
+        // *** END DEBUG PRINT ***
+    
         return neighbors;
     }
+    
 
     InterpolationResult computeBarycentricDepth(
         const V2F& target_point_projection,
@@ -361,15 +447,15 @@ namespace PointCloudUtils {
         const DynObjFilterParams& params)
     {
         // --- DEBUG PRINT: Input ---
-        std::cout << "[computeBarycentricDepth] Target Proj: (" << target_point_projection.x() << ", " << target_point_projection.y() << ")" << std::endl;
-        std::cout << "[computeBarycentricDepth] Received " << neighbors.size() << " neighbors:" << std::endl;
-        for(size_t i = 0; i < neighbors.size(); ++i) {
-            std::cout << "  Neighbor " << i << ": Proj=(" << neighbors[i].x() << ", " << neighbors[i].y() << "), Depth=" << neighbors[i].z() << std::endl;
-        }
+        // std::cout << "[computeBarycentricDepth] Target Proj: (" << target_point_projection.x() << ", " << target_point_projection.y() << ")" << std::endl;
+        // std::cout << "[computeBarycentricDepth] Received " << neighbors.size() << " neighbors:" << std::endl;
+        // for(size_t i = 0; i < neighbors.size(); ++i) {
+        //     std::cout << "  Neighbor " << i << ": Proj=(" << neighbors[i].x() << ", " << neighbors[i].y() << "), Depth=" << neighbors[i].z() << std::endl;
+        // }
         // --- END DEBUG ---
 
         if (neighbors.size() < 3) {
-            std::cout << "[computeBarycentricDepth] Failing early: Not enough neighbors." << std::endl;
+            // std::cout << "[computeBarycentricDepth] Failing early: Not enough neighbors." << std::endl;
             return {InterpolationStatus::NOT_ENOUGH_NEIGHBORS, 0.0f};
         }
     
@@ -412,14 +498,14 @@ namespace PointCloudUtils {
                     // --- End Unwrap ---
     
                     // --- DEBUG PRINT: Triangle (Unwrapped) ---
-                    std::cout << "[computeBarycentricDepth] Checking triangle (i=" << i << ", j=" << j << ", k=" << k << ")" << std::endl;
+                    // std::cout << "[computeBarycentricDepth] Checking triangle (i=" << i << ", j=" << j << ", k=" << k << ")" << std::endl;
                     // std::cout << "  v0 (orig): (" << v0_orig.x() << ", " << v0_orig.y() << ")" << std::endl; // Optional
                     // std::cout << "  v1 (orig): (" << v1_orig.x() << ", " << v1_orig.y() << ")" << std::endl; // Optional
                     // std::cout << "  v2 (orig): (" << v2_orig.x() << ", " << v2_orig.y() << ")" << std::endl; // Optional
-                    std::cout << "  v0 (unwr): (" << v0.x() << ", " << v0.y() << ")" << std::endl;
-                    std::cout << "  v1 (unwr): (" << v1.x() << ", " << v1.y() << ")" << std::endl;
-                    std::cout << "  v2 (unwr): (" << v2.x() << ", " << v2.y() << ")" << std::endl;
-                    std::cout << "  Target   : (" << target_unwrapped.x() << ", " << target_unwrapped.y() << ")" << std::endl;
+                    // std::cout << "  v0 (unwr): (" << v0.x() << ", " << v0.y() << ")" << std::endl;
+                    // std::cout << "  v1 (unwr): (" << v1.x() << ", " << v1.y() << ")" << std::endl;
+                    // std::cout << "  v2 (unwr): (" << v2.x() << ", " << v2.y() << ")" << std::endl;
+                    // std::cout << "  Target   : (" << target_unwrapped.x() << ", " << target_unwrapped.y() << ")" << std::endl;
                     // --- END DEBUG ---
     
                     // Calculate barycentric coordinates using UNWRAPPED v0, v1, v2 and target
@@ -435,12 +521,12 @@ namespace PointCloudUtils {
                     float denom = d00 * d11 - d01 * d01;
     
                     // --- DEBUG PRINT: Calculations (Unwrapped) ---
-                    std::cout << "  (Unwrapped) d00=" << d00 << ", d01=" << d01 << ", d11=" << d11 << ", d20=" << d20 << ", d21=" << d21 << std::endl;
-                    std::cout << "  (Unwrapped) denom=" << denom << " (Degeneracy Epsilon: " << std::scientific << BARY_DEGENERACY_EPSILON << std::fixed << ")" << std::endl;
+                    // std::cout << "  (Unwrapped) d00=" << d00 << ", d01=" << d01 << ", d11=" << d11 << ", d20=" << d20 << ", d21=" << d21 << std::endl;
+                    // std::cout << "  (Unwrapped) denom=" << denom << " (Degeneracy Epsilon: " << std::scientific << BARY_DEGENERACY_EPSILON << std::fixed << ")" << std::endl;
                     // --- END DEBUG ---
     
                     if (std::fabs(denom) < BARY_DEGENERACY_EPSILON) {
-                        std::cout << "  -> Skipping: Degenerate triangle (denom < " << std::scientific << BARY_DEGENERACY_EPSILON << std::fixed << ")." << std::endl;
+                        // std::cout << "  -> Skipping: Degenerate triangle (denom < " << std::scientific << BARY_DEGENERACY_EPSILON << std::fixed << ")." << std::endl;
                         continue;
                     }
     
@@ -449,14 +535,14 @@ namespace PointCloudUtils {
                     float u = 1.0f - v - w;
     
                     // --- DEBUG PRINT: Barycentric Coords (Unwrapped) ---
-                    std::cout << "  (Unwrapped) Barycentric coords: u=" << u << ", v=" << v << ", w=" << w << std::endl;
+                    // std::cout << "  (Unwrapped) Barycentric coords: u=" << u << ", v=" << v << ", w=" << w << std::endl;
                     // --- END DEBUG ---
     
                     bool is_inside = (u >= -BARY_INSIDE_CHECK_EPSILON &&
                                       v >= -BARY_INSIDE_CHECK_EPSILON &&
                                       w >= -BARY_INSIDE_CHECK_EPSILON);
     
-                    std::cout << "  (Unwrapped) Inside Check (Tolerance: " << -BARY_INSIDE_CHECK_EPSILON << "): " << (is_inside ? "PASS" : "FAIL") << std::endl;
+                    // std::cout << "  (Unwrapped) Inside Check (Tolerance: " << -BARY_INSIDE_CHECK_EPSILON << "): " << (is_inside ? "PASS" : "FAIL") << std::endl;
     
                     if (is_inside) {
                         // Use original neighbor indices (i, j, k) to get correct depths

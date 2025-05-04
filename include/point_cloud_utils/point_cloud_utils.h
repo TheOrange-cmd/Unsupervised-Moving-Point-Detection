@@ -14,6 +14,8 @@
 // Define a namespace for these utility functions
 namespace PointCloudUtils {
 
+
+
     struct AABB { // Axis-Aligned Bounding Box
         V3D min_corner;
         V3D max_corner;
@@ -26,6 +28,9 @@ namespace PointCloudUtils {
         InterpolationStatus status = InterpolationStatus::NOT_ENOUGH_NEIGHBORS;
         float depth = 0.0f;
     };
+
+    // helper to convert status to a string
+    std::string interpolationStatusToString(InterpolationStatus status);
 
     // Constant used for barycentric calculations
     constexpr float BARYCENTRIC_EPSILON = 1e-5f;
@@ -42,21 +47,22 @@ namespace PointCloudUtils {
     void SphericalProjection(point_soph &p, int depth_index, const M3D &rot, const V3D &transl, const DynObjFilterParams& params, point_soph &p_spherical);
 
     /**
-     * @brief Checks if a point is invalid (e.g., too close).
-     * @param body Point coordinates (Eigen V3D).
-     * @param intensity Point intensity (currently unused in implementation).
-     * @param params The configuration parameters struct (DynObjFilterParams).
-     * @return True if the point is invalid, false otherwise.
+     * @brief Checks if a point is invalid based on configured criteria.
+     * Invalid points include those too close to the sensor (within blind_dis)
+     * and optionally those within a specific configurable bounding box near the origin.
+     * @param point The 3D point coordinates in the local sensor frame.
+     * @param params The configuration parameters containing blind_dis and invalid box settings.
+     * @return True if the point is considered invalid, false otherwise.
      */
-    bool isPointInvalid(const V3D& point, float blind_distance, int dataset_id);
+    bool isPointInvalid(const V3D& point, const DynObjFilterParams& params);
 
     /**
-     * @brief Checks if a point falls within predefined "self" regions for a specific dataset.
-     * @param point The 3D point coordinates.
-     * @param dataset_id Identifier for the dataset (filtering rules depend on this).
-     * @return True if the point is considered part of the "self" for the given dataset, false otherwise.
+     * @brief Checks if a point falls within the configured ego-vehicle bounding box.
+     * @param local_point The 3D point coordinates in the local sensor/ego frame.
+     * @param params The configuration parameters containing self_x_f, self_x_b, etc.
+     * @return True if the point is considered part of the "self" region, false otherwise.
      */
-    bool isSelfPoint(const V3D& point, int dataset_id);
+     bool isSelfPoint(const V3D& local_point, const DynObjFilterParams& params);
 
     // Helper function for readability, not part of the original code
     /**

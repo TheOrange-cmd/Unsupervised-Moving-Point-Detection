@@ -19,12 +19,12 @@
 #include <cmath>       // For math functions (e.g., atan2f, sqrt, pow, floor)
 #include <string>      // Potentially needed if any string members exist or for future use
 #include <memory>      // For std::shared_ptr (RECOMMENDED replacement for std::shared_ptr)
-// #include <boost/shared_ptr.hpp> // Include this INSTEAD of <memory> if you stick with boost
 #include <algorithm>   // For std::fill_n, std::for_each
 #include <execution>   // For std::execution::par (if keeping parallel Reset) - Requires C++17
 #include <cstddef>     // For nullptr_t (used with nullptr)
-// #include <cstdio>      // For printf (Consider removing printf calls)
-#include <iostream>    // Include if you replace printf with std::cout
+#include <iostream>    // For std::cout
+#include <limits>      // For numeric_limits
+#include <deque>
 
 // External Libraries
 #include <Eigen/Dense> // Includes Core, Geometry, LU, etc. Or include specific modules if preferred.
@@ -114,29 +114,30 @@ struct point_soph;
  */
 struct point_soph
 {
-    int          hor_ind;         ///< Horizontal index in the spherical projection grid.
-    V3F          vec;             ///< Spherical coordinates (azimuth, elevation, range/depth) as a float vector.
-    int          ver_ind;         ///< Vertical index in the spherical projection grid.
-    int          position;        ///< Linearized 1D index in the spherical grid (hor_ind * MAX_1D_HALF + ver_ind).
-    int          occu_times;      ///< Counter for how many times this point has occluded others.
-    int          is_occu_times;   ///< Counter for how many times this point has been occluded.
-    Eigen::Vector3i occu_index;   ///< Index related to the last point this point occluded (-1 if none).
-    Eigen::Vector3i is_occu_index;///< Index related to the last point that occluded this point (-1 if none).
-    double       time;            ///< Timestamp of the point measurement.
-    V3F          occ_vec;         ///< Spherical coordinates of the last point this point occluded.
-    V3F          is_occ_vec;      ///< Spherical coordinates of the last point that occluded this point.
-    M3D          rot;             ///< Rotation matrix associated with the point's frame/pose.
-    V3D          transl;          ///< Translation vector associated with the point's frame/pose.
-    DynObjLabel  dyn;             ///< Dynamic object classification flag (@see DynObjLabel).
-    V3D          glob;            ///< Global 3D coordinates of the point (double precision).
-    V3D          local;           ///< Local 3D coordinates (relative to sensor frame at measurement time).
-    V3F          cur_vec;         ///< Current spherical coordinates (potentially updated).
-    float        intensity;       ///< Intensity value of the point (often from LiDAR).
-    bool         is_distort;      ///< Flag indicating if motion distortion correction was applied.
-    V3D          last_closest;    ///< Coordinates of the last closest point found (purpose context-dependent).
-    std::array<float, MAP_NUM> last_depth_interps; ///< Cached depth interpolation results from previous maps.
-    std::array<V3F, HASH_PRIM> last_vecs;          ///< Cache for spherical coordinates from recent projections. Index using `depth_index % HASH_PRIM`.
-    std::array<Eigen::Vector3i, HASH_PRIM> last_positions; ///< Cache for spherical indices from recent projections. Index using `depth_index % HASH_PRIM`. Stores (hor_ind, ver_ind, position).
+    int          hor_ind;                                   ///< Horizontal index in the spherical projection grid.
+    V3F          vec;                                       ///< Spherical coordinates (azimuth, elevation, range/depth) as a float vector.
+    int          ver_ind;                                   ///< Vertical index in the spherical projection grid.
+    int          position;                                  ///< Linearized 1D index in the spherical grid (hor_ind * MAX_1D_HALF + ver_ind).
+    int          occu_times;                                ///< Counter for how many times this point has occluded others.
+    int          is_occu_times;                             ///< Counter for how many times this point has been occluded.
+    Eigen::Vector3i occu_index;                             ///< Index related to the last point this point occluded (-1 if none).
+    Eigen::Vector3i is_occu_index;                          ///< Index related to the last point that occluded this point (-1 if none).
+    double       time;                                      ///< Timestamp of the point measurement.
+    V3F          occ_vec;                                   ///< Spherical coordinates of the last point this point occluded.
+    V3F          is_occ_vec;                                ///< Spherical coordinates of the last point that occluded this point.
+    M3D          rot;                                       ///< Rotation matrix associated with the point's frame/pose.
+    V3D          transl;                                    ///< Translation vector associated with the point's frame/pose.
+    DynObjLabel  dyn;                                       ///< Dynamic object classification flag (@see DynObjLabel).
+    V3D          glob;                                      ///< Global 3D coordinates of the point (double precision).
+    V3D          local;                                     ///< Local 3D coordinates (relative to sensor frame at measurement time).
+    V3F          cur_vec;                                   ///< Current spherical coordinates (potentially updated).
+    float        intensity;                                 ///< Intensity value of the point (often from LiDAR).
+    bool         is_distort;                                ///< Flag indicating if motion distortion correction was applied.
+    V3D          last_closest;                              ///< Coordinates of the last closest point found (purpose context-dependent).
+    float        raw_curvature;                             ///< Raw value read from input cloud's curvature field (potentially used as distortion marker).
+    std::array<float, MAP_NUM> last_depth_interps;          ///< Cached depth interpolation results from previous maps.
+    std::array<V3F, HASH_PRIM> last_vecs;                   ///< Cache for spherical coordinates from recent projections. Index using `depth_index % HASH_PRIM`.
+    std::array<Eigen::Vector3i, HASH_PRIM> last_positions;  ///< Cache for spherical indices from recent projections. Index using `depth_index % HASH_PRIM`. Stores (hor_ind, ver_ind, position).
 
     /** @brief Shared pointer type definition for point_soph. */
     typedef std::shared_ptr<point_soph> Ptr; // Consider std::shared_ptr<point_soph>
@@ -168,6 +169,7 @@ struct point_soph
         is_distort = false;
         cur_vec.setZero();
         local.setZero(); // Should local be calculated here based on point?
+        raw_curvature = 0.0f;
         last_closest.setZero();
     };
 
@@ -194,6 +196,7 @@ struct point_soph
         is_distort = false;
         cur_vec.setZero();
         local.setZero();
+        raw_curvature = 0.0f; 
         last_closest.setZero();
     };
 
@@ -227,6 +230,7 @@ struct point_soph
         is_distort = false;
         cur_vec.setZero();
         local.setZero();
+        raw_curvature = 0.0f;
         last_closest.setZero();
     };
 
@@ -338,6 +342,7 @@ struct point_soph
         last_vecs.fill(V3F::Zero());
         last_positions.fill(Eigen::Vector3i::Zero());
         is_distort = false;
+        raw_curvature = 0.0f;
         // Note: Does not reset time, glob, local, rot, transl, dyn, intensity, vec, indices
     };
 };
@@ -622,6 +627,30 @@ public:
         // point_sopth_pointer.clear();
         // point_sopth_pointer_count = 0;
     }
+};
+
+
+/**
+ * @brief Struct to hold information about a processed point for Python bindings.
+ */
+struct ProcessedPointInfo {
+    uint64_t original_index; // Index in the original ScanFrame cloud
+    DynObjLabel label;
+    float local_x, local_y, local_z;
+    float global_x, global_y, global_z;
+    float intensity;
+    int grid_pos; // The calculated 1D grid position index
+    float spherical_azimuth; // vec(0)
+    float spherical_elevation; // vec(1)
+    float spherical_depth; // vec(2)
+
+    // Default constructor (optional but good practice)
+    ProcessedPointInfo() :
+        original_index(0), label(DynObjLabel::INVALID),
+        local_x(0.0f), local_y(0.0f), local_z(0.0f),
+        global_x(0.0f), global_y(0.0f), global_z(0.0f),
+        intensity(0.0f), grid_pos(-1),
+        spherical_azimuth(0.0f), spherical_elevation(0.0f), spherical_depth(0.0f) {}
 };
 
 #endif
