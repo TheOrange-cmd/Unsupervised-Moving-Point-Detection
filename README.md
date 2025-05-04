@@ -95,34 +95,32 @@ The refactoring process is planned in the following phases:
 
 ### Specific Refactoring Notes
 
-### Specific Refactoring Notes
-
 **File 1: `DynObjFilterConfig.h/.cpp` (NEW)**
 - Purpose: Handle configuration loading and storage.
 - Contents:
-  - [x] Define `struct DynObjFilterParams` holding parameters previously loaded via `nh.param`.
-  - [x] Function `loadParamsFromYaml(const std::string& filename)` using `yaml-cpp`.
-  - [x] (Maybe) Constants like `PI_MATH`, `MAX_1D`, `MAX_2D_N` here or in `constants.h`.
+  - [x] Define `struct DynObjFilterParams` holding parameters previously loaded via `nh.param`. -> filtering/dyn_obj_datatypes.h
+  - [x] Function `loadParamsFromYaml(const std::string& filename)` using `yaml-cpp`. -> config/config_loader.h/cpp
+  - [x] (Maybe) Constants like `PI_MATH`, `MAX_1D`, `MAX_2D_N` here or in `constants.h`. -> filtering/dyn_obj_datatypes.h
 
 **File 2: `DynObjDataTypes.h` (NEW)**
 - Purpose: Define core, ROS-free data structures.
 - Contents:
-  - [x] Definition of `point_soph` struct/class (ROS-free).
-  - [x] Definition of `DepthMap` struct/class (ROS-free, use Eigen for transforms).
-  - [x] Enum `dyn_obj_flg`.
-  - [x] Typedefs like `DepthMap2D`.
-  - [x] Includes for Eigen, PCL, `<vector>`, `<deque>`.
+  - [x] Definition of `point_soph` struct/class (ROS-free). -> filtering/dyn_obj_datatypes.h
+  - [x] Definition of `DepthMap` struct/class (ROS-free, use Eigen for transforms). -> filtering/dyn_obj_datatypes.h
+  - [x] Enum `dyn_obj_flg`. -> filtering/dyn_obj_datatypes.h
+  - [x] Typedefs like `DepthMap2D`. -> filtering/dyn_obj_datatypes.h
+  - [x] Includes for Eigen, PCL, `<vector>`, `<deque>`. 
 
 **File 3: `PointCloudUtils.h/.cpp` (NEW)**
 - Purpose: General point cloud and geometric utilities.
 - Contents (Static functions or namespace):
-  - [x] `SphericalProjection(...)`
-  - [x] `InvalidPointCheck(...)`
-  - [x] `SelfPointCheck(...)`
-  - [x] `CheckVerFoV(...)`
-  - [x] `CheckNeighbor(...)`
-  - [x] `DepthInterpolationStatic(...)` (Refactored to `findInterpolationNeighbors`, `computeBarycentricDepth`, `interpolateDepth`)
-  - [x] `DepthInterpolationAll(...)` (Refactored similarly)
+  - [x] `SphericalProjection(...)`      -> `SphericalProjection(...)`
+  - [x] `InvalidPointCheck(...)`        -> `isPointInvalid(...)`
+  - [x] `SelfPointCheck(...)`           -> `isSelfPoint(...)`
+  - [x] `CheckVerFoV(...)`              -> `checkVerticalFov(...)`
+  - [x] `CheckNeighbor(...)`            -> `findNeighborStaticDepthRange(...)`
+  - [x] `DepthInterpolationStatic(...)` -> `findInterpolationNeighbors(...)`, `computeBarycentricDepth(...)`, `interpolateDepth(...)`
+  - [x] `DepthInterpolationAll(...)`    -> `findInterpolationNeighbors(...)`, `computeBarycentricDepth(...)`, `interpolateDepth(...)`
 
 **INTERMEDIATE STEP: Dataloading and pybind interface**
 - [ ] Possibly testing fundamental code above with real data - *Work In Progress*
@@ -132,27 +130,28 @@ The refactoring process is planned in the following phases:
 - Contents (Static functions or namespace):
   - [ ] `Case1(...)`
   - [ ] `Case1Enter(...)`
-  - [x] `Case1FalseRejection(...)` -> `Case1MapConsistencyCheck(...)`
-  - [x] `Case1MapConsistencyCheck(...)`
+  - [x] `Case1FalseRejection(...)` -> `checkMapConsistency(...)`, `checkDepthConsistency(...)`, `checkAccelerationLimit(...)`
+  - [x] `Case1MapConsistencyCheck(...)` -> `checkMapConsistency(...)`
+  - [x] `Case1MapConsistencyCheck(...)` -> `checkMapConsistency(...)`
   - [ ] `Case2(...)`
   - [ ] `Case2Enter(...)`
-  - [x] `Case2MapConsistencyCheck(...)`
-  - [ ] `Case2SearchPointOccludingP(...)`
-  - [ ] `Case2IsOccluded(...)`
-  - [x] `Case2DepthConsistencyCheck(...)`
-  - [x] `Case2VelCheck(...)`
+  - [x] `Case2MapConsistencyCheck(...)` -> `checkMapConsistency(...)`
+  - [x] `Case2SearchPointOccludingP(...)` -> `checkOcclusionRelationship(...)`,  `findOcclusionRelationshipInMap(...)`
+  - [x] `Case2IsOccluded(...)` -> `checkOcclusionRelationship(...)`,  `findOcclusionRelationshipInMap(...)`
+  - [x] `Case2DepthConsistencyCheck(...)` -> `checkDepthConsistency(...)`
+  - [x] `Case2VelCheck(...)` -> `checkAccelerationLimit(...)`
   - [ ] `Case3(...)`
   - [ ] `Case3Enter(...)`
-  - [x] `Case3MapConsistencyCheck(...)`
-  - [ ] `Case3SearchPointOccludedbyP(...)`
-  - [ ] `Case3IsOccluding(...)`
-  - [x] `Case3DepthConsistencyCheck(...)`
-  - [x] `Case3VelCheck(...)`
+  - [x] `Case3MapConsistencyCheck(...)` -> `checkMapConsistency(...)`
+  - [x] `Case3SearchPointOccludedbyP(...)` -> `checkOcclusionRelationship(...)`,  `findOcclusionRelationshipInMap(...)`
+  - [x] `Case3IsOccluding(...)` -> `checkOcclusionRelationship(...)`,  `findOcclusionRelationshipInMap(...)`
+  - [x] `Case3DepthConsistencyCheck(...)` -> `checkDepthConsistency(...)`
+  - [x] `Case3VelCheck(...)` -> `checkAccelerationLimit(...)`
 
 **File 5: `DynObjFilter.h/.cpp` (REFACTORED Original)**
 - Purpose: Main class managing state and orchestrating the process.
 - Contents:
-  - [ ] `DynObjFilter` class definition.
+  - [x] `DynObjFilter` class definition.
   - [ ] Member variables: `DynObjFilterParams params;`, `Buffer buffer;`, `std::deque<DepthMap::Ptr> depth_map_list;`, `std::vector<point_soph-> point_soph_pointers;`, `Cluster cluster;` (if kept/refactored), timing vars.
   - [ ] `init(const std::string& config_path)`: Calls `loadParamsFromYaml`, initializes members based on loaded params. (Replaces ROS init).
   - [ ] `filter(PointCloudXYZI::Ptr feats_undistort, const Eigen::Matrix3d& rot_end, const Eigen::Vector3d& pos_end, const double& scan_end_time)`: Main loop calling utility functions (`PointCloudUtils`) and core logic (`DetectionLogic`), passing `params`. Handles `Cluster` interaction (if kept). Calls `Points2Buffer`, `Buffer2DepthMap`. Returns filtered data (e.g., PCL clouds) instead of using `publish_dyn`.

@@ -7,6 +7,7 @@ dyn_obj:
     dataset: 1 #0 for kitti, 1 for nuscenes, 2 for waymo, 3 for avia
     buffer_delay: 0.1
     buffer_size: 500000
+    history_length: 10 # added config during refactor
     points_num_perframe: 50000
     depth_map_dur: 0.2
     max_depth_map_num: 10

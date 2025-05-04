@@ -77,13 +77,11 @@
     // Buffer and processing parameters
     success &= loadParam(dyn_obj_node, "buffer_delay", params.buffer_delay);
     success &= loadParam(dyn_obj_node, "buffer_size", params.buffer_size);
-    success &= loadParam(dyn_obj_node, "points_num_perframe",
-                        params.points_num_perframe);
+    success &= loadParam(dyn_obj_node, "points_num_perframe", params.points_num_perframe);
+    success &= loadParam(dyn_obj_node, "history_length", params.history_length);
     success &= loadParam(dyn_obj_node, "depth_map_dur", params.depth_map_dur);
-    success &=
-        loadParam(dyn_obj_node, "max_depth_map_num", params.max_depth_map_num);
-    success &=
-        loadParam(dyn_obj_node, "max_pixel_points", params.max_pixel_points);
+    success &= loadParam(dyn_obj_node, "max_depth_map_num", params.max_depth_map_num);
+    success &= loadParam(dyn_obj_node, "max_pixel_points", params.max_pixel_points);
     success &= loadParam(dyn_obj_node, "frame_dur", params.frame_dur);
     success &= loadParam(dyn_obj_node, "dataset", params.dataset);
     success &= loadParam(dyn_obj_node, "buffer_dur", params.buffer_dur);

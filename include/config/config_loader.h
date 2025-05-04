@@ -1,4 +1,4 @@
-// file: include/config_loader.h
+// file: config/config_loader.h
 
 /**
  * @file config_loader.h
@@ -37,6 +37,7 @@ struct DynObjFilterParams {
     double buffer_delay;            /**< @brief Delay in seconds before processing points in the buffer. */
     int buffer_size;                /**< @brief Maximum number of points to store in the buffer. */
     int points_num_perframe;        /**< @brief Expected approximate number of points per frame/scan. */
+    int history_length;             /**< @brief Number of scans to keep in the buffer for analysis*/
     double depth_map_dur;           /**< @brief Duration in seconds that each depth map represents. */
     int max_depth_map_num;          /**< @brief Maximum number of historical depth maps to keep. */
     int max_pixel_points;           /**< @brief Maximum number of points allowed in a single pixel/cell of the depth map. */
@@ -187,6 +188,7 @@ struct DynObjFilterParams {
     buffer_delay(0.1),
     buffer_size(300000),
     points_num_perframe(150000),
+    history_length(5),
     depth_map_dur(0.2),
     max_depth_map_num(5),
     max_pixel_points(50),

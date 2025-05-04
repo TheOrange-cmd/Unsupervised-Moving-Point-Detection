@@ -24,7 +24,8 @@ Install the required build, C++, and python libraries:
 conda install cmake make gcc_linux-64 gxx_linux-64
 conda install eigen pcl opencv tbb yaml-cpp
 conda install libglu xorg-libx11 xorg-libxext xorg-libxfixes mesa-libgl-devel-cos7-x86_64 mesa-libgl-cos7-x86_64
-conda install pybind11 libxcrypt
+conda install pybind11 libxcrypt pytest
+python -m pip install jupyterlab numpy k3d matplotlib pyquaternion ipywidgets PyYAML nuscenes-devkit
 ```
 
 To clean, build, test, and rerun test failures (to get only the failed output at the end in the terminal):

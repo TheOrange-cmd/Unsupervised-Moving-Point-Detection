@@ -127,14 +127,14 @@ enable_testing()
 # --- Utils Tests ---
 add_executable(utils_tests
     # Source files for utils tests
-    test/point_cloud_utils/test_spherical_projection.cpp
-    test/point_cloud_utils/test_invalid_point_check.cpp
-    test/point_cloud_utils/test_is_self_point.cpp
-    test/point_cloud_utils/test_check_vertical_fov.cpp
-    test/point_cloud_utils/test_neighbor_static_depth_range.cpp
-    test/point_cloud_utils/test_interpolations.cpp
-    test/point_cloud_utils/test_find_neighbor_cells.cpp
-    test/point_cloud_utils/test_find_points_in_cells.cpp
+    test_cpp/point_cloud_utils/test_spherical_projection.cpp
+    test_cpp/point_cloud_utils/test_invalid_point_check.cpp
+    test_cpp/point_cloud_utils/test_is_self_point.cpp
+    test_cpp/point_cloud_utils/test_check_vertical_fov.cpp
+    test_cpp/point_cloud_utils/test_neighbor_static_depth_range.cpp
+    test_cpp/point_cloud_utils/test_interpolations.cpp
+    test_cpp/point_cloud_utils/test_find_neighbor_cells.cpp
+    test_cpp/point_cloud_utils/test_find_points_in_cells.cpp
     # Note: test_consistency_helpers.cpp is NOT included here, assuming it's only needed by filtering tests
 )
 
@@ -150,13 +150,12 @@ target_link_libraries(utils_tests PRIVATE
     TBB::tbb            # Link TBB if utils tests or m_detector_lib needs it
 )
 
-# Copy test data files needed by utils tests (if any)
-# If utils tests don't need config files, you can skip this block for utils_tests
+# Copy test data files needed by utils tests 
 set(UTILS_TEST_CONFIG_FILES
     # Add any config files SPECIFICALLY needed ONLY by utils tests, if applicable
     # If they share the same config files, list them here too
-    test/config/test_full_config.yaml
-    test/config/test_missing_config.yaml
+    test_cpp/config/test_full_config.yaml
+    test_cpp/config/test_missing_config.yaml
 )
 foreach(TEST_FILE ${UTILS_TEST_CONFIG_FILES})
     get_filename_component(TEST_FILE_NAME ${TEST_FILE} NAME)
@@ -177,11 +176,13 @@ gtest_discover_tests(utils_tests
 # --- Filtering Tests ---
 add_executable(filtering_tests
     # Source files for filtering tests
-    test/filtering/test_consistency_helpers.cpp # Include the helper source file here
-    test/filtering/test_map_consistency_checks.cpp
-    test/filtering/test_depth_consistency_checks.cpp
-    test/filtering/test_acceleration_consistency.cpp
-    # Add test_occlusion_relationship.cpp and test_occlusion_search.cpp here later
+    test_cpp/filtering/test_consistency_helpers.cpp # only contains helper functions, no tests
+    test_cpp/filtering/test_map_consistency_checks.cpp
+    test_cpp/filtering/test_depth_consistency_checks.cpp
+    test_cpp/filtering/test_acceleration_consistency.cpp
+    test_cpp/filtering/test_occlusion_check_relationship.cpp
+    test_cpp/filtering/test_occlusion_find_relationship.cpp
+    test_cpp/filtering/test_ring_buffer.cpp
 )
 
 # Apply compile definitions if needed by filtering tests
@@ -196,21 +197,21 @@ target_link_libraries(filtering_tests PRIVATE
     TBB::tbb            # Link TBB if filtering tests or m_detector_lib needs it
 )
 
-# Copy test data files needed by filtering tests
-set(FILTERING_TEST_CONFIG_FILES
-    test/config/test_full_config.yaml
-    test/config/test_missing_config.yaml
-)
-foreach(TEST_FILE ${FILTERING_TEST_CONFIG_FILES})
-    get_filename_component(TEST_FILE_NAME ${TEST_FILE} NAME)
-    add_custom_command(
-        TARGET filtering_tests POST_BUILD # Apply to filtering_tests target
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_FILE}"
-        "$<TARGET_FILE_DIR:filtering_tests>/${TEST_FILE_NAME}" # Use filtering_tests directory
-        COMMENT "Copying test data file for filtering_tests: ${TEST_FILE_NAME}"
-    )
-endforeach()
+# # Copy test data files needed by filtering tests
+# set(FILTERING_TEST_CONFIG_FILES
+#     test_cpp/config/test_full_config.yaml
+#     test_cpp/config/test_missing_config.yaml
+# )
+# foreach(TEST_FILE ${FILTERING_TEST_CONFIG_FILES})
+#     get_filename_component(TEST_FILE_NAME ${TEST_FILE} NAME)
+#     add_custom_command(
+#         TARGET filtering_tests POST_BUILD # Apply to filtering_tests target
+#         COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#         "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_FILE}"
+#         "$<TARGET_FILE_DIR:filtering_tests>/${TEST_FILE_NAME}" # Use filtering_tests directory
+#         COMMENT "Copying test data file for filtering_tests: ${TEST_FILE_NAME}"
+#     )
+# endforeach()
 
 # Discover tests in filtering_tests and assign the "filtering" label
 gtest_discover_tests(filtering_tests
@@ -226,7 +227,7 @@ include(GoogleTest)
 
 # Define the source file(s) for the bindings
 set(PYBIND_SOURCES
-    src/bindings.cpp 
+    src/pybind_utils/bindings.cpp 
 )
 
 # Create the Python module using pybind11's helper function
@@ -253,3 +254,66 @@ target_link_libraries(mpy_detector PRIVATE
 # target_compile_options(mpy_detector PRIVATE ${OpenMP_CXX_FLAGS})
 
 # Optional: Set output directory for easier Python import dur
+
+# ========================================================================
+# Python Unit Testing Setup
+# ========================================================================
+
+# --- Find the Python Interpreter ---
+set(PYTHON_TEST_EXECUTABLE "" CACHE STRING "Python executable to use for running pytest")
+set(PYTHON_FOUND_METHOD "None") # For logging/debugging
+
+# 1. Check for active Conda environment using CONDA_PREFIX environment variable
+if(DEFINED ENV{CONDA_PREFIX})
+    set(CONDA_PYTHON_EXE "$ENV{CONDA_PREFIX}/bin/python")
+    if(EXISTS "${CONDA_PYTHON_EXE}")
+        set(PYTHON_TEST_EXECUTABLE ${CONDA_PYTHON_EXE})
+        set(PYTHON_FOUND_METHOD "Conda Environment (CONDA_PREFIX)")
+        message(STATUS "Found Python executable via Conda environment: ${PYTHON_TEST_EXECUTABLE}")
+    else()
+        message(WARNING "CONDA_PREFIX is set ($ENV{CONDA_PREFIX}), but Python executable not found at '${CONDA_PYTHON_EXE}'. Will try other methods.")
+    endif()
+endif()
+
+# 2. If Conda method failed or wasn't applicable, try the pybind11 variable
+# (Ensure find_package(pybind11 REQUIRED CONFIG) was called earlier)
+if(PYTHON_FOUND_METHOD STREQUAL "None")
+    if(DEFINED pybind11_PYTHON_INTERPRETER AND EXISTS "${pybind11_PYTHON_INTERPRETER}")
+        set(PYTHON_TEST_EXECUTABLE ${pybind11_PYTHON_INTERPRETER})
+        set(PYTHON_FOUND_METHOD "pybind11 Variable (pybind11_PYTHON_INTERPRETER)")
+        message(STATUS "Found Python executable via pybind11 variable: ${PYTHON_TEST_EXECUTABLE}")
+    # else()
+        # message(STATUS "pybind11_PYTHON_INTERPRETER variable not found or invalid.") # Optional debug message
+    endif()
+endif()
+
+# 3. If still not found, fall back to find_package(Python3)
+if(PYTHON_FOUND_METHOD STREQUAL "None")
+    message(WARNING "Python not found via Conda or pybind11 variable. Falling back to find_package(Python3).")
+    # Give FindPython3 a hint to check the PATH first, where Conda's bin should be.
+    find_package(Python3 COMPONENTS Interpreter QUIET HINTS $ENV{PATH})
+    if(Python3_FOUND AND EXISTS "${Python3_EXECUTABLE}")
+        set(PYTHON_TEST_EXECUTABLE ${Python3_EXECUTABLE})
+        set(PYTHON_FOUND_METHOD "FindPython3 (with PATH hint)")
+        message(STATUS "Found Python executable via FindPython3: ${PYTHON_TEST_EXECUTABLE}")
+    else()
+        message(FATAL_ERROR "Could not find a suitable Python interpreter for running tests using any method.")
+    endif()
+endif()
+
+# Final Verification
+if(NOT PYTHON_TEST_EXECUTABLE OR NOT EXISTS "${PYTHON_TEST_EXECUTABLE}")
+     message(FATAL_ERROR "Selected Python executable for tests is empty or does not exist: '${PYTHON_TEST_EXECUTABLE}'")
+endif()
+
+message(STATUS "Using Python executable for tests: ${PYTHON_TEST_EXECUTABLE} (Found via: ${PYTHON_FOUND_METHOD})")
+
+# --- Define the Pytest Command ---
+add_test(
+    NAME PythonBindingsTest
+    COMMAND ${PYTHON_TEST_EXECUTABLE} -m pytest ${CMAKE_CURRENT_SOURCE_DIR}/test_py
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+# Optional: Add labels to Python tests
+set_tests_properties(PythonBindingsTest PROPERTIES LABELS "python;bindings")

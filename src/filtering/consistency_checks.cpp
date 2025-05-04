@@ -352,18 +352,28 @@ namespace ConsistencyChecks {
         return is_consistent;
     }
 
+    // Helper to get case string (can be shared)
+    inline const char* getCaseString(ConsistencyCheckType check_type) {
+        switch (check_type) {
+            case ConsistencyCheckType::CASE1_FALSE_REJECTION: return "CASE1"; // Although not used here
+            case ConsistencyCheckType::CASE2_OCCLUDER_SEARCH: return "CASE2";
+            case ConsistencyCheckType::CASE3_OCCLUDED_SEARCH: return "CASE3";
+            default: return "INVALID_CASE";
+        }
+    }
+
     bool checkOcclusionRelationship(
-        const point_soph& potential_occluder,
-        const point_soph& potential_occluded,
+        const point_soph& potential_occluder, // p
+        const point_soph& potential_occluded, // p_occ
         const DynObjFilterParams& params,
         ConsistencyCheckType check_type)
     {
-        // --- Select parameters based on check_type ---
+        // --- Select parameters and case string ---
         float occ_hor_thr, occ_ver_thr;
         float k_depth_max_thr, d_depth_max_thr;
-        float base_depth_offset; // Combined occ_depth_thr2 or map_cons_depth_thr3
+        float base_depth_offset;
         float v_min_thr;
-        bool is_case2 = false; // Flag for specific logic if needed
+        const char* case_str = getCaseString(check_type);
 
         switch (check_type) {
             case ConsistencyCheckType::CASE2_OCCLUDER_SEARCH:
@@ -373,7 +383,6 @@ namespace ConsistencyChecks {
                 d_depth_max_thr = params.d_depth_max_thr2;
                 base_depth_offset = params.occ_depth_thr2;
                 v_min_thr = params.v_min_thr2;
-                is_case2 = true;
                 break;
             case ConsistencyCheckType::CASE3_OCCLUDED_SEARCH:
                 occ_hor_thr = params.occ_hor_thr3;
@@ -384,162 +393,267 @@ namespace ConsistencyChecks {
                 v_min_thr = params.v_min_thr3;
                 break;
             default:
+                // Log before throwing if possible, or just throw
+                std::cerr << "[OccRelCheck " << case_str << "] ERROR: Invalid check_type received." << std::endl;
                 throw std::invalid_argument("checkOcclusionRelationship received an invalid check_type.");
         }
 
-        // --- Initial Checks (Common to Case 2 & 3 IsOccluded) ---
+        // --- DEBUG: Print Inputs and Selected Parameters ---
+        std::cout << std::fixed << std::setprecision(5);
+        std::cout << "[OccRelCheck " << case_str << "] Occluder (P):  H=" << potential_occluder.hor_ind << " V=" << potential_occluder.ver_ind
+                  << " D=" << potential_occluder.vec(2) << " T=" << potential_occluder.time << " Dist=" << potential_occluder.is_distort << " Dyn=" << potential_occluder.dyn << std::endl;
+        std::cout << "[OccRelCheck " << case_str << "] Occluded (PO): H=" << potential_occluded.hor_ind << " V=" << potential_occluded.ver_ind
+                  << " D=" << potential_occluded.vec(2) << " T=" << potential_occluded.time << " Dist=" << potential_occluded.is_distort << " Dyn=" << potential_occluded.dyn << std::endl;
+        std::cout << "[OccRelCheck " << case_str << "] Params: HorThr=" << occ_hor_thr << " VerThr=" << occ_ver_thr
+                  << " KDepth=" << k_depth_max_thr << " DDepth=" << d_depth_max_thr << " BaseOffset=" << base_depth_offset
+                  << " VMinThr=" << v_min_thr << std::endl;
 
-        // Check for invalid status of the potentially occluded point
+
+        // --- Initial Checks ---
         if (potential_occluded.dyn == INVALID) {
+            std::cout << "[OccRelCheck " << case_str << "] -> Returning FALSE (Occluded point dyn status is INVALID)" << std::endl;
             return false;
         }
 
-        // Dataset 0 distortion check
         if (params.dataset == 0 && (potential_occluded.is_distort || potential_occluder.is_distort)) {
+             std::cout << "[OccRelCheck " << case_str << "] -> Returning FALSE (Dataset 0 distortion check failed: PO.dist="
+                       << potential_occluded.is_distort << ", P.dist=" << potential_occluder.is_distort << ")" << std::endl;
             return false;
         }
 
-        // Self-occlusion check (using local coordinates)
         const auto& p_local = potential_occluder.local;
         const auto& p_occ_local = potential_occluded.local;
-        if ((p_local(0) > params.self_x_b && p_local(0) < params.self_x_f && p_local(1) < params.self_y_l && p_local(1) > params.self_y_r) ||
-            (p_occ_local(0) > params.self_x_b && p_occ_local(0) < params.self_x_f && p_occ_local(1) < params.self_y_l && p_occ_local(1) > params.self_y_r))
-        {
+        bool p_in_self = (p_local.x() >= params.self_x_b && p_local.x() <= params.self_x_f && p_local.y() >= params.self_y_r && p_local.y() <= params.self_y_l);
+        bool pocc_in_self = (p_occ_local.x() >= params.self_x_b && p_occ_local.x() <= params.self_x_f && p_occ_local.y() >= params.self_y_r && p_occ_local.y() <= params.self_y_l);
+        if (p_in_self || pocc_in_self) {
+             std::cout << "[OccRelCheck " << case_str << "] -> Returning FALSE (Self-occlusion check failed: P_in=" << p_in_self << ", PO_in=" << pocc_in_self << ")" << std::endl;
+             // Optional: Print local coords and box for more detail
+             // std::cout << "[OccRelCheck " << case_str << "] P Local: (" << p_local.x() << "," << p_local.y() << ") PO Local: (" << p_occ_local.x() << "," << p_occ_local.y() << ")" << std::endl;
+             // std::cout << "[OccRelCheck " << case_str << "] Self Box X: [" << params.self_x_b << "," << params.self_x_f << "] Y: [" << params.self_y_r << "," << params.self_y_l << "]" << std::endl;
             return false;
         }
 
-        // --- Time Check ---
-        // Occluder must be later in time than the occluded point for this logic
         double delta_t = potential_occluder.time - potential_occluded.time;
-        if (delta_t <= 0) // Original used > 0 check, so <= 0 means false
-        {
+        if (delta_t <= 0) {
+             std::cout << "[OccRelCheck " << case_str << "] -> Returning FALSE (Time delta check failed: DeltaT=" << delta_t << " <= 0)" << std::endl;
             return false;
         }
 
         // --- Core Occlusion Condition ---
-
-        // Calculate dynamic depth threshold
         float depth_thr_adaptive = std::max(static_cast<float>(params.cutoff_value), k_depth_max_thr * (potential_occluder.vec(2) - d_depth_max_thr));
         float depth_thr_velocity = v_min_thr * static_cast<float>(delta_t);
-        float depth_threshold = std::min(depth_thr_adaptive + base_depth_offset, depth_thr_velocity);
+        float depth_threshold_base = std::min(depth_thr_adaptive + base_depth_offset, depth_thr_velocity);
+        float depth_threshold = depth_threshold_base; // Start with base
 
-        // Apply distortion enlargement factor for dataset 0
-        if (params.dataset == 0 && potential_occluder.is_distort) { // Original checked p.is_distort here
+        bool distortion_enlargement_applied = false;
+        if (params.dataset == 0 && potential_occluder.is_distort && params.enlarge_distort > 1.0f) {
             depth_threshold *= params.enlarge_distort;
+            distortion_enlargement_applied = true;
         }
-        // Original Case 3 also checked p.is_distort, but Case 2 did not explicitly.
-        // Let's assume it applies to the occluder (p) in both cases if dataset==0.
-        // If this assumption is wrong, adjust the condition.
 
-        // Check depth relationship: potential_occluded must be farther than potential_occluder by the threshold
-        bool depth_check_passed = potential_occluded.vec(2) > potential_occluder.vec(2) + depth_threshold;
+        // --- DEBUG: Print Depth Threshold Calculation ---
+        std::cout << "[OccRelCheck " << case_str << "] Depth Thr Calc: Adaptive=" << depth_thr_adaptive << " VelocityBased=" << depth_thr_velocity
+                  << " BaseThr=" << depth_threshold_base << " DistEnlarge=" << (distortion_enlargement_applied ? "YES" : "NO")
+                  << " FinalDepthThr=" << depth_threshold << std::endl;
+
+
+        // Check depth relationship
+        float required_occluded_depth = potential_occluder.vec(2) + depth_threshold;
+        bool depth_check_passed = potential_occluded.vec(2) > required_occluded_depth;
+
+        // --- DEBUG: Print Depth Check ---
+        std::cout << "[OccRelCheck " << case_str << "] Depth Check: PO.D=" << potential_occluded.vec(2) << " vs (P.D + Thr)=" << required_occluded_depth
+                  << ". Passed=" << (depth_check_passed ? "TRUE" : "FALSE") << std::endl;
 
         if (!depth_check_passed) {
+            std::cout << "[OccRelCheck " << case_str << "] -> Returning FALSE (Depth check failed)" << std::endl;
             return false;
         }
 
-        // Check angular proximity (using spherical coordinates vec(0)=azimuth, vec(1)=elevation)
-        bool angular_check_passed =
-            std::fabs(potential_occluder.vec(0) - potential_occluded.vec(0)) < occ_hor_thr &&
-            std::fabs(potential_occluder.vec(1) - potential_occluded.vec(1)) < occ_ver_thr;
+        // Check angular proximity
+        float az_diff = std::fabs(potential_occluder.vec(0) - potential_occluded.vec(0));
+        float el_diff = std::fabs(potential_occluder.vec(1) - potential_occluded.vec(1));
+        bool angular_check_passed = (az_diff < occ_hor_thr) && (el_diff < occ_ver_thr);
 
-        return angular_check_passed; // If depth and angular checks pass
+        // --- DEBUG: Print Angular Check ---
+        std::cout << "[OccRelCheck " << case_str << "] Angular Check: |AzDiff|=" << az_diff << " vs ThrH=" << occ_hor_thr
+                  << ", |ElDiff|=" << el_diff << " vs ThrV=" << occ_ver_thr
+                  << ". Passed=" << (angular_check_passed ? "TRUE" : "FALSE") << std::endl;
+
+        // Final result
+        std::cout << "[OccRelCheck " << case_str << "] -> Returning " << (angular_check_passed ? "TRUE" : "FALSE") << " (Final angular check result)" << std::endl;
+        return angular_check_passed;
     }
 
     bool findOcclusionRelationshipInMap(
-        point_soph& point_to_update, // Non-const ref to allow updating indices
+        point_soph& point_to_update,
         const DepthMap& map_info,
         const DynObjFilterParams& params,
-        ConsistencyCheckType check_type) // The type received from the caller
+        ConsistencyCheckType check_type,
+        DepthConsistencyChecker depth_checker)
     {
-        // --- Select parameters based on check_type ---
+        // --- Select parameters and case string ---
         int occ_hor_num, occ_ver_num;
-        bool update_occu_index; // True to update occu_index, false to update is_occu_index
-    
+        bool update_occu_index;
+        const char* case_str = getCaseString(check_type);
+
         switch (check_type) {
-            case ConsistencyCheckType::CASE2_OCCLUDER_SEARCH:
+            case ConsistencyCheckType::CASE2_OCCLUDER_SEARCH: // point_to_update is potential occluder, searching for occluded
                 occ_hor_num = params.occ_hor_num2;
                 occ_ver_num = params.occ_ver_num2;
-                update_occu_index = true;
+                update_occu_index = true; // Update p.occu_index with neighbor info
                 break;
-            case ConsistencyCheckType::CASE3_OCCLUDED_SEARCH:
+            case ConsistencyCheckType::CASE3_OCCLUDED_SEARCH: // point_to_update is potential occluded, searching for occluder
                 occ_hor_num = params.occ_hor_num3;
                 occ_ver_num = params.occ_ver_num3;
-                update_occu_index = false;
+                update_occu_index = false; // Update p.is_occu_index with neighbor info
                 break;
             default:
+                 std::cerr << "[FindOccRel " << case_str << "] ERROR: Invalid check_type received." << std::endl;
                 throw std::invalid_argument("findOcclusionRelationshipInMap received an invalid check_type.");
         }
-    
-        // --- Search Neighborhood ---
-        // Ensure point_to_update has valid initial indices
+
+        // --- DEBUG: Print Entry Info ---
+        std::cout << std::fixed << std::setprecision(5);
+        std::cout << "[FindOccRel " << case_str << "] Checking point (P): H=" << point_to_update.hor_ind << " V=" << point_to_update.ver_ind
+                  << " Pos=" << point_to_update.position << " D=" << point_to_update.vec(2) << " T=" << point_to_update.time << std::endl;
+        std::cout << "[FindOccRel " << case_str << "] Params: HorNum=" << occ_hor_num << " VerNum=" << occ_ver_num
+                  << " UpdateOccuIdx=" << (update_occu_index ? "TRUE" : "FALSE") << " MapIdx=" << map_info.map_index << std::endl;
+
+
+        // --- Input Validation ---
         if (point_to_update.position < 0 || point_to_update.position >= MAX_2D_N) {
-            // Or handle this error appropriately
+            std::cout << "[FindOccRel " << case_str << "] -> Returning FALSE (Invalid initial point position: " << point_to_update.position << ")" << std::endl;
             return false;
         }
+        if (point_to_update.hor_ind < 0 || point_to_update.hor_ind >= MAX_1D || point_to_update.ver_ind < 0 || point_to_update.ver_ind >= MAX_1D_HALF) {
+             std::cout << "[FindOccRel " << case_str << "] -> Returning FALSE (Invalid initial point indices: H=" << point_to_update.hor_ind << ", V=" << point_to_update.ver_ind << ")" << std::endl;
+             return false;
+        }
 
-        // Iterate through the search window centered on point_to_update's indices
-        for (int ind_hor = -occ_hor_num; ind_hor <= occ_hor_num; ++ind_hor)
-        {
-            for (int ind_ver = -occ_ver_num; ind_ver <= occ_ver_num; ++ind_ver)
-            {
-                // Calculate neighbor cell index with wrap-around
-                // Ensure intermediate calculations don't underflow with modulo
+
+        // --- Search Neighborhood ---
+        for (int ind_hor = -occ_hor_num; ind_hor <= occ_hor_num; ++ind_hor) {
+            for (int ind_ver = -occ_ver_num; ind_ver <= occ_ver_num; ++ind_ver) {
+                // Skip the center point itself (should be added if not already present)
+                // if (ind_hor == 0 && ind_ver == 0) continue;
+
                 int neighbor_hor_ind = (point_to_update.hor_ind + ind_hor + MAX_1D) % MAX_1D;
-                int neighbor_ver_ind = (point_to_update.ver_ind + ind_ver + MAX_1D_HALF) % MAX_1D_HALF; // Assuming positive MAX_1D_HALF
-                // Clamp vertical index just in case modulo resulted in negative (shouldn't with positive MAX_1D_HALF)
-                // or if ver_ind was somehow out of range initially.
-                neighbor_ver_ind = std::max(0, std::min(neighbor_ver_ind, MAX_1D_HALF - 1));
+                int neighbor_ver_ind = point_to_update.ver_ind + ind_ver;
 
+                if (neighbor_ver_ind < 0 || neighbor_ver_ind >= MAX_1D_HALF) {
+                    continue;
+                }
 
                 int neighbor_pos = neighbor_hor_ind * MAX_1D_HALF + neighbor_ver_ind;
 
-                // Bounds check for the calculated position
-                if (neighbor_pos < 0 || neighbor_pos >= MAX_2D_N) {
-                    continue; // Should not happen with correct modulo/clamping, but safety first
+                // Print constants once for verification
+                static bool constants_printed = false;
+                if (!constants_printed) {
+                    std::cout << "[FindOccRel DEBUG] Constants: MAX_1D=" << MAX_1D << ", MAX_1D_HALF=" << MAX_1D_HALF << ", MAX_2D_N=" << MAX_2D_N << std::endl;
+                    constants_printed = true;
+                }
+                // Print calculation details, especially for wrap-around
+                if (point_to_update.hor_ind == 0 && ind_hor < 0) { // Focus on the specific test case
+                     std::cout << "[FindOccRel DEBUG " << case_str << "] Wrap Check: ind_hor=" << ind_hor
+                               << ", ind_ver=" << ind_ver << ", neigh_h=" << neighbor_hor_ind
+                               << ", neigh_v=" << neighbor_ver_ind << ", calculated neighbor_pos=" << neighbor_pos
+                               << std::endl;
                 }
 
-                // Optimization: Check min depth in the neighbor cell
-                // If the closest point in the neighbor cell is farther than the point we are checking,
-                // then no point in that cell can satisfy the p_occ.vec(2) > p.vec(2) + threshold condition.
-                if (map_info.min_depth_all[neighbor_pos] > point_to_update.vec(2)) // Using precomputed min_depth_all
-                {
+
+                // Bounds check (redundant if vertical check is done, but safe)
+                if (neighbor_pos < 0 || neighbor_pos >= MAX_2D_N) {
+                     std::cout << "[FindOccRel " << case_str << "] Skipping neighbor position out of bounds: " << neighbor_pos << " (H=" << neighbor_hor_ind << ", V=" << neighbor_ver_ind << ")" << std::endl;
                     continue;
+                }
+
+                // --- DEBUG: Print Current Neighbor Cell ---
+                // This can be verbose, enable if needed:
+                // std::cout << "[FindOccRel " << case_str << "] Checking Neighbor Cell: Pos=" << neighbor_pos << " (dH=" << ind_hor << ", dV=" << ind_ver << ")" << std::endl;
+
+                // --- Min Depth Optimization (Only applicable and valid for Case 3) ---
+                if (check_type == ConsistencyCheckType::CASE3_OCCLUDED_SEARCH) {
+                    float neighbor_min_depth = map_info.min_depth_all[neighbor_pos];
+                    // If the CLOSEST point in the neighbor cell (PN, potential occluder)
+                    // is already FARTHER than the point being checked (P, potential occluded),
+                    // then no point PN in that cell can satisfy P.D > PN.D + threshold.
+                    if (neighbor_min_depth > point_to_update.vec(2)) {
+                        std::cout << "[FindOccRel " << case_str << "] Skipping Cell Pos=" << neighbor_pos
+                                << ": NeighborMinD=" << neighbor_min_depth << " > P.D=" << point_to_update.vec(2)
+                                << " (Opt for Case3)" << std::endl;
+                        continue; // Skip this cell
+                    }
                 }
 
                 // Get points in the neighbor cell
                 const std::vector<point_soph::Ptr>& points_in_pixel = map_info.depth_map[neighbor_pos];
+                if (points_in_pixel.empty()) {
+                    // Optional log for skipping empty cell
+                    // std::cout << "[FindOccRel " << case_str << "] Skipping Cell Pos=" << neighbor_pos << ": Empty cell" << std::endl;
+                    continue;
+                }
+
+                // --- DEBUG: Log cell size if not skipped ---
+                // Log min depth here only if useful, maybe not necessary now optimization is clear
+                std::cout << "[FindOccRel " << case_str << "] Cell Pos=" << neighbor_pos << " has " << points_in_pixel.size() << " points." << std::endl;
 
                 // Check each point in the neighbor cell
-                for (int j = 0; j < points_in_pixel.size(); ++j)
-                {
+                for (int j = 0; j < points_in_pixel.size(); ++j) {
                     const point_soph::Ptr& p_neighbor_ptr = points_in_pixel[j];
-                    if (!p_neighbor_ptr) continue; // Safety check for null pointers
+                    if (!p_neighbor_ptr) continue;
                     const point_soph& p_neighbor = *p_neighbor_ptr;
 
+                    // --- DEBUG: Print Current Neighbor Point ---
+                    // Can be verbose, enable if needed:
+                    // std::cout << "[FindOccRel " << case_str << "]  Checking Pn[" << j << "]: H=" << p_neighbor.hor_ind << " V=" << p_neighbor.ver_ind << " D=" << p_neighbor.vec(2) << " T=" << p_neighbor.time << std::endl;
+
+
                     // Check 1: Occlusion Relationship
-                    // The call order matches the original: check relationship between point_to_update and p_neighbor
-                    bool occlusion_holds = checkOcclusionRelationship(point_to_update, p_neighbor, params, check_type);
+                    // Note the order of arguments depends on the case!
+                    bool occlusion_holds = false;
+                    if (check_type == ConsistencyCheckType::CASE2_OCCLUDER_SEARCH) {
+                        // point_to_update (P) is potential occluder, p_neighbor (PN) is potential occluded
+                         std::cout << "[FindOccRel " << case_str << "]   Calling checkOcclusionRelationship(P, PN[" << j << "])..." << std::endl;
+                        occlusion_holds = checkOcclusionRelationship(point_to_update, p_neighbor, params, check_type);
+                         std::cout << "[FindOccRel " << case_str << "]   ...Result: " << (occlusion_holds ? "TRUE" : "FALSE") << std::endl;
+                    } else { // CASE3_OCCLUDED_SEARCH
+                        // p_neighbor (PN) is potential occluder, point_to_update (P) is potential occluded
+                         std::cout << "[FindOccRel " << case_str << "]   Calling checkOcclusionRelationship(PN[" << j << "], P)..." << std::endl;
+                        occlusion_holds = checkOcclusionRelationship(p_neighbor, point_to_update, params, check_type);
+                         std::cout << "[FindOccRel " << case_str << "]   ...Result: " << (occlusion_holds ? "TRUE" : "FALSE") << std::endl;
+                    }
+
 
                     if (occlusion_holds) {
-                        // Check 2: Depth Consistency of the neighbor point
-                        // Assumes checkDepthConsistency exists and uses the corresponding type
-                        bool depth_consistent = checkDepthConsistency(p_neighbor, map_info, params, check_type);
+                        // Check 2: Depth Consistency of the *neighbor* point (p_neighbor)
+                        // We need to ensure the neighbor point itself is consistent with its surroundings in the map.
+                        // The check_type passed to checkDepthConsistency should likely match the overall check_type.
+                        std::cout << "[FindOccRel " << case_str << "]   Occlusion holds. Calling checkDepthConsistency(PN[" << j << "])..." << std::endl;
+                        bool depth_consistent = depth_checker(p_neighbor, map_info, params, check_type);
+                        std::cout << "[FindOccRel " << case_str << "]   ...Result: " << (depth_consistent ? "TRUE" : "FALSE") << std::endl;
+
 
                         if (depth_consistent) {
                             // --- Match Found ---
-                            // Update the correct index on point_to_update
+                            std::cout << "[FindOccRel " << case_str << "] *** Match Found! ***" << std::endl;
+                            std::cout << "[FindOccRel " << case_str << "]   Neighbor: CellPos=" << neighbor_pos << ", PointIdx=" << j << std::endl;
                             if (update_occu_index) {
                                 point_to_update.occu_index[0] = map_info.map_index;
                                 point_to_update.occu_index[1] = neighbor_pos;
                                 point_to_update.occu_index[2] = j;
+                                std::cout << "[FindOccRel " << case_str << "]   Updating P.occu_index = [" << point_to_update.occu_index[0] << "," << point_to_update.occu_index[1] << "," << point_to_update.occu_index[2] << "]" << std::endl;
                             } else {
                                 point_to_update.is_occu_index[0] = map_info.map_index;
                                 point_to_update.is_occu_index[1] = neighbor_pos;
                                 point_to_update.is_occu_index[2] = j;
+                                std::cout << "[FindOccRel " << case_str << "]   Updating P.is_occu_index = [" << point_to_update.is_occu_index[0] << "," << point_to_update.is_occu_index[1] << "," << point_to_update.is_occu_index[2] << "]" << std::endl;
                             }
-                            // Update occ_vec as in original code
+                            // Update occ_vec (Copying current point's vec seems odd, maybe should copy neighbor's? Check original logic)
+                            // Assuming original logic is correct:
                             point_to_update.occ_vec = point_to_update.vec;
+                             std::cout << "[FindOccRel " << case_str << "]   Updating P.occ_vec." << std::endl;
+                             std::cout << "[FindOccRel " << case_str << "] -> Returning TRUE (Match found)" << std::endl;
 
                             return true; // Found the first valid neighbor
                         }
@@ -548,8 +662,10 @@ namespace ConsistencyChecks {
             } // End loop vertical offset
         } // End loop horizontal offset
 
+        std::cout << "[FindOccRel " << case_str << "] No suitable neighbor found after checking all cells." << std::endl;
+        std::cout << "[FindOccRel " << case_str << "] -> Returning FALSE" << std::endl;
         return false; // No suitable neighbor found
     }
-    
+
 
 } // namespace ConsistencyChecks

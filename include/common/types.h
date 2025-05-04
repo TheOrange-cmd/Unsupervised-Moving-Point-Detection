@@ -1,4 +1,4 @@
-// file: include/types.h
+// file: common/types.h
 
 /**
  * @file types.h

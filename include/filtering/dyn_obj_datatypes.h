@@ -1,4 +1,5 @@
-// file: include/dyn_obj_datatypes.h
+// file: filtering/dyn_obj_datatypes.h
+
 #ifndef DYN_OBJ_DATATYPES_H
 #define DYN_OBJ_DATATYPES_H
 
@@ -51,6 +52,19 @@
 #define MAP_NUM     17 //30
 /** @brief Prime number used as the size for caching arrays in point_soph (last_vecs, last_positions). */
 #define HASH_PRIM   19 //37
+
+// /**
+//  * @brief Enumeration defining the classification status of a point regarding dynamic objects.
+//  */
+// enum class DynObjLabel { // Renamed from dyn_obj_flg
+//     STATIC,         ///< Point is considered static.
+//     APPEARING,      ///< Point likely appeared in free space (formerly CASE1).
+//     OCCLUDING,      ///< Point is likely occluding background (formerly CASE2).
+//     DISOCCLUDED,    ///< Point was likely previously occluded (formerly CASE3).
+//     SELF,           ///< Point belongs to the ego-vehicle or sensor platform.
+//     UNCERTAIN,      ///< Point's dynamic status is currently uncertain.
+//     INVALID         ///< Point is considered invalid (e.g., too close, outside FOV).
+// };
 
 /**
  * @brief Enumeration defining the classification status of a point regarding dynamic objects.

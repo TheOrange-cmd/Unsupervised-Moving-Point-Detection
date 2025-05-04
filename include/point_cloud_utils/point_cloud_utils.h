@@ -1,4 +1,4 @@
-// file: include/point_cloud_utils/point_cloud_utils.h
+// file: point_cloud_utils/point_cloud_utils.h
 
 // @file point_cloud_utils.h
 //
