@@ -1,0 +1,83 @@
+# config/m_detector_config.yaml
+
+# --- NuScenes Specific Configuration ---
+nuscenes:
+  version: "v1.0-mini" # Options: "v1.0-mini", "v1.0-trainval", "v1.0-test"
+  dataroot: "/datasets/nuscenes" # IMPORTANT: Change this to your NuScenes data path!
+  lidar_sensor_name: "LIDAR_TOP"
+  # For initial testing, specify a scene and sample token if desired
+  # scene_name_to_load: "scene-0061" # Example scene from mini_train
+  # lidar_token_to_load: null # Or a specific lidar token
+
+# --- M-Detector General Parameters ---
+# Based on the paper (Nature Communications | (2024) 15:345) and Supplementary Info.
+# These will likely require tuning for NuScenes and specific LiDARs.
+
+# Depth Image Parameters
+depth_image:
+  # Time interval in seconds to accumulate points for one depth image.
+  # E.g., NuScenes LiDAR is typically 20Hz, so sweep duration is 0.05s.
+  # The paper mentions T, e.g., 100ms. If T is larger than sweep duration,
+  # multiple sweeps could contribute to one depth image, or it's the interval
+  # at which a new depth image (based on the latest sweep) is finalized.
+  # Let's assume one depth image per LiDAR sweep for NuScenes initially.
+  construction_interval_T_sec: 0.05 # Corresponds to NuScenes sweep time
+
+  # Angular resolution for the depth image (degrees per pixel).
+  # Velodyne HDL-32E (common in NuScenes):
+  # Horizontal: ~0.1° to ~0.4° (density varies).
+  # Vertical: 32 beams, ~1.33° between beams. FoV: +10.67° to -30.67°.
+  resolution_h_deg: 0.4   # Azimuthal (phi) resolution
+  resolution_v_deg: 1.4   # Polar/Elevation (theta) resolution
+
+  # Field of View for the depth image.
+  # Azimuthal: Full 360 degrees.
+  phi_min_rad: -3.1415926535 # -pi
+  phi_max_rad: 3.1415926535  # +pi
+  # Elevation: Based on typical LiDARs like Velodyne HDL-32E.
+  # Using elevation angle (theta) where 0 is horizontal, +ve is up.
+  theta_min_rad: -0.535  # Approx -30.67 degrees (HDL-32E fov_down)
+  theta_max_rad: 0.186   # Approx +10.67 degrees (HDL-32E fov_up)
+
+  # Maximum number of depth images to keep in the library (sliding window).
+  library_size: 20        # e.g., keep history for 1 second if T=0.05s (20Hz)
+  max_points_per_pixel: 50
+
+# Occlusion Check Parameters (Values are examples, need tuning)
+occlusion_check:
+  epsilon_depth_occlusion: 0.5   # (εd) meters. Depth threshold for occlusion.
+  neighbor_search_pixels_h: 1    # (nh) Number of horizontal neighbor pixels to check (0 for center only, 1 for 3xN_v).
+  neighbor_search_pixels_v: 1    # (nv) Number of vertical neighbor pixels to check (0 for center only, 1 for N_h x 3).
+  angular_threshold_deg_h: 2.0   # (εh) Horizontal angular threshold for point-based check (degrees).
+  angular_threshold_deg_v: 2.0   # (εv) Vertical angular threshold for point-based check (degrees).
+
+# Map Consistency Check Parameters (Values are examples, need tuning)
+map_consistency:
+  epsilon_phi_deg: 0.6        # Azimuthal proximity to static points
+  epsilon_theta_deg: 2.0      # Polar/Elevation proximity to static points
+  epsilon_depth_forward_m: 0.4  # Depth proximity (current point further than static)
+  epsilon_depth_backward_m: 0.4 # Depth proximity (current point closer than static)
+  # Parameters for depth interpolation (advanced, from paper)
+  interpolation_active: false # Whether to use depth interpolation for far points
+  interpolation_max_dist_m: 30.0 # Only interpolate for points further than this
+  interpolation_search_radius_h_deg: 1.5
+  interpolation_search_radius_v_deg: 3.5
+
+# Event Detection Test Parameters (Values are examples, need tuning)
+event_tests:
+  test1_N_depth_images: 5     # Test 1: Num recent depth images to check
+  test1_M1_threshold: 2       # Test 1: Min occluded background images
+  test2_M2_depth_images: 3    # Test 2: Num images for moving away check
+  test3_M3_depth_images: 3    # Test 3: Num images for moving towards check
+
+# Initialization Phase
+initialization:
+  # Duration in seconds to build initial depth images before starting event detection.
+  # Or, number of initial sweeps.
+  num_initial_sweeps_for_map: 5 # e.g., 0.5s if 20Hz
+
+# Point Processing
+filtering:
+  # Max range for points to be considered for M-detector (meters)
+  max_point_range_meters: 50.0
+  min_point_range_meters: 1.0 # Ignore points too close to the sensor
