@@ -135,16 +135,29 @@ def generate_video(config_path: str, scene_index: int, output_filename: str, sta
 
 
             if historical_di and historical_di.timestamp < current_di.timestamp:
+                # Gather all points into a single array for batch processing
+                all_points_global = []
+                
                 for v_idx in range(current_di.num_pixels_v):
                     for h_idx in range(current_di.num_pixels_h):
-                        pixel_content = current_di.pixels[v_idx, h_idx]
-                        if pixel_content and pixel_content['points']:
+                        pixel_content = current_di.get_pixel_info(v_idx, h_idx)
+                        if pixel_content and pixel_content['count'] > 0 and pixel_content['points']:
                             for pt_info in pixel_content['points']:
-                                global_pt_curr = pt_info['global_pt']
-                                pixel_res, _, _ = m_detector.check_occlusion_pixel_level(global_pt_curr, historical_di)
-                                if pixel_res == OcclusionResult.OCCLUDING_IMAGE:
-                                    newly_detected_dynamic_points_global.append(global_pt_curr)
-                current_dynamic_points_global_to_plot = newly_detected_dynamic_points_global
+                                all_points_global.append(pt_info['global_pt'])
+                
+                if all_points_global:
+                    # Convert to numpy array
+                    all_points_global_np = np.array(all_points_global)
+                    
+                    # Process all points at once
+                    batch_results = m_detector.check_occlusion_batch(all_points_global_np, historical_di)
+                    
+                    # Collect dynamic points
+                    for i, result in enumerate(batch_results):
+                        if result == OcclusionResult.OCCLUDING_IMAGE:
+                            newly_detected_dynamic_points_global.append(all_points_global_np[i])
+                    
+                    current_dynamic_points_global_to_plot = newly_detected_dynamic_points_global
         
         ax_main.clear()
         points_global_plot = transform_points_numpy(points_lidar_sensor_frame, T_global_lidar)

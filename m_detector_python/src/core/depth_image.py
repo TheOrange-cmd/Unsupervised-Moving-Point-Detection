@@ -36,19 +36,15 @@ class DepthImage:
         self.num_pixels_h: int = int(np.ceil((self.phi_max_rad - self.phi_min_rad) / self.res_h_rad))
         self.num_pixels_v: int = int(np.ceil((self.theta_max_rad - self.theta_min_rad) / self.res_v_rad))
 
-        # Initialize pixels array
-        self.pixels: np.ndarray = np.empty((self.num_pixels_v, self.num_pixels_h), dtype=object)
-        for r in range(self.num_pixels_v):
-            for c in range(self.num_pixels_h):
-                self.pixels[r, c] = {
-                    'min_depth': float('inf'),
-                    'max_depth': float('-inf'),
-                    'points': [], # Stores point_info dictionaries
-                    'count': 0 # Explicit count, can also use len(points)
-                }
+        # Now we can initialize the optimized data structures since num_pixels_v and num_pixels_h are known
+        self.pixel_min_depth = np.full((self.num_pixels_v, self.num_pixels_h), np.inf)
+        self.pixel_max_depth = np.full((self.num_pixels_v, self.num_pixels_h), -np.inf)
+        self.pixel_count = np.zeros((self.num_pixels_v, self.num_pixels_h), dtype=np.int32)
+        
+        # Keep storing individual points, but use a more efficient structure
+        self.pixel_points = {}  # Will be a dictionary of lists, indexed by (v_idx, h_idx)
         
         # This matrix transforms points from the GLOBAL frame TO this DepthImage's LOCAL sensor frame.
-        # Renamed from your 'transform_global_to_lidar' attribute to avoid conflict with the method.
         self.matrix_local_from_global: np.ndarray = np.linalg.inv(self.image_pose_global)
 
         self.total_points_added: int = 0 # Initialize counter for total points in DI
@@ -80,6 +76,66 @@ class DepthImage:
         # Apply the stored transformation matrix
         point_local_frame_h = self.matrix_local_from_global @ point_global_h
         return point_local_frame_h[:3] # Return as 3D Cartesian coordinates
+    
+    def project_points_batch(self, points_global_batch):
+        """Project multiple points at once for better performance."""
+        batch_size = points_global_batch.shape[0]
+        
+        # Pre-allocate result arrays
+        points_local = np.zeros((batch_size, 3))
+        sph_coords = np.zeros((batch_size, 3))
+        pixel_indices = np.zeros((batch_size, 2), dtype=np.int32)
+        valid_mask = np.zeros(batch_size, dtype=bool)
+        
+        # Make homogeneous coordinates for matrix multiplication
+        points_global_h = np.hstack([points_global_batch, np.ones((batch_size, 1))])
+        
+        # Transform all points at once
+        points_local_h = points_global_h @ self.matrix_local_from_global.T
+        points_local = points_local_h[:, :3]
+        
+        # Calculate depths
+        depths = np.linalg.norm(points_local, axis=1)
+        
+        # Avoid division by zero
+        valid_depth = depths > 1e-6
+        if not np.any(valid_depth):
+            return points_local, sph_coords, pixel_indices, valid_mask
+        
+        # Calculate spherical coordinates only for valid depths
+        x, y, z = points_local[valid_depth, 0], points_local[valid_depth, 1], points_local[valid_depth, 2]
+        phi = np.arctan2(y, x)
+        theta = np.arcsin(z / depths[valid_depth])
+        
+        # Check if points are within FOV
+        in_fov = ((self.phi_min_rad <= phi) & (phi <= self.phi_max_rad) &
+                (self.theta_min_rad <= theta) & (theta <= self.theta_max_rad))
+        
+        # Process only valid points
+        valid_indices = np.where(valid_depth)[0][in_fov]
+        if len(valid_indices) == 0:
+            return points_local, sph_coords, pixel_indices, valid_mask
+        
+        # Store spherical coordinates for valid points
+        sph_coords[valid_indices, 0] = phi[in_fov]
+        sph_coords[valid_indices, 1] = theta[in_fov]
+        sph_coords[valid_indices, 2] = depths[valid_depth][in_fov]
+        
+        # Calculate pixel indices
+        phi_normalized = phi[in_fov] - self.phi_min_rad
+        theta_normalized = theta[in_fov] - self.theta_min_rad
+        
+        h_idx = np.clip((phi_normalized / self.res_h_rad).astype(np.int32), 0, self.num_pixels_h - 1)
+        v_idx = np.clip((theta_normalized / self.res_v_rad).astype(np.int32), 0, self.num_pixels_v - 1)
+        
+        # Store pixel indices
+        pixel_indices[valid_indices, 0] = v_idx
+        pixel_indices[valid_indices, 1] = h_idx
+        
+        # Mark valid points
+        valid_mask[valid_indices] = True
+        
+        return points_local, sph_coords, pixel_indices, valid_mask
 
     def project_point_to_pixel_indices(self, point_global: np.ndarray) -> \
             Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[Tuple[int, int]]]:
@@ -149,9 +205,15 @@ class DepthImage:
         v_idx, h_idx = pixel_indices
         depth = sph_coords[2] # Depth of the point in the DI's local frame
 
-        # The pixel initialization in __init__ ensures self.pixels[v_idx, h_idx] is always a dict.
-        pixel_data = self.pixels[v_idx, h_idx]
-
+        # Update min/max depth with direct array access
+        self.pixel_min_depth[v_idx, h_idx] = min(self.pixel_min_depth[v_idx, h_idx], depth)
+        self.pixel_max_depth[v_idx, h_idx] = max(self.pixel_max_depth[v_idx, h_idx], depth)
+        
+        # Create or update the point list for this pixel
+        pixel_key = (v_idx, h_idx)
+        if pixel_key not in self.pixel_points:
+            self.pixel_points[pixel_key] = []
+        
         # Store detailed information about the point
         point_info = {
             'global_pt': point_global,          # Original global coordinates
@@ -162,29 +224,45 @@ class DepthImage:
         }
         
         # Add point to list, respecting max_points_per_pixel
-        if len(pixel_data['points']) < self.max_points_per_pixel:
-            pixel_data['points'].append(point_info)
-        # else:
-            # Optional: Implement a strategy if max_points_per_pixel is reached
-            # (e.g., replace oldest, random replacement, or simply don't add).
-            # Currently, it just stops adding more raw point details to this pixel.
-
-        # Update pixel statistics
-        pixel_data['min_depth'] = min(pixel_data['min_depth'], depth)
-        pixel_data['max_depth'] = max(pixel_data['max_depth'], depth)
-        pixel_data['count'] = len(pixel_data['points']) # Update count based on actual stored points
-
+        if len(self.pixel_points[pixel_key]) < self.max_points_per_pixel:
+            self.pixel_points[pixel_key].append(point_info)
+        
+        # Update pixel count
+        self.pixel_count[v_idx, h_idx] += 1
         self.total_points_added += 1 # Increment total points in the entire DepthImage
+        
+        # Only store if under the maximum points per pixel
+        if len(self.pixel_points[pixel_key]) < self.max_points_per_pixel:
+            point_info = {
+                'global_pt': point_global,
+                'di_frame_pt': point_in_di_frame,
+                'sph_coords': sph_coords,
+                'label': label,
+                'timestamp': original_timestamp if original_timestamp is not None else self.timestamp
+            }
+            self.pixel_points[pixel_key].append(point_info)
+        
+        # Update count
+        self.pixel_count[v_idx, h_idx] += 1
+        self.total_points_added += 1
 
     def get_pixel_info(self, v_idx: int, h_idx: int) -> Optional[Dict[str, Any]]:
         """ 
         Returns the data stored in a specific pixel.
         Uses (v_idx, h_idx) consistent with array indexing (row, column).
         """
-        if 0 <= v_idx < self.num_pixels_v and 0 <= h_idx < self.num_pixels_h:
-            return self.pixels[v_idx, h_idx]
-        print(f"Warning: Pixel indices ({v_idx}, {h_idx}) out of bounds ({self.num_pixels_v}x{self.num_pixels_h}).")
-        return None
+        if not (0 <= v_idx < self.num_pixels_v and 0 <= h_idx < self.num_pixels_h):
+            print(f"Warning: Pixel indices ({v_idx}, {h_idx}) out of bounds ({self.num_pixels_v}x{self.num_pixels_h}).")
+            return None
+        
+        # Create a compatible dictionary structure
+        pixel_key = (v_idx, h_idx)
+        return {
+            'min_depth': self.pixel_min_depth[v_idx, h_idx],
+            'max_depth': self.pixel_max_depth[v_idx, h_idx],
+            'points': self.pixel_points.get(pixel_key, []),
+            'count': self.pixel_count[v_idx, h_idx]
+        }
 
     def __str__(self) -> str:
         pose_translation = self.image_pose_global[:3,3] # Extract translation for brevity
@@ -192,3 +270,140 @@ class DepthImage:
                 f"Pose_xyz: [{pose_translation[0]:.2f}, {pose_translation[1]:.2f}, {pose_translation[2]:.2f}], "
                 f"Dims: {self.num_pixels_v}x{self.num_pixels_h} pixels, "
                 f"Total Points Added: {self.total_points_added}")
+    
+    # Batch processing 
+    def project_points_batch(self, points_global_batch: np.ndarray):
+        """
+        Projects multiple points at once for better performance.
+        
+        Args:
+            points_global_batch (np.ndarray): Nx3 array of points in global frame
+            
+        Returns:
+            tuple: (points_local, sph_coords, pixel_indices, valid_mask)
+                - points_local (np.ndarray): Nx3 array of points in local frame
+                - sph_coords (np.ndarray): Nx3 array of (phi, theta, depth) for each point
+                - pixel_indices (np.ndarray): Nx2 array of (v_idx, h_idx) for each point
+                - valid_mask (np.ndarray): N boolean array indicating which points are valid (in FoV)
+        """
+        batch_size = points_global_batch.shape[0]
+        
+        # Pre-allocate result arrays
+        points_local = np.zeros((batch_size, 3))
+        sph_coords = np.zeros((batch_size, 3))
+        pixel_indices = np.zeros((batch_size, 2), dtype=np.int32)
+        valid_mask = np.zeros(batch_size, dtype=bool)
+        
+        # Convert all points to homogeneous coordinates
+        if points_global_batch.shape[1] == 3:  # Input points are [x,y,z]
+            points_global_h = np.hstack([points_global_batch, np.ones((batch_size, 1))])
+        else:  # Input points are already homogeneous [x,y,z,1]
+            points_global_h = points_global_batch
+        
+        # Transform all points at once
+        points_local_h = points_global_h @ self.matrix_local_from_global.T
+        points_local = points_local_h[:, :3]
+        
+        # Calculate depths
+        depths = np.linalg.norm(points_local, axis=1)
+        
+        # Avoid division by zero
+        valid_depth = depths > 1e-6
+        if not np.any(valid_depth):
+            return points_local, sph_coords, pixel_indices, valid_mask
+        
+        # Calculate spherical coordinates only for valid depths
+        x, y, z = points_local[valid_depth, 0], points_local[valid_depth, 1], points_local[valid_depth, 2]
+        phi = np.arctan2(y, x)  # Azimuth
+        theta = np.arcsin(np.clip(z / depths[valid_depth], -1.0, 1.0))  # Elevation, clip to avoid numerical issues
+        
+        # Check if points are within FOV
+        in_fov = ((self.phi_min_rad <= phi) & (phi <= self.phi_max_rad) &
+                (self.theta_min_rad <= theta) & (theta <= self.theta_max_rad))
+        
+        # If no points in FOV, return early
+        if not np.any(in_fov):
+            return points_local, sph_coords, pixel_indices, valid_mask
+        
+        # Process only valid points
+        valid_indices = np.where(valid_depth)[0][in_fov]
+        if len(valid_indices) == 0:
+            return points_local, sph_coords, pixel_indices, valid_mask
+        
+        # Store spherical coordinates for valid points
+        sph_coords[valid_indices, 0] = phi[in_fov]
+        sph_coords[valid_indices, 1] = theta[in_fov]
+        sph_coords[valid_indices, 2] = depths[valid_depth][in_fov]
+        
+        # Calculate pixel indices
+        phi_normalized = phi[in_fov] - self.phi_min_rad
+        theta_normalized = theta[in_fov] - self.theta_min_rad
+        
+        h_idx = np.clip((phi_normalized / self.res_h_rad).astype(np.int32), 0, self.num_pixels_h - 1)
+        v_idx = np.clip((theta_normalized / self.res_v_rad).astype(np.int32), 0, self.num_pixels_v - 1)
+        
+        # Store pixel indices
+        pixel_indices[valid_indices, 0] = v_idx
+        pixel_indices[valid_indices, 1] = h_idx
+        
+        # Mark valid points
+        valid_mask[valid_indices] = True
+        
+        return points_local, sph_coords, pixel_indices, valid_mask
+
+    def add_points_batch(self, points_global_batch: np.ndarray, labels=None, timestamps=None):
+        """
+        Add multiple points at once for better performance.
+        
+        Args:
+            points_global_batch (np.ndarray): Nx3 array of points in global frame
+            labels (list, optional): List of labels for each point. Default is "unknown".
+            timestamps (list, optional): List of timestamps for each point. Default is self.timestamp.
+            
+        Returns:
+            int: Number of points successfully added
+        """
+        batch_size = points_global_batch.shape[0]
+        
+        if labels is None:
+            labels = ["unknown"] * batch_size
+        if timestamps is None:
+            timestamps = [self.timestamp] * batch_size
+        
+        # Project all points at once
+        points_local, sph_coords, pixel_indices, valid_mask = self.project_points_batch(points_global_batch)
+        
+        # Count of points added
+        points_added = 0
+        
+        # Process only valid points
+        valid_indices = np.where(valid_mask)[0]
+        for i in valid_indices:
+            v_idx, h_idx = pixel_indices[i].astype(int)
+            depth = sph_coords[i, 2]
+            
+            # Update min/max depth
+            self.pixel_min_depth[v_idx, h_idx] = min(self.pixel_min_depth[v_idx, h_idx], depth)
+            self.pixel_max_depth[v_idx, h_idx] = max(self.pixel_max_depth[v_idx, h_idx], depth)
+            
+            # Add to point list
+            pixel_key = (v_idx, h_idx)
+            if pixel_key not in self.pixel_points:
+                self.pixel_points[pixel_key] = []
+            
+            if len(self.pixel_points[pixel_key]) < self.max_points_per_pixel:
+                point_info = {
+                    'global_pt': points_global_batch[i],
+                    'di_frame_pt': points_local[i],
+                    'sph_coords': sph_coords[i],
+                    'label': labels[i],
+                    'timestamp': timestamps[i]
+                }
+                self.pixel_points[pixel_key].append(point_info)
+            
+            # Update count
+            self.pixel_count[v_idx, h_idx] += 1
+            points_added += 1
+        
+        self.total_points_added += points_added
+        return points_added
