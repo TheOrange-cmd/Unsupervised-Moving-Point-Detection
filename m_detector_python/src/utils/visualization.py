@@ -15,7 +15,8 @@ import cv2 # For mpl_fig_to_opencv_bgr
 # Assuming get_lidar_sweep_data is in data_utils.nuscenes_helper
 from src.data_utils.nuscenes_helper import get_lidar_sweep_data
 from src.core.depth_image import DepthImage # For type hinting
-from src.core.m_detector import MDetector, OcclusionResult
+from src.core.m_detector.base import MDetector, OcclusionResult
+from src.core.constants import OcclusionResult
 
 
 def plot_axes_k3d(T_plotorigin_target:np.ndarray=np.eye(4), length=1.0, name='axes'):
@@ -202,22 +203,19 @@ def plot_predictions_k3d(
 
     label_summary = {}
 
-    for v_idx in range(di_to_plot.num_pixels_v):
-        for h_idx in range(di_to_plot.num_pixels_h):
-            pixel_content = di_to_plot.pixels[v_idx, h_idx]
-            if pixel_content and pixel_content['points']:
-                for pt_info in pixel_content['points']:
-                    all_points_global_coords.append(pt_info['global_pt'])
-                    
-                    # Retrieve the pre-computed label
-                    # The label could be an OcclusionResult enum or a string
-                    label = pt_info.get('label', OcclusionResult.UNDETERMINED) # Default if 'label' key is missing
-                    
-                    point_colors_int.append(current_color_map.get(label, fallback_color))
-                    
-                    # For summary
-                    label_name = label.name if isinstance(label, Enum) else str(label)
-                    label_summary[label_name] = label_summary.get(label_name, 0) + 1
+    # Collect all points using the new data structure
+    for pixel_key, points_list in di_to_plot.pixel_points.items():
+        for pt_info in points_list:
+            all_points_global_coords.append(pt_info['global_pt'])
+            
+            # Retrieve the pre-computed label
+            label = pt_info.get('label', OcclusionResult.UNDETERMINED)
+            
+            point_colors_int.append(current_color_map.get(label, fallback_color))
+            
+            # For summary
+            label_name = label.name if isinstance(label, Enum) else str(label)
+            label_summary[label_name] = label_summary.get(label_name, 0) + 1
 
     print(f"Plotting {len(all_points_global_coords)} points from DI (Timestamp: {di_to_plot.timestamp/1e6:.2f}s).")
     if label_summary:
@@ -226,7 +224,6 @@ def plot_predictions_k3d(
             print(f"  - {name}: {count}")
     else:
         print("No point labels found in the DepthImage.")
-
 
     if all_points_global_coords:
         positions_np = np.array(all_points_global_coords).astype(np.float32)
@@ -240,7 +237,7 @@ def plot_predictions_k3d(
             name="Labeled Points"
         )
     
-    # Set camera to view from the sensor's perspective (same as before)
+    # Set camera to view from the sensor's perspective
     cam_eye = di_to_plot.image_pose_global[:3, 3]
     look_at_offset_local = np.array([10.0, 0.0, 0.0, 1.0]) 
     cam_look_at = (di_to_plot.image_pose_global @ look_at_offset_local)[:3]
@@ -255,3 +252,16 @@ def plot_predictions_k3d(
     ]
     
     return plot
+
+def plot_with_directionality(depth_image, plot_title=None):
+    """Visualize with colors indicating which temporal direction contributed most."""
+    
+    # Custom color map showing temporal contribution
+    color_map = {
+        "OCCLUDING_PAST": 0x00AA00,    # Dark green (past)
+        "OCCLUDING_FUTURE": 0x00FF00,  # Bright green (future)
+        "OCCLUDED_PAST": 0xAA0000,     # Dark red (past)
+        "OCCLUDED_FUTURE": 0xFF0000,   # Bright red (future)
+    }
+    
+    return plot_predictions_k3d(depth_image, plot_title, color_map_override=color_map)

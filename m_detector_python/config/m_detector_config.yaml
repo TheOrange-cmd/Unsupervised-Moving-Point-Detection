@@ -13,6 +13,86 @@ nuscenes:
 # Based on the paper (Nature Communications | (2024) 15:345) and Supplementary Info.
 # These will likely require tuning for NuScenes and specific LiDARs.
 
+temporal_processing:
+  bidirectional: true  # Enable/disable bidirectional processing
+  past_window_size: 1  # Number of past frames to use
+  future_window_size: 1  # Number of future frames to use
+  past_weight: 1.0  # Weight for past frame results (optional)
+  future_weight: 1.0  # Weight for future frame results (optional)
+  # --- Final Labeling Logic Configuration ---
+  # Determines how raw occlusion and map consistency (mc) combine for past evidence.
+  # If past_raw_occ == OCCLUDING_IMAGE (dynamic signal):
+  #   - if is_mc_past == True: What is the effective past state?
+  #     Options: "STATIC" (map consistency overrides), "DYNAMIC" (occlusion overrides), "UNDETERMINED"
+  past_occluding_mc_true_outcome: "STATIC"
+
+  # Determines how raw occlusion and map consistency (mc) combine for future evidence.
+  # If future_raw_occ implies dynamic for center_pt (OCCLUDING_IMAGE, OCCLUDED_BY_IMAGE, EMPTY_IN_IMAGE):
+  #   - if is_mc_future == True: What is the effective future state?
+  #     Options: "STATIC" (map consistency overrides), "DYNAMIC" (occlusion overrides), "UNDETERMINED"
+  future_dynamic_mc_true_outcome: "STATIC"
+
+  # Decision rules based on effective_past_state (EPS) and effective_future_state (EFS)
+  # EPS/EFS can be: DYNAMIC (Occluding), STATIC (Occluded), AMBIGUOUS_PAST (Empty), UNDETERMINED
+  # Note: For EFS, EMPTY_IN_IMAGE is treated as DYNAMIC. OCCLUDED_BY_IMAGE is also DYNAMIC for center_pt.
+
+  # Rule 1: If EPS is DYNAMIC and EFS is DYNAMIC
+  # Options: "DYNAMIC", "UNDETERMINED" (if conflicting strong dynamics needs caution)
+  both_dynamic_outcome: "DYNAMIC"
+
+  # Rule 2: If EPS is DYNAMIC and EFS is STATIC
+  # Options: "DYNAMIC", "STATIC", "UNDETERMINED"
+  past_dynamic_future_static_outcome: "DYNAMIC"
+
+  # Rule 3: If EPS is DYNAMIC and EFS is UNDETERMINED
+  # Options: "DYNAMIC", "UNDETERMINED"
+  past_dynamic_future_undetermined_outcome: "DYNAMIC"
+
+  # Rule 4: If EPS is STATIC and EFS is DYNAMIC
+  # Options: "DYNAMIC", "STATIC", "UNDETERMINED"
+  past_static_future_dynamic_outcome: "DYNAMIC" # Common: static object starts moving
+
+  # Rule 5: If EPS is STATIC and EFS is STATIC
+  # Options: "STATIC", "UNDETERMINED"
+  both_static_outcome: "STATIC"
+
+  # Rule 6: If EPS is STATIC and EFS is UNDETERMINED
+  # Options: "STATIC", "UNDETERMINED"
+  past_static_future_undetermined_outcome: "STATIC"
+
+  # Rule 7: If EPS is AMBIGUOUS_PAST (EMPTY_IN_IMAGE) and EFS is DYNAMIC
+  # Options: "DYNAMIC", "UNDETERMINED"
+  past_empty_future_dynamic_outcome: "DYNAMIC" # Newly seen object is dynamic
+
+  # Rule 8: If EPS is AMBIGUOUS_PAST (EMPTY_IN_IMAGE) and EFS is STATIC
+  # Options: "STATIC", "UNDETERMINED"
+  past_empty_future_static_outcome: "STATIC" # Newly seen object is static
+
+  # Rule 9: If EPS is AMBIGUOUS_PAST (EMPTY_IN_IMAGE) and EFS is UNDETERMINED
+  # Options: "UNDETERMINED", "EMPTY" (if you want to preserve EMPTY as a label)
+  past_empty_future_undetermined_outcome: "UNDETERMINED"
+
+  # Rule 10: If EPS is UNDETERMINED (and not covered by AMBIGUOUS_PAST)
+  # (Similar rules for past_undetermined_future_dynamic, past_undetermined_future_static)
+  # For brevity, we can have a general default.
+
+  # Default outcome if no specific rule matches or for fully undetermined cases
+  # (e.g., EPS=UNDETERMINED, EFS=UNDETERMINED)
+  # Options: "UNDETERMINED", "STATIC", "DYNAMIC" (use with caution)
+  default_ambiguous_outcome: "UNDETERMINED"
+
+  # Special override: If both is_mc_past AND is_mc_future are true, regardless of occlusion.
+  # This is a very strong signal for static.
+  # Options: "STATIC" (recommended), "USE_EFFECTIVE_STATES_LOGIC" (to disable override)
+  both_map_consistent_override: "STATIC" # If "STATIC", this returns OcclusionResult.OCCLUDED_BY_IMAGE
+  
+processing:
+  skip_frames: 40
+  max_frames: 80
+
+video_generation:
+  fps: 20
+
 # Depth Image Parameters
 depth_image:
   # Time interval in seconds to accumulate points for one depth image.
@@ -51,17 +131,26 @@ occlusion_check:
   angular_threshold_deg_h: 2.0   # (εh) Horizontal angular threshold for point-based check (degrees).
   angular_threshold_deg_v: 2.0   # (εv) Vertical angular threshold for point-based check (degrees).
 
-# Map Consistency Check Parameters (Values are examples, need tuning)
-map_consistency:
-  epsilon_phi_deg: 0.6        # Azimuthal proximity to static points
-  epsilon_theta_deg: 2.0      # Polar/Elevation proximity to static points
-  epsilon_depth_forward_m: 0.4  # Depth proximity (current point further than static)
-  epsilon_depth_backward_m: 0.4 # Depth proximity (current point closer than static)
-  # Parameters for depth interpolation (advanced, from paper)
-  interpolation_active: false # Whether to use depth interpolation for far points
-  interpolation_max_dist_m: 30.0 # Only interpolate for points further than this
-  interpolation_search_radius_h_deg: 1.5
-  interpolation_search_radius_v_deg: 3.5
+map_consistency_check:
+  enabled: true # Overall toggle for this phase
+  # How many of the most recent (but older than current) DIs to check against
+  num_historical_di_for_map_check: 5
+  num_future_di_for_map_check: 5 # New parameter
+  # Angular thresholds for considering a stored static point "aligned" with the point_to_check
+  # These are in the historical DI's frame where both points are projected
+  epsilon_phi_map_deg: 1.0  # Azimuthal tolerance in degrees
+  epsilon_theta_map_deg: 1.0 # Polar tolerance in degrees
+  # Depth thresholds (in meters) for considering a stored static point "at the same depth"
+  # d_static - epsilon_depth_backward_map <= d_current_projected <= d_static + epsilon_depth_forward_map
+  epsilon_depth_forward_map: 0.3  # Meters
+  epsilon_depth_backward_map: 0.3 # Meters
+  # Labels in historical DIs that are considered "static" or "non-event" for map consistency
+  static_labels_for_map_check:
+    - "NON_EVENT" # From initialization phase
+    - "UNDETERMINED" # If an occlusion check was inconclusive, it's likely static
+    - "STATIC_CONFIRMED_BY_MAP" # If previously confirmed as static by this check
+    - "PENDING_CLASSIFICATION" # Default label for future points - necessary if comparing current points with future ones
+    # Add any other labels that signify a point is part of the static map
 
 # Event Detection Test Parameters (Values are examples, need tuning)
 event_tests:
