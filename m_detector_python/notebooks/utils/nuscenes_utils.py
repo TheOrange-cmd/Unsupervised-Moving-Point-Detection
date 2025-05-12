@@ -48,41 +48,45 @@ def load_nuscenes_instance(nusc, instance_token, min_annotations=2):
         'annotations': annotations
     }
 
-def find_dynamic_instances_in_scene(nusc, scene_token, min_annotations=5):
+def find_instances_in_scene(nusc, scene_token, min_annotations=1):
     """
-    Find dynamic instances (vehicles, pedestrians, etc.) in a scene with a minimum number of annotations.
-    
+    Finds all unique instances in a given scene that have at least a minimum number of annotations.
+
     Args:
-        nusc: NuScenes instance
-        scene_token (str): Scene token
-        min_annotations (int): Minimum number of annotations required
-        
+        nusc: NuScenes API instance.
+        scene_token (str): The token of the scene to process.
+        min_annotations (int): The minimum number of annotations an instance must have
+                               to be included.
+
     Returns:
-        list: List of instance tokens that meet the criteria
+        list: A list of dictionaries, where each dictionary contains information
+              about an instance (token, category, num_annotations).
     """
-    scene = nusc.get('scene', scene_token)
-    sample = nusc.get('sample', scene['first_sample_token'])
+    scene_record = nusc.get('scene', scene_token)
     
-    dynamic_instances = []
+    # Use a set to store unique instance tokens found in this scene
+    unique_instance_tokens_in_scene = set()
     
-    for ann_token in sample['anns']:
-        ann_record = nusc.get('sample_annotation', ann_token)
-        instance_rec = nusc.get('instance', ann_record['instance_token'])
+    # Iterate through all samples in the scene
+    current_sample_token = scene_record['first_sample_token']
+    while current_sample_token:
+        sample_record = nusc.get('sample', current_sample_token)
+        for annotation_token in sample_record['anns']:
+            annotation_record = nusc.get('sample_annotation', annotation_token)
+            unique_instance_tokens_in_scene.add(annotation_record['instance_token'])
         
-        # Get category name
-        category_token = instance_rec['category_token']
-        category_record = nusc.get('category', category_token)
-        category_name = category_record['name']
-        
-        if instance_rec['nbr_annotations'] >= min_annotations:
-            # Check if it's a dynamic object category
-            if ('vehicle' in category_name or 
-                'human' in category_name or 
-                'movable_object' in category_name):
-                
-                dynamic_instances.append(ann_record['instance_token'])
-    
-    return dynamic_instances
+        current_sample_token = sample_record['next'] # Move to the next sample
+        if not current_sample_token: # Break if it's the last sample
+            break
+            
+    # Now, filter these instances by min_annotations and gather details
+    detailed_instances = []
+    for instance_token in unique_instance_tokens_in_scene:
+        instance_record = nusc.get('instance', instance_token)
+        if instance_record['nbr_annotations'] >= min_annotations:
+            detailed_instances.append(instance_token)
+            
+    return detailed_instances
 
 def annotation_to_box(nusc, annotation):
     """

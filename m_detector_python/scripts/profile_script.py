@@ -15,7 +15,7 @@ if PROJECT_ROOT not in sys.path:
     print(f"Added project root to sys.path: {PROJECT_ROOT}")
 
 # Import your main function
-from scripts.generate_video import main
+from scripts.run_mdetector_and_save import main
 
 # Profile the main function
 profile_filename = "mdetector_profile.prof"

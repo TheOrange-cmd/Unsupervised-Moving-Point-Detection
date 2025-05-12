@@ -1,0 +1,593 @@
+# utils/refactor.py
+
+from nuscenes.utils.data_classes import LidarPointCloud
+from nuscenes.utils.geometry_utils import transform_matrix
+from pyquaternion import Quaternion
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+from matplotlib.animation import FuncAnimation
+from IPython.display import HTML
+
+def find_instances_in_scene(nusc, scene_token, min_annotations=1):
+    """
+    Finds all unique instances in a given scene that have at least a minimum number of annotations.
+
+    Args:
+        nusc: NuScenes API instance.
+        scene_token (str): The token of the scene to process.
+        min_annotations (int): The minimum number of annotations an instance must have
+                               to be included.
+
+    Returns:
+        list: A list of dictionaries, where each dictionary contains information
+              about an instance (token, category, num_annotations).
+    """
+    scene_record = nusc.get('scene', scene_token)
+    
+    # Use a set to store unique instance tokens found in this scene
+    unique_instance_tokens_in_scene = set()
+    
+    # Iterate through all samples in the scene
+    current_sample_token = scene_record['first_sample_token']
+    while current_sample_token:
+        sample_record = nusc.get('sample', current_sample_token)
+        for annotation_token in sample_record['anns']:
+            annotation_record = nusc.get('sample_annotation', annotation_token)
+            unique_instance_tokens_in_scene.add(annotation_record['instance_token'])
+        
+        current_sample_token = sample_record['next'] # Move to the next sample
+        if not current_sample_token: # Break if it's the last sample
+            break
+            
+    # Now, filter these instances by min_annotations and gather details
+    detailed_instances = []
+    for instance_token in unique_instance_tokens_in_scene:
+        instance_record = nusc.get('instance', instance_token)
+        if instance_record['nbr_annotations'] >= min_annotations:
+            detailed_instances.append(instance_token)
+            
+    return detailed_instances
+
+def get_lidar_sweeps_for_interval(nusc, start_sample_token, end_sample_token):
+    """
+    Get all LiDAR sweeps between two sample tokens (inclusive).
+    
+    Args:
+        nusc: NuScenes instance
+        start_sample_token (str): Starting sample token
+        end_sample_token (str): Ending sample token
+        
+    Returns:
+        list: List of dictionaries with LiDAR sample data information
+    """
+    # Get sample records
+    start_sample = nusc.get('sample', start_sample_token)
+    end_sample = nusc.get('sample', end_sample_token)
+    
+    # Get timestamps to check duration
+    start_timestamp = start_sample['timestamp']
+    end_timestamp = end_sample['timestamp']
+    
+    duration_s = (end_timestamp - start_timestamp) / 1e6
+    print(f"Scene duration: {duration_s:.2f} seconds")
+    
+    # Expected number of LiDAR sweeps (Nuscenes LiDAR is at ~20Hz)
+    expected_sweeps = int(duration_s * 20)
+    print(f"Expected ~{expected_sweeps} LiDAR sweeps at 20Hz")
+    
+    # Start with the first LIDAR_TOP sample data
+    sd_token = start_sample['data']['LIDAR_TOP']
+    lidar_sweeps = []
+    max_sweeps = 2000  # Increased limit to handle long scenes
+    
+    count = 0
+    while sd_token and count < max_sweeps:
+        # Get sample data record
+        sd_rec = nusc.get('sample_data', sd_token)
+        
+        # Store this sweep
+        lidar_sweeps.append({
+            'token': sd_token,
+            'timestamp_us': sd_rec['timestamp'],
+            'filename': sd_rec['filename'],
+            'ego_pose_token': sd_rec['ego_pose_token'],
+            'calibrated_sensor_token': sd_rec['calibrated_sensor_token']
+        })
+        
+        count += 1
+        
+        # Check if we've reached the end sample
+        if sd_rec['timestamp'] >= end_timestamp:
+            print(f"Reached end timestamp after {count} sweeps")
+            break
+            
+        # Move to next sample data
+        if not sd_rec['next']:
+            print(f"Reached end of sequence after {count} sweeps")
+            break
+            
+        sd_token = sd_rec['next']
+    
+    print(f"Collected {len(lidar_sweeps)} LiDAR sweeps for the interval")
+    
+    # Verify we're getting all expected sweeps
+    if len(lidar_sweeps) < expected_sweeps * 0.9:  # Allow 10% margin
+        print(f"WARNING: Got fewer sweeps than expected! Check data access.")
+    
+    # Sort by timestamp to ensure proper ordering
+    lidar_sweeps.sort(key=lambda x: x['timestamp_us'])
+    
+    return lidar_sweeps
+
+def interpolate_box(box1, box2, t):
+    """
+    Interpolate between two boxes with factor t (0 to 1).
+    
+    Args:
+        box1: First box
+        box2: Second box
+        t: Interpolation factor (0 = first box, 1 = second box)
+        
+    Returns:
+        Box: Interpolated box
+    """
+    from nuscenes.utils.data_classes import Box
+    from scipy.spatial.transform import Slerp
+    from scipy.spatial.transform import Rotation as R
+    import numpy as np
+    from pyquaternion import Quaternion
+    
+    # Interpolate center position (linear)
+    center = box1.center * (1 - t) + box2.center * t
+    
+    # Interpolate size (linear)
+    size = box1.wlh * (1 - t) + box2.wlh * t
+    
+    # Interpolate orientation (spherical)
+    key_rots = R.from_quat(np.stack([
+        box1.orientation.elements[[1, 2, 3, 0]],  # Convert to scipy format (x,y,z,w)
+        box2.orientation.elements[[1, 2, 3, 0]]
+    ]))
+    key_times = [0, 1]
+    slerp = Slerp(key_times, key_rots)
+    interp_rot = slerp([t])[0]
+    
+    # Convert back to pyquaternion (w,x,y,z)
+    q = np.roll(interp_rot.as_quat(), 1)  # Convert from (x,y,z,w) to (w,x,y,z)
+    orientation = Quaternion(q)  # Create new Quaternion directly
+    
+    # Create interpolated box
+    return Box(
+        center=center,
+        size=size,
+        orientation=orientation,
+        velocity=np.zeros(3),
+        name=None,
+        token=None
+    )
+
+def interpolate_boxes_to_lidar_sweeps(nusc, instance_token, lidar_sweeps):
+    """
+    Interpolate boxes to match exactly with LiDAR sweep timestamps.
+    
+    This function:
+    1. Gets all annotations for an instance
+    2. Gets all LiDAR sweeps between the first and last annotation
+    3. Interpolates boxes to exactly match LiDAR sweep timestamps
+    
+    Args:
+        nusc: NuScenes instance
+        instance_token (str): Instance token
+        lidar_sweeps (list): List of LiDAR sample data dicts with timestamps
+        
+    Returns:
+        tuple: (interpolated_boxes, interpolated_timestamps, original_boxes, original_timestamps)
+    """
+    from nuscenes.utils.data_classes import Box
+    import numpy as np
+    from pyquaternion import Quaternion
+    
+    # Get all annotations for the instance
+    annotations = []
+    ann_token = nusc.get('instance', instance_token)['first_annotation_token']
+    
+    while ann_token:
+        ann_rec = nusc.get('sample_annotation', ann_token)
+        sample = nusc.get('sample', ann_rec['sample_token'])
+        
+        annotations.append({
+            'token': ann_token,
+            'translation': ann_rec['translation'],
+            'size': ann_rec['size'],
+            'rotation': ann_rec['rotation'],
+            'timestamp': sample['timestamp'],
+            'prev': ann_rec['prev'],
+            'next': ann_rec['next']
+        })
+        
+        ann_token = ann_rec['next']
+    
+    if len(annotations) < 2:
+        print(f"Not enough annotations for instance {instance_token}")
+        return None, None, None, None
+    
+    # Sort annotations by timestamp
+    annotations.sort(key=lambda x: x['timestamp'])
+    
+    # Create original boxes and timestamps
+    original_boxes = []
+    original_timestamps = []
+    
+    for ann in annotations:
+        # Convert annotation to Box object
+        box = Box(
+            center=ann['translation'],
+            size=ann['size'],
+            orientation=Quaternion(ann['rotation']),
+            velocity=np.zeros(3),  # No velocity in annotations
+            name=None,
+            token=ann['token']
+        )
+        
+        original_boxes.append(box)
+        original_timestamps.append(ann['timestamp'])
+    
+    # Identify LiDAR sweeps between first and last annotation timestamp
+    first_ts = original_timestamps[0]
+    last_ts = original_timestamps[-1]
+    
+    # Filter LiDAR sweeps to those within annotation time range
+    relevant_sweeps = [
+        sweep for sweep in lidar_sweeps
+        if first_ts <= sweep['timestamp_us'] <= last_ts
+    ]
+    
+    if not relevant_sweeps:
+        print(f"No LiDAR sweeps found between annotations for instance {instance_token}")
+        return None, None, original_boxes, original_timestamps
+    
+    # Sort sweeps by timestamp
+    relevant_sweeps.sort(key=lambda x: x['timestamp_us'])
+    
+    # Get sweep timestamps
+    sweep_timestamps = [sweep['timestamp_us'] for sweep in relevant_sweeps]
+    
+    # Now interpolate boxes to exactly match LiDAR sweep timestamps
+    interpolated_boxes = []
+    
+    for target_ts in sweep_timestamps:
+        # Find the two annotations that bracket this timestamp
+        idx_next = next((i for i, ts in enumerate(original_timestamps) if ts > target_ts), len(original_timestamps))
+        idx_prev = idx_next - 1
+        
+        # Handle edge cases
+        if idx_prev < 0:
+            # Before first annotation, use the first
+            interpolated_boxes.append(original_boxes[0])
+            continue
+        if idx_next >= len(original_timestamps):
+            # After last annotation, use the last
+            interpolated_boxes.append(original_boxes[-1])
+            continue
+            
+        # Get the bracketing timestamps and boxes
+        ts_prev = original_timestamps[idx_prev]
+        ts_next = original_timestamps[idx_next]
+        box_prev = original_boxes[idx_prev]
+        box_next = original_boxes[idx_next]
+        
+        # Interpolation factor (0 at prev, 1 at next)
+        t = (target_ts - ts_prev) / (ts_next - ts_prev)
+        
+        # Interpolate
+        interp_box = interpolate_box(box_prev, box_next, t)
+        interpolated_boxes.append(interp_box)
+    
+    return interpolated_boxes, sweep_timestamps, original_boxes, original_timestamps
+
+def create_multi_box_exact_synchronized_animation(nusc, instance_tokens, lidar_sweeps, 
+                                               interval_ms=100, figsize=(8, 8), point_downsample=1,
+    save_path=None,       # Path to save the animation (e.g., "animation.mp4" or "animation.gif")
+    save_writer=None,     # Writer to use (e.g., 'ffmpeg', 'pillow')
+    save_fps=None,        # FPS for the saved animation. If None, calculated from interval_ms.
+    save_dpi=150          # DPI for the saved animation.
+    ):
+    """
+    Create an animation with multiple boxes exactly synchronized to LiDAR sweeps.
+    Can optionally save the animation to a file.
+    
+    Args:
+        nusc: NuScenes instance
+        instance_tokens (list): List of instance tokens to animate
+        lidar_sweeps (list): List of LiDAR sample data info dicts
+        interval_ms (int): Animation interval in milliseconds for display
+        figsize (tuple): Figure size
+        point_downsample (int): Downsample factor for LiDAR points
+        save_path (str, optional): File path to save the animation. If None, returns HTML.
+        save_writer (str, optional): Writer for saving (e.g., 'ffmpeg', 'pillow').
+                                     Matplotlib will try to infer if not set and save_path is given.
+        save_fps (int, optional): FPS for the saved file. Defaults to 1000/interval_ms.
+        save_dpi (int, optional): DPI for the saved file.
+        
+    Returns:
+        HTML: Animation for display in notebook (if save_path is None).
+        None: If animation is saved to a file.
+    """
+
+    
+    # First, sort LiDAR sweeps by timestamp
+    lidar_sweeps = sorted(lidar_sweeps, key=lambda x: x['timestamp_us'])
+    lidar_timestamps = [sweep['timestamp_us'] for sweep in lidar_sweeps]
+    
+    # Process each instance to get interpolated boxes for all LiDAR timestamps
+    instance_boxes = {}
+    
+    # Track the min and max timestamps across all instances
+    min_ts_all = float('inf')
+    max_ts_all = float('-inf')
+    
+    for instance_token in instance_tokens:
+        boxes, timestamps, orig_boxes, orig_timestamps = interpolate_boxes_to_lidar_sweeps(
+            nusc, instance_token, lidar_sweeps
+        )
+        
+        if boxes and timestamps:
+            instance = nusc.get('instance', instance_token)
+            category = nusc.get('category', instance['category_token'])
+            
+            print(f"Instance {instance_token[:6]} ({category['name']}): "
+                 f"{len(boxes)} interpolated boxes from {len(orig_boxes)} keyframes")
+            
+            # Update overall min and max timestamps
+            if timestamps:
+                min_ts_all = min(min_ts_all, min(timestamps))
+                max_ts_all = max(max_ts_all, max(timestamps))
+            
+            instance_boxes[instance_token] = {
+                'boxes': boxes,
+                'timestamps': timestamps,
+                'orig_boxes': orig_boxes,
+                'orig_timestamps': orig_timestamps,
+                'category': category['name']
+            }
+    
+    if not instance_boxes:
+        print("No valid instance data found")
+        return None
+    
+    # Get all LiDAR timestamps between min_ts_all and max_ts_all
+    animation_timestamps = [ts for ts in lidar_timestamps 
+                          if min_ts_all <= ts <= max_ts_all]
+    
+    print(f"Animation will use {len(animation_timestamps)} timestamps from {min_ts_all/1e6:.2f}s to {max_ts_all/1e6:.2f}s")
+    
+    # Create a mapping from timestamp to frame index for each instance
+    instance_frame_indices = {}
+    for instance_token, data in instance_boxes.items():
+        # Create mapping: timestamp -> index in the instance's timestamp array
+        ts_to_idx = {ts: i for i, ts in enumerate(data['timestamps'])}
+        instance_frame_indices[instance_token] = ts_to_idx
+    
+    # Create a mapping from timestamp to lidar token
+    lidar_token_map = {sweep['timestamp_us']: sweep['token'] for sweep in lidar_sweeps}
+    
+    # Determine plot bounds
+    min_x, max_x = float('inf'), float('-inf')
+    min_y, max_y = float('inf'), float('-inf')
+    
+    for instance_data in instance_boxes.values():
+        for box in instance_data['boxes']:
+            corners_xy = box.bottom_corners()[:2, :]
+            min_x = min(min_x, np.min(corners_xy[0, :]))
+            max_x = max(max_x, np.max(corners_xy[0, :]))
+            min_y = min(min_y, np.min(corners_xy[1, :]))
+            max_y = max(max_y, np.max(corners_xy[1, :]))
+    
+    # Add padding
+    padding = 15.0
+    plot_xlim = (min_x - padding, max_x + padding)
+    plot_ylim = (min_y - padding, max_y + padding)
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Get colors for different instances
+    colors = plt.cm.tab10.colors  # 10 distinct colors
+    instance_colors = {token: colors[i % len(colors)] for i, token in enumerate(instance_tokens)}
+    
+    # Create initial box polygons and orientation lines
+    box_polys = {}
+    orientation_lines = {}
+    
+    # Initialize Matplotlib artist objects for each instance that has interpolated data.
+    # These artists will be updated in the 'update' function.
+    # Their initial state is invisible or with placeholder data.
+    for instance_token in instance_boxes.keys(): # Iterate using keys from instance_boxes
+        if instance_token not in instance_colors:
+            # This case should ideally not happen if instance_tokens (input to function)
+            # is the superset from which instance_boxes are derived.
+            # However, as a fallback, assign a default color.
+            print(f"Warning: Instance token {instance_token} not found in instance_colors. Using default color.")
+            color = plt.cm.tab10.colors[len(instance_colors) % len(plt.cm.tab10.colors)] # Fallback color
+            instance_colors[instance_token] = color # Add to instance_colors to avoid repeated warnings
+        else:
+            color = instance_colors[instance_token]
+            
+        edgecolor = tuple(0.7 * np.array(color))
+        
+        # Create a Polygon for the box. Initialize as invisible with dummy coordinates.
+        poly = Polygon(np.zeros((4, 2)), closed=True,  # Dummy 4-corner polygon (e.g., 4 pairs of [0,0])
+                      facecolor=color, edgecolor=edgecolor,
+                      alpha=0.6, linewidth=1.5, zorder=10, visible=False) # Start invisible
+        ax.add_patch(poly)
+        box_polys[instance_token] = poly
+        
+        # Create a Line2D for the orientation. Initialize as invisible with empty data.
+        line, = ax.plot([], [], color=edgecolor, linewidth=2, zorder=11, visible=False) # Start invisible
+        orientation_lines[instance_token] = line
+
+    # If there are animation timestamps, set the state for the artists for the first frame.
+    # Artists for instances not visible in the first frame will remain invisible.
+    if animation_timestamps: # Check if there are any frames to animate
+        first_ts = animation_timestamps[0]
+        for instance_token, data in instance_boxes.items(): # Iterate through instances with data
+            # instance_frame_indices should have been populated for all tokens in instance_boxes
+            first_idx = instance_frame_indices[instance_token].get(first_ts)
+            
+            if first_idx is not None: # If this instance is present at the first timestamp
+                initial_box = data['boxes'][first_idx]
+                
+                # Get the already created artists
+                poly_to_update = box_polys[instance_token]
+                line_to_update = orientation_lines[instance_token]
+                
+                # Update polygon's geometry and make it visible
+                poly_to_update.set_xy(initial_box.bottom_corners()[:2, :].T)
+                poly_to_update.set_visible(True)
+                
+                # Update orientation line's data and make it visible
+                front_vec_local = np.array([initial_box.wlh[1] / 2.0, 0, 0]) # wlh is [width, length, height]
+                front_vec_global = initial_box.orientation.rotation_matrix @ front_vec_local
+                line_to_update.set_data(
+                    [initial_box.center[0], initial_box.center[0] + front_vec_global[0]],
+                    [initial_box.center[1], initial_box.center[1] + front_vec_global[1]]
+                )
+                line_to_update.set_visible(True)
+    
+    # Create scatter plot for LiDAR points - explicitly set color
+    lidar_scatter = ax.scatter([], [], s=1.5, color='dimgray', alpha=0.6, zorder=1)
+    
+    # Text annotation
+    time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes, fontsize=10,
+                       bbox=dict(boxstyle="round,pad=0.3", fc="wheat", alpha=0.7), zorder=15)
+    
+    # Add legend
+    legend_elements = []
+    for instance_token, data in instance_boxes.items():
+        legend_elements.append(plt.Line2D([0], [0], marker='s', color='w', 
+                                         markerfacecolor=instance_colors[instance_token],
+                                         markersize=10, label=data['category']))
+    
+    # Function to load LiDAR points
+    def load_lidar_points_global(nusc, lidar_sd_token, downsample_factor=1):
+        lidar_sd_rec = nusc.get('sample_data', lidar_sd_token)
+        pcl_path = os.path.join(nusc.dataroot, lidar_sd_rec['filename'])
+        
+        if not os.path.exists(pcl_path):
+            print(f"LiDAR file not found: {pcl_path}")
+            return np.zeros((0, 3))
+        
+        # Load points (sensor frame)
+        pc = LidarPointCloud.from_file(pcl_path)
+        points_sensor_frame = pc.points[:3, :]  # Shape (3, N)
+        
+        # Get sensor pose relative to ego
+        cs_rec = nusc.get('calibrated_sensor', lidar_sd_rec['calibrated_sensor_token'])
+        sensor_to_ego_tf = transform_matrix(cs_rec['translation'], Quaternion(cs_rec['rotation']))
+        
+        # Get ego pose relative to global
+        ego_pose_rec = nusc.get('ego_pose', lidar_sd_rec['ego_pose_token'])
+        ego_to_global_tf = transform_matrix(ego_pose_rec['translation'], Quaternion(ego_pose_rec['rotation']))
+        
+        # Transform points: sensor -> ego -> global
+        points_sensor_homogeneous = np.vstack((points_sensor_frame, np.ones(points_sensor_frame.shape[1])))
+        points_global_homogeneous = ego_to_global_tf @ sensor_to_ego_tf @ points_sensor_homogeneous
+        points_global = points_global_homogeneous[:3, :]
+        
+        # Downsample if requested
+        if downsample_factor > 1:
+            points_global = points_global[:, ::downsample_factor]
+        
+        return points_global.T  # Return as (N, 3)
+    
+    # LiDAR cache
+    lidar_cache = {}
+    
+    # Animation update function
+    def update(frame_idx):
+        artists = []
+        
+        # Get the current timestamp
+        current_ts = animation_timestamps[frame_idx]
+        
+        # Update each instance's box
+        visible_instances = 0
+        
+        for instance_token, data in instance_boxes.items():
+            # Get box index for this timestamp
+            idx = instance_frame_indices[instance_token].get(current_ts)
+            
+            if idx is not None:
+                box = data['boxes'][idx]
+                visible_instances += 1
+                
+                # Update box polygon
+                poly = box_polys[instance_token]
+                poly.set_xy(box.bottom_corners()[:2, :].T)
+                poly.set_visible(True)
+                artists.append(poly)
+                
+                # Update orientation line
+                line = orientation_lines[instance_token]
+                front_vec_local = np.array([box.wlh[1] / 2.0, 0, 0])
+                front_vec_global = box.orientation.rotation_matrix @ front_vec_local
+                line.set_data(
+                    [box.center[0], box.center[0] + front_vec_global[0]],
+                    [box.center[1], box.center[1] + front_vec_global[1]]
+                )
+                line.set_visible(True)
+                artists.append(line)
+                    
+            else:
+                # Hide this instance's visuals if no data for current timestamp
+                if instance_token in box_polys:
+                    box_polys[instance_token].set_visible(False)
+                    orientation_lines[instance_token].set_visible(False)
+                    # keyframe_markers[instance_token].set_alpha(0)
+        
+        # Get LiDAR token for this timestamp
+        lidar_token = lidar_token_map.get(current_ts)
+        
+        # Load LiDAR points if not in cache
+        if lidar_token and lidar_token not in lidar_cache:
+            points_global = load_lidar_points_global(nusc, lidar_token, downsample_factor=point_downsample)
+            lidar_cache[lidar_token] = points_global[:, :2]  # Keep only x,y for BEV
+        
+        # Update scatter plot with points
+        if lidar_token and lidar_token in lidar_cache:
+            lidar_scatter.set_offsets(lidar_cache[lidar_token])
+        else:
+            lidar_scatter.set_offsets(np.zeros((0, 2)))
+            
+        artists.append(lidar_scatter)
+        
+        # Update time text
+        relative_time_s = (current_ts - animation_timestamps[0]) / 1e6
+        
+        time_text.set_text(f'Frame: {frame_idx}/{len(animation_timestamps)-1}\n'
+                          f'Time: {relative_time_s:.3f}s\n'
+                          f'Visible objects: {visible_instances}/{len(instance_boxes)}')
+        artists.append(time_text)
+        
+        # Set axis properties
+        ax.set_xlim(plot_xlim)
+        ax.set_ylim(plot_ylim)
+        ax.set_aspect('equal', adjustable='box')
+        ax.set_xlabel("Global X (meters)")
+        ax.set_ylabel("Global Y (meters)")
+        ax.set_title(f"Nuscenes scene 1: Interpolated annotations")
+        ax.grid(True, linestyle='--', alpha=0.6)
+        
+        return artists
+    
+    # Create animation
+    anim = FuncAnimation(fig, update, frames=len(animation_timestamps), 
+                        interval=interval_ms, blit=False)
+    
+
+    # Default behavior: return HTML for notebook display
+    html_output = HTML(anim.to_jshtml())
+    plt.close(fig) # Close the figure to prevent static display before HTML
+    return html_output, anim

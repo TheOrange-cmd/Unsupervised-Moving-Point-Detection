@@ -2,9 +2,44 @@
 # This file is imported into MDetector class
 
 import numpy as np
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from ..depth_image import DepthImage
 from ..constants import OcclusionResult
+from tqdm import tqdm
+
+def extract_mdetector_points(depth_image_output_from_mdetector: Optional[Any]) -> Dict[str, np.ndarray]: # Allow None
+    """
+    Extracts points by MDetector's label from its processed depth_image representation.
+    Returns a dictionary like {'dynamic': points, 'occluded': points, ...}.
+    """
+    mdet_points = {
+        'dynamic': [],
+        'occluded_by_mdet': [],
+        'undetermined_by_mdet': []
+    }
+    
+    # Check if the input is not None AND has the expected structure
+    if depth_image_output_from_mdetector is not None and \
+       hasattr(depth_image_output_from_mdetector, 'pixel_points') and \
+       isinstance(depth_image_output_from_mdetector.pixel_points, dict):
+        for _, points_list_in_pixel in depth_image_output_from_mdetector.pixel_points.items():
+            for pt_info in points_list_in_pixel:
+                label = pt_info.get('label') 
+                point_global_coords = pt_info.get('global_pt')
+
+                if point_global_coords is None: continue
+
+                if label == OcclusionResult.OCCLUDING_IMAGE:
+                    mdet_points['dynamic'].append(point_global_coords)
+                elif label == OcclusionResult.OCCLUDED_BY_IMAGE:
+                    mdet_points['occluded_by_mdet'].append(point_global_coords)
+                elif label == OcclusionResult.UNDETERMINED:
+                    mdet_points['undetermined_by_mdet'].append(point_global_coords)
+    elif depth_image_output_from_mdetector is not None: # Input was given, but not structured as expected
+        # Only print warning if a non-None, but invalid, object was passed
+        tqdm.write("Warning: MDetector output (depth_image.pixel_points) not found or not a dict.")
+
+    return {k: (np.array(v) if v else np.empty((0,3))) for k, v in mdet_points.items()}
 
 def process_and_label_di(self,
                         current_di: DepthImage,
@@ -91,35 +126,26 @@ def process_and_label_di(self,
         'timestamp': current_di.timestamp
     }
 
-def process_frame(self, frame_index: int) -> Dict:
-    """
-    Process a single frame by its index.
-    This is the main entry point that decides between causal or bidirectional processing.
+
+def _process_causal_di(self, di_to_process_idx: int) -> Dict:
+    current_di = self.depth_image_library._images[di_to_process_idx]
+    historical_di = None
+    if di_to_process_idx > 0:
+        historical_di = self.depth_image_library._images[di_to_process_idx - 1]
     
-    Args:
-        self: MDetector instance
-        frame_index: Index of the frame to process
-        
-    Returns:
-        dict: Processing results
-    """
-    if not self.is_ready_for_processing():
-        return {'success': False, 'reason': 'Not enough data for processing'}
-        
-    if frame_index >= len(self.depth_image_library._images):
-        return {'success': False, 'reason': f'Frame index {frame_index} out of range'}
-    
-    # Get the current depth image to process
-    current_di = self.depth_image_library._images[frame_index]
-    
-    # Choose processing method based on configuration
-    if self.use_bidirectional:
-        # Use bidirectional processing
-        return self.process_and_label_di_bidirectional(frame_index)
-    else:
-        # Use causal processing (only past frames)
-        historical_di = None
-        if frame_index > 0:
-            historical_di = self.depth_image_library._images[frame_index - 1]
-            
-        return self.process_and_label_di(current_di, historical_di)
+    # Calls the core logic of your original process_and_label_di
+    # This is just a sketch of refactoring
+    result = self.actual_causal_processing_logic(current_di, historical_di) 
+    result['processed_frame_timestamp'] = current_di.timestamp
+    result['frame_index'] = di_to_process_idx
+    return result
+
+def _process_bidirectional_di(self, di_to_process_idx: int) -> Dict:
+    # This is essentially your existing process_and_label_di_bidirectional
+    # It already takes center_index, which is di_to_process_idx here.
+    result = self.process_and_label_di_bidirectional(di_to_process_idx) # Call existing func
+    # Ensure it populates 'processed_frame_timestamp' and 'frame_index'
+    if result.get('success'):
+        result['processed_frame_timestamp'] = self.depth_image_library._images[di_to_process_idx].timestamp
+        result['frame_index'] = di_to_process_idx # Already in your func
+    return result

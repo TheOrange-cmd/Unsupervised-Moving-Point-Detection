@@ -1098,7 +1098,7 @@ def create_exact_synchronized_animation(nusc, instance_token, lidar_sweeps,
     return HTML(anim.to_jshtml())
 
 def create_multi_box_exact_synchronized_animation(nusc, instance_tokens, lidar_sweeps, 
-                                               interval_ms=100, figsize=(8, 8), point_downsample=20,
+                                               interval_ms=100, figsize=(8, 8), point_downsample=1,
     save_path=None,       # Path to save the animation (e.g., "animation.mp4" or "animation.gif")
     save_writer=None,     # Writer to use (e.g., 'ffmpeg', 'pillow')
     save_fps=None,        # FPS for the saved animation. If None, calculated from interval_ms.
@@ -1218,42 +1218,61 @@ def create_multi_box_exact_synchronized_animation(nusc, instance_tokens, lidar_s
     # Create initial box polygons and orientation lines
     box_polys = {}
     orientation_lines = {}
-    keyframe_markers = {}
     
-    # Initialize box visualization for each instance
-    for instance_token, data in instance_boxes.items():
-        if animation_timestamps:
-            # Find the box for the first animation timestamp
-            first_ts = animation_timestamps[0]
+    # Initialize Matplotlib artist objects for each instance that has interpolated data.
+    # These artists will be updated in the 'update' function.
+    # Their initial state is invisible or with placeholder data.
+    for instance_token in instance_boxes.keys(): # Iterate using keys from instance_boxes
+        if instance_token not in instance_colors:
+            # This case should ideally not happen if instance_tokens (input to function)
+            # is the superset from which instance_boxes are derived.
+            # However, as a fallback, assign a default color.
+            print(f"Warning: Instance token {instance_token} not found in instance_colors. Using default color.")
+            color = plt.cm.tab10.colors[len(instance_colors) % len(plt.cm.tab10.colors)] # Fallback color
+            instance_colors[instance_token] = color # Add to instance_colors to avoid repeated warnings
+        else:
+            color = instance_colors[instance_token]
+            
+        edgecolor = tuple(0.7 * np.array(color))
+        
+        # Create a Polygon for the box. Initialize as invisible with dummy coordinates.
+        poly = Polygon(np.zeros((4, 2)), closed=True,  # Dummy 4-corner polygon (e.g., 4 pairs of [0,0])
+                      facecolor=color, edgecolor=edgecolor,
+                      alpha=0.6, linewidth=1.5, zorder=10, visible=False) # Start invisible
+        ax.add_patch(poly)
+        box_polys[instance_token] = poly
+        
+        # Create a Line2D for the orientation. Initialize as invisible with empty data.
+        line, = ax.plot([], [], color=edgecolor, linewidth=2, zorder=11, visible=False) # Start invisible
+        orientation_lines[instance_token] = line
+
+    # If there are animation timestamps, set the state for the artists for the first frame.
+    # Artists for instances not visible in the first frame will remain invisible.
+    if animation_timestamps: # Check if there are any frames to animate
+        first_ts = animation_timestamps[0]
+        for instance_token, data in instance_boxes.items(): # Iterate through instances with data
+            # instance_frame_indices should have been populated for all tokens in instance_boxes
             first_idx = instance_frame_indices[instance_token].get(first_ts)
             
-            if first_idx is not None:
+            if first_idx is not None: # If this instance is present at the first timestamp
                 initial_box = data['boxes'][first_idx]
                 
-                # Create box polygon
-                color = instance_colors[instance_token]
-                edgecolor = tuple(0.7*np.array(color))  # Darker edge
+                # Get the already created artists
+                poly_to_update = box_polys[instance_token]
+                line_to_update = orientation_lines[instance_token]
                 
-                poly = Polygon(initial_box.bottom_corners()[:2, :].T, closed=True,
-                              facecolor=color, edgecolor=edgecolor,
-                              alpha=0.6, linewidth=1.5, zorder=10)
-                ax.add_patch(poly)
-                box_polys[instance_token] = poly
+                # Update polygon's geometry and make it visible
+                poly_to_update.set_xy(initial_box.bottom_corners()[:2, :].T)
+                poly_to_update.set_visible(True)
                 
-                # Create orientation line
-                front_vec_local = np.array([initial_box.wlh[1] / 2.0, 0, 0])
+                # Update orientation line's data and make it visible
+                front_vec_local = np.array([initial_box.wlh[1] / 2.0, 0, 0]) # wlh is [width, length, height]
                 front_vec_global = initial_box.orientation.rotation_matrix @ front_vec_local
-                line, = ax.plot(
+                line_to_update.set_data(
                     [initial_box.center[0], initial_box.center[0] + front_vec_global[0]],
-                    [initial_box.center[1], initial_box.center[1] + front_vec_global[1]],
-                    color=edgecolor, linewidth=2, zorder=11
+                    [initial_box.center[1], initial_box.center[1] + front_vec_global[1]]
                 )
-                orientation_lines[instance_token] = line
-                
-                # Create keyframe marker - explicitly set color as a string or rgba tuple
-                marker = ax.scatter([], [], s=40, marker='*', color=color, 
-                                  edgecolor='black', linewidth=1, zorder=12, alpha=0)
-                keyframe_markers[instance_token] = marker
+                line_to_update.set_visible(True)
     
     # Create scatter plot for LiDAR points - explicitly set color
     lidar_scatter = ax.scatter([], [], s=1.5, color='dimgray', alpha=0.6, zorder=1)
@@ -1268,9 +1287,6 @@ def create_multi_box_exact_synchronized_animation(nusc, instance_tokens, lidar_s
         legend_elements.append(plt.Line2D([0], [0], marker='s', color='w', 
                                          markerfacecolor=instance_colors[instance_token],
                                          markersize=10, label=data['category']))
-    
-    # if legend_elements:
-    #     ax.legend(handles=legend_elements, loc='upper right')
     
     # Function to load LiDAR points
     def load_lidar_points_global(nusc, lidar_sd_token, downsample_factor=1):
@@ -1341,24 +1357,13 @@ def create_multi_box_exact_synchronized_animation(nusc, instance_tokens, lidar_s
                 )
                 line.set_visible(True)
                 artists.append(line)
-                
-                # Check if this is a keyframe
-                is_keyframe = current_ts in data['orig_timestamps']
-                marker = keyframe_markers[instance_token]
-                
-                if is_keyframe:
-                    marker.set_offsets([box.center[:2]])
-                    marker.set_alpha(1.0)
-                else:
-                    marker.set_alpha(0)
                     
-                artists.append(marker)
             else:
                 # Hide this instance's visuals if no data for current timestamp
                 if instance_token in box_polys:
                     box_polys[instance_token].set_visible(False)
                     orientation_lines[instance_token].set_visible(False)
-                    keyframe_markers[instance_token].set_alpha(0)
+                    # keyframe_markers[instance_token].set_alpha(0)
         
         # Get LiDAR token for this timestamp
         lidar_token = lidar_token_map.get(current_ts)
@@ -1403,4 +1408,4 @@ def create_multi_box_exact_synchronized_animation(nusc, instance_tokens, lidar_s
     # Default behavior: return HTML for notebook display
     html_output = HTML(anim.to_jshtml())
     plt.close(fig) # Close the figure to prevent static display before HTML
-    return html_output
+    return html_output, anim

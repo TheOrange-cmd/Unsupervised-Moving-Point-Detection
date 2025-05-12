@@ -4,157 +4,330 @@ from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.data_classes import LidarPointCloud, Box
 from pyquaternion import Quaternion
 from tqdm import tqdm
-from typing import Dict, List, Optional, Tuple, Any, Callable
+from typing import Dict, List, Optional, Tuple, Any, Callable, Iterator
+import os
+
+from nuscenes.utils.geometry_utils import transform_matrix
 
 from ..core.m_detector.base import MDetector
+from ..core.m_detector.processing import extract_mdetector_points
+from ..core.constants import OcclusionResult
 
-def get_lidar_sweep_data(nusc: NuScenes, lidar_token: str):
+import logging 
+
+logger = logging.getLogger(__name__) # Module-level logger
+
+def get_lidar_sweep_data(nusc: NuScenes, lidar_sd_token: str) -> Tuple[np.ndarray, np.ndarray, int, str, str, bool, str]: # Added str for sample_token
     """
-    Loads LiDAR point cloud data and its pose information for a given token.
-
-    Args:
-        nusc (NuScenes): NuScenes SDK object.
-        lidar_token (str): LiDAR sample_data token.
-
-    Returns:
-        tuple: (points, T_global_lidar, lidar_timestamp)
-               points (np.ndarray): Nx3 array of LiDAR points (x,y,z) in LiDAR frame.
-               T_global_lidar (np.ndarray): 4x4 transformation matrix from LiDAR to global frame.
-               lidar_timestamp (float): Timestamp of the LiDAR sweep.
+    Fetches LiDAR point cloud data, ego pose, timestamp, and other info for a given sweep token.
+    Returns points in sensor frame, global pose of sensor, timestamp in microseconds,
+    calibrated_sensor_token, lidar_sd_token itself, is_key_frame flag, and sample_token.
     """
-    lidar_sample_data = nusc.get('sample_data', lidar_token)
-    lidar_timestamp = lidar_sample_data['timestamp'] # Keep in microseconds for precise timing
+    sweep_rec = nusc.get('sample_data', lidar_sd_token)
+    cs_rec = nusc.get('calibrated_sensor', sweep_rec['calibrated_sensor_token'])
+    pose_rec = nusc.get('ego_pose', sweep_rec['ego_pose_token'])
 
-    # Load point cloud
-    pcl_path = nusc.get_sample_data_path(lidar_token)
-    if lidar_sample_data['sensor_modality'] == 'lidar':
-        pc = LidarPointCloud.from_file(pcl_path)
-        points = pc.points[:3, :].T  # Get X, Y, Z coordinates, transpose to Nx3
+    pc_filepath = os.path.join(nusc.dataroot, sweep_rec['filename'])
+    if not os.path.exists(pc_filepath): # Handle missing files gracefully
+        # print(f"Warning: LiDAR file not found: {pc_filepath} for token {lidar_sd_token}")
+        points_sensor_frame = np.empty((0, 3))
     else:
-        raise ValueError(f"Token {lidar_token} is not a LiDAR sample.")
+        pc = LidarPointCloud.from_file(pc_filepath)
+        points_sensor_frame = pc.points[:3, :].T  # (N, 3) in XYZ
 
-    # Get LiDAR sensor pose in global frame
-    calibrated_sensor = nusc.get('calibrated_sensor', lidar_sample_data['calibrated_sensor_token'])
-    ego_pose = nusc.get('ego_pose', lidar_sample_data['ego_pose_token'])
+    # Calculate T_global_sensor (sensor pose in global frame)
+    sens_to_ego_rot = Quaternion(cs_rec['rotation']).rotation_matrix
+    sens_to_ego_trans = np.array(cs_rec['translation'])
+    T_sensor_ego = np.eye(4)
+    T_sensor_ego[:3, :3] = sens_to_ego_rot
+    T_sensor_ego[:3, 3] = sens_to_ego_trans
 
-    # Transformation from sensor (LiDAR) to ego vehicle
-    T_vehicle_lidar = np.eye(4)
-    T_vehicle_lidar[:3, :3] = Quaternion(calibrated_sensor['rotation']).rotation_matrix
-    T_vehicle_lidar[:3, 3] = np.array(calibrated_sensor['translation'])
-
-    # Transformation from ego vehicle to global
-    T_global_vehicle = np.eye(4)
-    T_global_vehicle[:3, :3] = Quaternion(ego_pose['rotation']).rotation_matrix
-    T_global_vehicle[:3, 3] = np.array(ego_pose['translation'])
-
-    # Transformation from LiDAR to global
-    T_global_lidar = T_global_vehicle @ T_vehicle_lidar
+    ego_to_glob_rot = Quaternion(pose_rec['rotation']).rotation_matrix
+    ego_to_glob_trans = np.array(pose_rec['translation'])
+    T_ego_global = np.eye(4)
+    T_ego_global[:3, :3] = ego_to_glob_rot
+    T_ego_global[:3, 3] = ego_to_glob_trans
     
-    return points, T_global_lidar, lidar_timestamp
+    T_global_sensor = T_ego_global @ T_sensor_ego
+
+    return (
+        points_sensor_frame,
+        T_global_sensor, # This is T_global_lidar
+        sweep_rec['timestamp'], # Microseconds
+        sweep_rec['calibrated_sensor_token'],
+        lidar_sd_token,
+        sweep_rec['is_key_frame'],
+        sweep_rec['sample_token'] 
+    )
+
+def get_scene_sweep_data_sequence(nusc: NuScenes, scene_token: str, lidar_name: str = 'LIDAR_TOP') -> Iterator[Dict]:
+    """
+    Yields a sequence of data dictionaries for ALL LiDAR sweeps (keyframes and non-keyframes)
+    for the specified sensor in a scene, ordered by timestamp.
+    Now includes 'sample_token'.
+    """
+    scene_rec = nusc.get('scene', scene_token)
+    
+    first_sample_in_scene_token = scene_rec['first_sample_token']
+    first_sample_rec = nusc.get('sample', first_sample_in_scene_token)
+    initial_sd_token_for_sensor = first_sample_rec['data'].get(lidar_name)
+
+    if not initial_sd_token_for_sensor:
+        _s_token = scene_rec['first_sample_token']
+        while _s_token:
+            _s_rec = nusc.get('sample', _s_token)
+            if lidar_name in _s_rec['data']:
+                initial_sd_token_for_sensor = _s_rec['data'][lidar_name]
+                break
+            _s_token = _s_rec['next']
+        if not initial_sd_token_for_sensor:
+            return 
+
+    current_sd_token_for_sensor = initial_sd_token_for_sensor
+    while True:
+        sd_rec_temp = nusc.get('sample_data', current_sd_token_for_sensor)
+        if sd_rec_temp['prev']:
+            current_sd_token_for_sensor = sd_rec_temp['prev']
+        else:
+            break 
+
+    all_sweeps_for_sensor: List[Dict[str, Any]] = []
+    
+    temp_sd_token: Optional[str] = current_sd_token_for_sensor
+    while temp_sd_token:
+        sweep_rec_header = nusc.get('sample_data', temp_sd_token) # Just to get cs_token for sensor check
+        cs_rec_of_current_sweep = nusc.get('calibrated_sensor', sweep_rec_header['calibrated_sensor_token'])
+        sensor_rec_of_current_sweep = nusc.get('sensor', cs_rec_of_current_sweep['sensor_token'])
+
+        if sensor_rec_of_current_sweep['channel'] == lidar_name:
+            # Fetch all data for this sweep, now including sample_token
+            points_sf, T_global_lidar_np, ts_us, cs_token, sd_token, is_kf, sample_tok = \
+                get_lidar_sweep_data(nusc, sweep_rec_header['token']) # Use sweep_rec_header['token'] which is temp_sd_token
+            
+            all_sweeps_for_sensor.append({
+                'points_sensor_frame': points_sf,
+                'T_global_lidar': T_global_lidar_np,
+                'timestamp': ts_us, # Renamed from timestamp for consistency
+                'calibrated_sensor_token': cs_token,
+                'lidar_sd_token': sd_token,
+                'is_key_frame': is_kf,
+                'sample_token': sample_tok # <-- ADDED THIS
+            })
+        
+        temp_sd_token = sweep_rec_header['next']
+
+    for sweep_data_dict in all_sweeps_for_sensor:
+        yield sweep_data_dict
 
 
 class NuScenesProcessor:
-    """
-    Processes NuScenes data with MDetector, one sweep at a time.
-    """
-    
-    def __init__(self, nusc: NuScenes):
-        """
-        Initialize the processor.
-        
-        Args:
-            nusc: NuScenes instance
-        """
+    def __init__(self, nusc: NuScenes, config: Dict):
         self.nusc = nusc
-    
-    def get_scene_tokens(self, scene_index: int) -> List[str]:
-        """
-        Get all LiDAR tokens for a scene.
+        self.config = config
+
+    def process_scene(self,
+                      scene_index: int,
+                      detector: MDetector, # Type hint for MDetector
+                      with_progress: bool = True) -> Optional[Dict[str, np.ndarray]]:
         
-        Args:
-            scene_index: Index of the scene
+        scene_rec = self.nusc.scene[scene_index]
+        scene_token = scene_rec['token']
+
+        processing_cfg = self.config.get('processing', {})
+        skip_frames_config = processing_cfg.get('skip_frames', 0)
+        max_frames_config = processing_cfg.get('max_frames', None) # Max frames to *feed* to detector
+        logger.info(f"Skipping first {skip_frames_config} frames. Processing max: {max_frames_config} frames.")
+
+        # Get all sweep data for the scene first
+        all_scene_sweep_data_dicts = list(get_scene_sweep_data_sequence(self.nusc, scene_token))
+        
+        if not all_scene_sweep_data_dicts:
+            tqdm.write(f"No sweeps found for scene {scene_rec['name']}. Skipping M-Detector processing.")
+            return None
+
+        # Apply skip_frames and max_frames to the list of sweeps to be processed
+        start_idx = min(skip_frames_config, len(all_scene_sweep_data_dicts))
+        end_idx = len(all_scene_sweep_data_dicts)
+        if max_frames_config is not None:
+            end_idx = min(start_idx + max_frames_config, len(all_scene_sweep_data_dicts))
+        
+        sweeps_to_feed_list = all_scene_sweep_data_dicts[start_idx:end_idx]
+        num_sweeps_to_feed = len(sweeps_to_feed_list)
+
+        if num_sweeps_to_feed == 0:
+            tqdm.write(f"No sweeps selected to feed to M-Detector for scene {scene_rec['name']} based on skip/max frames.")
+            return None
+
+        # This list will store the actual MDetector outputs, one entry per successfully processed frame by MDetector
+        collected_mdetector_outputs = [] 
+        # To map a processed_timestamp back to its original full sweep_data dictionary
+        fed_sweep_data_by_timestamp: Dict[int, Dict] = {} 
+
+        # Reset MDetector state for the new scene (e.g., clear its depth_image_library, reset counters)
+        # detector.reset_scene_state() # Implement this method in MDetector
+        if hasattr(detector, 'reset_scene_state') and callable(detector.reset_scene_state):
+            detector.reset_scene_state()
+        else:
+            tqdm.write("Warning: MDetector does not have a 'reset_scene_state' method. State might carry over.")
+
+
+        desc = f"Feeding sweeps to M-Detector for Scene {scene_rec['name']}"
+        iterator_for_feeding = tqdm(sweeps_to_feed_list, total=num_sweeps_to_feed, desc=desc) if with_progress else sweeps_to_feed_list
+        
+        # --- Phase 1: Feed sweeps and collect M-Detector outputs ---
+        for sweep_data in iterator_for_feeding:
+            # Store a reference to the full sweep_data, keyed by its unique timestamp
+            fed_sweep_data_by_timestamp[sweep_data['timestamp']] = sweep_data
             
-        Returns:
-            List of LiDAR tokens
-        """
-        scene = self.nusc.scene[scene_index]
-        sample_token = scene['first_sample_token']
-        sample = self.nusc.get('sample', sample_token)
-        
-        # Get first LiDAR token
-        lidar_token = sample['data']['LIDAR_TOP']
-        
-        # Build token chain
-        token_chain = []
-        current_token = lidar_token
-        
-        while current_token != '':
-            token_chain.append(current_token)
-            lidar_data = self.nusc.get('sample_data', current_token)
-            current_token = lidar_data['next']
-        
-        return token_chain
-    
-    def process_scene(self, 
-                      scene_index: int, 
-                      detector, 
-                      frame_callback: Optional[Callable] = None,
-                      skip_frames: int = 0,
-                      max_frames: Optional[int] = None,
-                      with_progress: bool = True) -> List[Dict]:
-        """
-        Process a NuScenes scene with MDetector.
-        
-        Args:
-            scene_index: Scene to process
-            detector: MDetector instance
-            frame_callback: Optional callback for each processed frame
-            skip_frames: Number of frames to skip at the beginning
-            max_frames: Maximum number of frames to process
-            with_progress: Show progress bar
+            # Add sweep to MDetector's internal library
+            # Assuming MDetector has a method like `add_sweep_and_create_depth_image`
+            # or simply `add_sweep` which handles DI creation.
+            detector.add_sweep_and_create_depth_image(
+                sweep_data['points_sensor_frame'], 
+                sweep_data['T_global_lidar'], 
+                sweep_data['timestamp']
+                # Pass lidar_sd_token if MDetector needs it during DI creation
+                # lidar_sd_token=sweep_data['lidar_sd_token'] 
+            )
             
-        Returns:
-            List of processing results
-        """
-        # Get tokens for the scene
-        tokens = self.get_scene_tokens(scene_index)
-        
-        # Apply frame limits
-        tokens = tokens[skip_frames:]
-        if max_frames is not None:
-            tokens = tokens[:max_frames]
-        
-        # Process each frame
-        results = []
-        
-        # Create progress iterator if needed
-        token_iter = tqdm(tokens, desc="Processing frames") if with_progress else tokens
-        
-        for token in token_iter:
-            # Get data for this sweep
-            points, pose, timestamp = get_lidar_sweep_data(self.nusc, token)
+            # Ask MDetector to process whatever frame it deems ready now
+            # `is_end_of_sequence` is False because we are still feeding sweeps
+            mdet_result = detector.decide_and_process_frame(is_end_of_sequence=False)
             
-            # Add to detector
-            di = detector.add_sweep_and_create_depth_image(points, pose, timestamp)
-            
-            # Process the current sweep
-            if detector.is_ready_for_processing():
-                # Get the index of this sweep in the detector's library
-                sweep_index = len(detector.depth_image_library._images) - 1
+            if mdet_result and mdet_result.get('success'):
+                processed_timestamp = mdet_result.get('processed_frame_timestamp')
+                processed_frame_lib_idx = mdet_result.get('frame_index') # Index in MDetector's library
+
+                if processed_timestamp is not None and processed_frame_lib_idx is not None:
+                    original_sweep_for_this_output = fed_sweep_data_by_timestamp.get(processed_timestamp)
+                    
+                    # Ensure the DI object exists at that index
+                    if 0 <= processed_frame_lib_idx < len(detector.depth_image_library._images):
+                        di_that_was_processed = detector.depth_image_library._images[processed_frame_lib_idx]
+
+                        # Sanity check: timestamp of DI should match reported processed_timestamp
+                        if original_sweep_for_this_output and di_that_was_processed.timestamp == processed_timestamp:
+                            points_dict = extract_mdetector_points(di_that_was_processed)
+                            collected_mdetector_outputs.append({
+                                'original_sweep_data': original_sweep_for_this_output, # Contains token, T_mat etc.
+                                'mdet_output_points': points_dict,
+                                'mdet_label_counts': mdet_result.get('label_counts', {}),
+                                'mdet_success_flag': True # From mdet_result itself
+                                # Store other relevant info from mdet_result if needed for NPZ
+                            })
+                        else:
+                            tqdm.write(f"Warning: Timestamp/data mismatch for processed frame {processed_timestamp}. Output for this frame skipped.")
+                    else:
+                        tqdm.write(f"Warning: MDetector returned invalid library index {processed_frame_lib_idx}. Output for this frame skipped.")
+                else:
+                    tqdm.write(f"Warning: MDetector reported success but missing timestamp/index. Output skipped. Result: {mdet_result}")
+            elif mdet_result: # Not None, but not success (e.g., waiting for buffer)
+                if with_progress: # Avoid flooding console if not using tqdm
+                    tqdm.write(f"MDetector info: {mdet_result.get('reason', 'No specific reason given by MDetector')}")
+        
+        # --- Phase 2: Flush MDetector's buffer (if bidirectional mode might have pending frames) ---
+        if hasattr(detector, 'use_bidirectional') and detector.use_bidirectional: # Check if detector has this attribute
+            if with_progress: tqdm.write("Flushing MDetector bidirectional buffer...")
+            flush_counter = 0
+            max_flush_attempts = len(detector.depth_image_library._images) + 5 # Safety break
+            while flush_counter < max_flush_attempts:
+                flush_counter += 1
+                mdet_result = detector.decide_and_process_frame(is_end_of_sequence=True)
                 
-                # Process this frame with detector
-                process_result = detector.process_frame(sweep_index)
-                results.append(process_result)
+                if mdet_result and mdet_result.get('success'):
+                    processed_timestamp = mdet_result.get('processed_frame_timestamp')
+                    processed_frame_lib_idx = mdet_result.get('frame_index')
+
+                    if processed_timestamp is not None and processed_frame_lib_idx is not None:
+                        original_sweep_for_this_output = fed_sweep_data_by_timestamp.get(processed_timestamp)
+                        if 0 <= processed_frame_lib_idx < len(detector.depth_image_library._images):
+                            di_that_was_processed = detector.depth_image_library._images[processed_frame_lib_idx]
+                            if original_sweep_for_this_output and di_that_was_processed.timestamp == processed_timestamp:
+                                points_dict = extract_mdetector_points(di_that_was_processed)
+                                collected_mdetector_outputs.append({
+                                    'original_sweep_data': original_sweep_for_this_output,
+                                    'mdet_output_points': points_dict,
+                                    'mdet_label_counts': mdet_result.get('label_counts', {}),
+                                    'mdet_success_flag': True
+                                })
+                            else:
+                                tqdm.write(f"Warning (flush): Timestamp/data mismatch for processed frame {processed_timestamp}. Output skipped.")
+                        else:
+                             tqdm.write(f"Warning (flush): MDetector returned invalid library index {processed_frame_lib_idx}. Output skipped.")
+                    else:
+                        tqdm.write(f"Warning (flush): MDetector success but missing timestamp/index. Output skipped. Result: {mdet_result}")
                 
-                # Call frame callback if provided
-                if frame_callback is not None:
-                    frame_callback(detector, sweep_index, process_result)
-            else:
-                # Not enough data for processing yet
-                results.append({
-                    'success': False,
-                    'reason': 'Not enough initial data',
-                    'timestamp': timestamp
-                })
+                elif mdet_result and not mdet_result.get('success'): # Explicit fail during flush
+                    if with_progress: tqdm.write(f"MDetector info (flush): {mdet_result.get('reason', 'Failed or nothing more to process during flush')}")
+                    break 
+                elif not mdet_result: # MDetector signals nothing more to process by returning None
+                    if with_progress: tqdm.write("MDetector flush complete (returned None).")
+                    break
+                if flush_counter >= max_flush_attempts:
+                    tqdm.write("Warning: Max flush attempts reached. Breaking flush loop.")
+                    break
         
-        return results
+        # --- Phase 3: Assemble NPZ data from collected outputs ---
+        if not collected_mdetector_outputs:
+            tqdm.write(f"No successful M-Detector outputs collected for scene {scene_rec['name']} to save to NPZ.")
+            return None
+
+        # Sort collected outputs by their original timestamp to ensure NPZ is chronological
+        collected_mdetector_outputs.sort(key=lambda x: x['original_sweep_data']['timestamp'])
+
+        # Initialize lists for NPZ arrays
+        npz_tokens, npz_timestamps, npz_cs_tokens, npz_T_mats, npz_success_flags = [], [], [], [], []
+        npz_counts_dyn, npz_counts_occ, npz_counts_und = [], [], []
+        
+        npz_all_dyn_pts_list, npz_all_occ_pts_list, npz_all_und_pts_list = [], [], []
+        npz_dyn_indices, npz_occ_indices, npz_und_indices = [0], [0], [0] # Start with 0 for index arrays
+
+        for output_item in collected_mdetector_outputs:
+            sweep_ref = output_item['original_sweep_data']
+            points = output_item['mdet_output_points']
+            counts = output_item['mdet_label_counts']
+
+            npz_tokens.append(sweep_ref['lidar_sd_token'])
+            npz_timestamps.append(sweep_ref['timestamp'])
+            npz_cs_tokens.append(sweep_ref['calibrated_sensor_token'])
+            npz_T_mats.append(sweep_ref['T_global_lidar'])
+            npz_success_flags.append(output_item['mdet_success_flag'])
+            
+            # Use OcclusionResult enum values as keys if MDetector uses them, otherwise adjust keys.
+            npz_counts_dyn.append(counts.get(OcclusionResult.OCCLUDING_IMAGE, 0))
+            npz_counts_occ.append(counts.get(OcclusionResult.OCCLUDED_BY_IMAGE, 0))
+            npz_counts_und.append(counts.get(OcclusionResult.UNDETERMINED, 0))
+
+            dyn_pts_arr = points.get('dynamic', np.empty((0,3), dtype=np.float32))
+            if dyn_pts_arr.ndim == 2 and dyn_pts_arr.shape[0] > 0: npz_all_dyn_pts_list.append(dyn_pts_arr)
+            npz_dyn_indices.append(npz_dyn_indices[-1] + dyn_pts_arr.shape[0])
+            
+            occ_pts_arr = points.get('occluded_by_mdet', np.empty((0,3), dtype=np.float32))
+            if occ_pts_arr.ndim == 2 and occ_pts_arr.shape[0] > 0: npz_all_occ_pts_list.append(occ_pts_arr)
+            npz_occ_indices.append(npz_occ_indices[-1] + occ_pts_arr.shape[0])
+
+            und_pts_arr = points.get('undetermined_by_mdet', np.empty((0,3), dtype=np.float32))
+            if und_pts_arr.ndim == 2 and und_pts_arr.shape[0] > 0: npz_all_und_pts_list.append(und_pts_arr)
+            npz_und_indices.append(npz_und_indices[-1] + und_pts_arr.shape[0])
+
+        # Convert lists to final numpy arrays for the NPZ file
+        output_data_for_npz = {
+            'sweep_lidar_sd_tokens': np.array(npz_tokens, dtype='S36'), # Fixed-size string for numpy
+            'sweep_timestamps_us': np.array(npz_timestamps, dtype=np.int64),
+            'sweep_calibrated_sensor_tokens': np.array(npz_cs_tokens, dtype='S36'),
+            'T_global_lidar_matrices': np.array(npz_T_mats, dtype=np.float32),
+            'mdet_success_flags': np.array(npz_success_flags, dtype=np.bool_),
+            'mdet_label_counts_dynamic': np.array(npz_counts_dyn, dtype=np.int32),
+            'mdet_label_counts_occluded': np.array(npz_counts_occ, dtype=np.int32),
+            'mdet_label_counts_undetermined': np.array(npz_counts_und, dtype=np.int32),
+            
+            'all_dynamic_points': np.concatenate(npz_all_dyn_pts_list, axis=0) if npz_all_dyn_pts_list else np.empty((0,3), dtype=np.float32),
+            'dynamic_points_indices': np.array(npz_dyn_indices, dtype=np.int64),
+            
+            'all_occluded_points': np.concatenate(npz_all_occ_pts_list, axis=0) if npz_all_occ_pts_list else np.empty((0,3), dtype=np.float32),
+            'occluded_points_indices': np.array(npz_occ_indices, dtype=np.int64),
+
+            'all_undetermined_points': np.concatenate(npz_all_und_pts_list, axis=0) if npz_all_und_pts_list else np.empty((0,3), dtype=np.float32),
+            'undetermined_points_indices': np.array(npz_und_indices, dtype=np.int64),
+        }
+        return output_data_for_npz

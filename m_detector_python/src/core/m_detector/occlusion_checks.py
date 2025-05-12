@@ -72,7 +72,7 @@ def check_occlusion_batch(self,
                          points_global_batch: np.ndarray,
                          historical_depth_image: DepthImage) -> np.ndarray:
     """
-    Heavily optimized batch occlusion check that reduces NumPy operations.
+    Batch occlusion check that reduces NumPy operations.
     """
     batch_size = points_global_batch.shape[0]
     

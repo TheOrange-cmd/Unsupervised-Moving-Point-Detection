@@ -1,278 +1,279 @@
 # src/visualization/video_helpers.py
+
 import os
 import cv2
 import numpy as np
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Any, Callable
+import matplotlib.pyplot as plt
+from pyquaternion import Quaternion
+from tqdm import tqdm
+from nuscenes.nuscenes import NuScenes # For type hinting
 
-from ..core.m_detector import MDetector
-from ..core.constants import OcclusionResult
-from ..data_utils.nuscenes_helper import NuScenesProcessor
+# M-Detector and constants
+from ..core.m_detector.base import MDetector # For type hinting
+from ..core.constants import OcclusionResult, POINT_LABEL_DTYPE 
+from ..core.m_detector.processing import extract_mdetector_points
 
-def generate_video(nusc, scene_index, detector, output_path, config):
+# Data utilities
+from ..data_utils.nuscenes_helper import NuScenesProcessor, get_scene_sweep_data_sequence, get_lidar_sweep_data
+from ..utils.transformations import transform_points_numpy
+from ..utils.validation_utils import get_gt_dynamic_points_for_sweep # For GT dynamic points
+
+# Visualization utilities
+from ..visualization.visualization_utils import mpl_fig_to_opencv_bgr
+
+# --- Core BEV Plotting Function ---
+def plot_bev_frame(
+    ax: plt.Axes,
+    all_points_global: np.ndarray,
+    ego_translation_global: np.ndarray,
+    ego_rotation_global: Quaternion,
+    points_to_highlight: Dict[str, np.ndarray],
+    highlight_configs: Dict[str, Dict[str, Any]], # e.g., {'label': {'color':'red', 's':5, ...}}
+    general_plot_config: Dict[str, Any],
+    is_right_subplot: bool = False # To adjust labels for side-by-side
+    ):
     """
-    Generate a video visualizing M-detector results.
-    
-    Args:
-        nusc: NuScenes instance
-        scene_index: Index of the scene to process
-        detector: Configured MDetector instance
-        output_path: Path to save the video
-        config: Configuration dictionary
+    Populates a single Matplotlib Axes with a BEV plot.
     """
-    # Video settings
-    fps = config.get('video_generation', {}).get('fps', 10)
-    width = 1280  # Default width if not specified
-    height = 720  # Default height if not specified
+    bev_range = general_plot_config.get('bev_range_meters', 50)
+    bg_point_size = general_plot_config.get('point_size_all_lidar', 0.2)
+    bg_point_color = general_plot_config.get('point_color_all_lidar', 'lightgrey')
+    bg_point_alpha = general_plot_config.get('point_alpha_all_lidar', 0.5)
 
+    # 1. Plot all LiDAR points as background
+    if all_points_global.shape[0] > 0:
+        ax.scatter(
+            all_points_global[:, 0], all_points_global[:, 1],
+            s=bg_point_size, color=bg_point_color, alpha=bg_point_alpha, zorder=1,
+            label='_nolegend_' # Avoid legend entry for background points unless specified
+        )
+
+    # 2. Plot highlighted points
+    legend_handles = []
+    for label, points in points_to_highlight.items():
+        if points.shape[0] > 0:
+            config = highlight_configs.get(label, {}) # Get specific config for this label
+            handle = ax.scatter(
+                points[:, 0], points[:, 1],
+                s=config.get('s', 2.0),
+                color=config.get('color', 'red'),
+                alpha=config.get('alpha', 1.0),
+                label=config.get('legend_label', label) + f" ({points.shape[0]})", # Add count to legend
+                zorder=config.get('zorder', 5)
+            )
+            legend_handles.append(handle)
+
+    # 3. Plot Ego Vehicle
+    ego_config = general_plot_config.get('ego_vehicle', {})
+    ax.plot(
+        ego_translation_global[0], ego_translation_global[1],
+        marker=ego_config.get('marker', 'o'),
+        markersize=ego_config.get('markersize', 8),
+        color=ego_config.get('color', 'blue'),
+        label='_nolegend_' # Ego vehicle often doesn't need separate legend if consistent
+    )
+    ego_front_direction = ego_rotation_global.rotate(np.array([ego_config.get('arrow_length', 2.0), 0, 0]))
+    ax.arrow(
+        ego_translation_global[0], ego_translation_global[1],
+        ego_front_direction[0], ego_front_direction[1],
+        head_width=ego_config.get('arrow_head_width', 0.8),
+        head_length=ego_config.get('arrow_head_length', 1.0),
+        fc=ego_config.get('arrow_fc', 'blue'),
+        ec=ego_config.get('arrow_ec', 'blue'),
+        zorder=ego_config.get('arrow_zorder', 10)
+    )
+
+    # 4. Aesthetics
+    ax.set_xlim(ego_translation_global[0] - bev_range, ego_translation_global[0] + bev_range)
+    ax.set_ylim(ego_translation_global[1] - bev_range, ego_translation_global[1] + bev_range)
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_xlabel("Global X (m)")
+    if not is_right_subplot:
+        ax.set_ylabel("Global Y (m)")
+    else:
+        ax.set_yticklabels([]) # Clean up y-axis for right plot
+    ax.set_title(general_plot_config.get('subplot_title', 'BEV Plot'), fontsize=10)
+    ax.grid(True, linestyle='--', alpha=0.4)
+    if legend_handles: # Only add legend if there are items to show
+        ax.legend(handles=legend_handles, loc='upper right', fontsize='x-small')
+
+# --- Frame Creation for Comparison Video ---
+def create_comparison_visualization_frame(
+    nusc: NuScenes,
+    sweep_data_dict: Dict, # Dict from get_scene_sweep_data_sequence
+    mdetector_output_points: Dict[str, np.ndarray], # Output from extract_mdetector_points
+    config: Dict,
+    frame_idx_in_video: int # For unique titles or conditional plotting
+) -> np.ndarray:
+    """
+    Creates a side-by-side BEV visualization frame (GT vs. M-Detector).
+    """
+    video_cfg = config.get('video_generation', {})
+    validation_cfg = config.get('validation', {})
+    nuscenes_cfg = config.get('nuscenes', {})
+
+    figure_size = video_cfg.get('figure_size_side_by_side', (20, 10)) # Inches
+    fig, (ax_gt, ax_pred) = plt.subplots(1, 2, figsize=figure_size)
     
-    # Initialize video writer
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    gt_vel_thresh = validation_cfg.get('vel_threshold', 0.5)
+    fig.suptitle(f'Ground Truth (vel>={gt_vel_thresh}m/s) vs. M-Detector Predictions - Frame {frame_idx_in_video}', fontsize=14)
+
+    # --- Common Data for Both Subplots ---
+    points_sensor_frame = sweep_data_dict['points_sensor_frame']
+    T_global_lidar = sweep_data_dict['T_global_lidar']
+    all_points_global = transform_points_numpy(points_sensor_frame, T_global_lidar)
     
-    # Create a test frame to get dimensions
-    import matplotlib.pyplot as plt
-    from src.utils.visualization import mpl_fig_to_opencv_bgr
-    fig_init, ax_init = plt.subplots(figsize=(10, 10))
-    frame_bgr = mpl_fig_to_opencv_bgr(fig_init)
-    height, width, _ = frame_bgr.shape
-    plt.close(fig_init)
+    # Ego pose from T_global_lidar (sensor to global)
+    # To get ego pose, we need T_global_vehicle.
+    # T_global_lidar = T_global_vehicle @ T_vehicle_lidar
+    # We need T_vehicle_lidar (calibrated sensor).
+    cs_rec = nusc.get('calibrated_sensor', sweep_data_dict['calibrated_sensor_token'])
+    T_vehicle_lidar_np = np.eye(4)
+    T_vehicle_lidar_np[:3,:3] = Quaternion(cs_rec['rotation']).rotation_matrix
+    T_vehicle_lidar_np[:3,3] = np.array(cs_rec['translation'])
+    T_lidar_vehicle_np = np.linalg.inv(T_vehicle_lidar_np) # Transform from vehicle to lidar
     
-    video_writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    T_global_vehicle = T_global_lidar @ T_lidar_vehicle_np # Global from Vehicle
     
-    # Get scene tokens
-    processor = NuScenesProcessor(nusc)
-    scene_tokens = processor.get_scene_tokens(scene_index)
+    ego_translation_global = T_global_vehicle[:3, 3]
+    ego_rotation_global = Quaternion(matrix=T_global_vehicle)
+
+
+    # --- 1. Ground Truth Plot (Left Subplot: ax_gt) ---
+    gt_points = get_gt_dynamic_points_for_sweep(
+        nusc, sweep_data_dict, all_points_global,
+        nuscenes_cfg['label_path'], gt_vel_thresh
+    ) # Returns {'dynamic': ..., 'static': ...}
+
+    gt_highlight_points = {'GT Dynamic': gt_points['dynamic']} # Only highlight dynamic for GT
+    # If you also want to show GT static points differently from background, add here:
+    # gt_highlight_points['GT Static'] = gt_points['static']
     
-    # Track frame index
-    current_frame = 0
+    gt_highlight_configs = {
+        'GT Dynamic': {'color': 'blue', 's': video_cfg.get('point_size_dynamic_gt', 2.5), 'legend_label': 'GT Dynamic', 'zorder': 6},
+        # 'GT Static': {'color': 'cyan', 's': 0.5, 'legend_label': 'GT Static', 'zorder': 2}
+    }
+    gt_general_config = {
+        'bev_range_meters': video_cfg.get('bev_range_meters', 50),
+        'point_size_all_lidar': video_cfg.get('point_size_all_lidar', 0.2),
+        'subplot_title': f'Ground Truth (vel >= {gt_vel_thresh:.1f} m/s)',
+        'ego_vehicle': {'color': 'darkred', 'arrow_fc': 'darkred', 'arrow_ec': 'darkred'} # Different ego color
+    }
+    plot_bev_frame(ax_gt, all_points_global, ego_translation_global, ego_rotation_global,
+                   gt_highlight_points, gt_highlight_configs, gt_general_config, is_right_subplot=False)
+
+    # --- 2. M-Detector Predictions Plot (Right Subplot: ax_pred) ---
+    # mdetector_output_points is already {'dynamic': ..., 'occluded_by_mdet': ...}
+    pred_highlight_points = {'MDet Dynamic': mdetector_output_points.get('dynamic', np.empty((0,3)))}
+    if video_cfg.get('show_mdet_occluded_points', False): # Configurable
+        pred_highlight_points['MDet Occluded'] = mdetector_output_points.get('occluded_by_mdet', np.empty((0,3)))
     
-    # Frame processing callback
-    def process_frame(detector, frame_index, process_result):
-        nonlocal current_frame
+    pred_highlight_configs = {
+        'MDet Dynamic': {'color': 'green', 's': video_cfg.get('point_size_dynamic_pred', 2.0), 'legend_label': 'MDet: Dynamic', 'zorder': 5},
+        'MDet Occluded': {'color': 'orange', 's': video_cfg.get('point_size_occluded_pred', 1.5), 'legend_label': 'MDet: Occluded', 'zorder': 4}
+    }
+    pred_general_config = {
+        'bev_range_meters': video_cfg.get('bev_range_meters', 50),
+        'point_size_all_lidar': video_cfg.get('point_size_all_lidar', 0.2),
+        'subplot_title': 'M-Detector Predictions',
+        'ego_vehicle': {'color': 'darkred', 'arrow_fc': 'darkred', 'arrow_ec': 'darkred'}
+    }
+    plot_bev_frame(ax_pred, all_points_global, ego_translation_global, ego_rotation_global,
+                   pred_highlight_points, pred_highlight_configs, pred_general_config, is_right_subplot=True)
+    
+    fig.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust layout for suptitle
+    frame_bgr = mpl_fig_to_opencv_bgr(fig)
+    plt.close(fig)
+    return frame_bgr
+
+
+# --- Main Video Generation Function (Orchestrator) ---
+def generate_comparison_video(
+    nusc: NuScenes,
+    scene_index: int,
+    mdetector_results_npz_filepath: str, 
+    output_path: str,
+    config: Dict
+    ):
+    """
+    Generates a side-by-side comparison video: GT vs. M-Detector.
+    """
+    video_cfg = config.get('video_generation', {})
+    processing_cfg = config.get('processing', {}) # For skip_frames, max_frames
+    
+    fps = video_cfg.get('fps', 10)
+    figure_size_inches = video_cfg.get('figure_size_side_by_side', (20, 10)) # [width, height]
+
+    # Initialize NuScenesProcessor (which now uses get_scene_sweep_data_sequence)
+    processor = NuScenesProcessor(nusc, config) # Pass config if NuScenesProcessor needs it for skip/max frames
+
+    # To get video dimensions, create a dummy frame
+    # Need a sample sweep_data_dict for the dummy frame. Get first one from the scene.
+    scene_rec_for_init = nusc.scene[scene_index]
+    temp_sweep_iter = get_scene_sweep_data_sequence(nusc, scene_rec_for_init['token'])
+    try:
+        first_sweep_data_for_init = next(temp_sweep_iter)
+    except StopIteration:
+        tqdm.write(f"Error: No sweeps found in scene {scene_rec_for_init['name']} for video dimension initialization.")
+        return {'video_path': output_path, 'frames_processed': 0, 'detector_results': None}
+    
+    dummy_mdet_output = extract_mdetector_points(None) # Pass None or a dummy DepthImage if needed
+    temp_frame_bgr = create_comparison_visualization_frame(nusc, first_sweep_data_for_init, dummy_mdet_output, config, 0)
+    height, width, _ = temp_frame_bgr.shape
+    
+    video_writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+    
+    video_frame_idx_counter = 0 # Tracks frames written to video
+
+    # Frame processing callback for NuScenesProcessor
+    # It receives: detector_instance, index_of_frame_processed_by_detector, detector_result
+    def frame_processing_callback(detector_instance: MDetector, processed_detector_frame_idx: int, _):
+        nonlocal video_frame_idx_counter
         
-        # Get the current token
-        token_idx = current_frame + config.get('processing', {}).get('skip_frames', 0)
-        if token_idx < len(scene_tokens):
-            current_token = scene_tokens[token_idx]
-        else:
-            # Safety check
+        current_lidar_sd_token = detector_instance.current_lidar_sd_token
+        if not current_lidar_sd_token:
+            tqdm.write(f"Warning: current_lidar_sd_token not found in detector instance for frame {processed_detector_frame_idx}. Skipping video frame.")
+            return
+
+        current_sweep_data_dict = getattr(detector_instance, 'current_sweep_data_dict_processed', None)
+        #     }
+        
+        # Get MDetector's output for the current frame
+        try:
+            # processed_detector_frame_idx is the index into detector.depth_image_library._images
+            mdetector_depth_image_output = detector_instance.depth_image_library._images[processed_detector_frame_idx]
+        except IndexError:
+            tqdm.write(f"Warning: MDetector output not found for its frame index {processed_detector_frame_idx}. Skipping video frame.")
             return
         
-        # Get the depth image that was just processed
-        depth_image = detector.depth_image_library._images[frame_index]
+        mdetector_points = extract_mdetector_points(mdetector_depth_image_output)
         
-        # Extract dynamic points
-        dynamic_points = extract_dynamic_points(depth_image)
-        
-        # Create visualization frame
-        frame = create_visualization_frame(
-            depth_image=depth_image, 
-            points=dynamic_points, 
-            frame_index=current_frame,
-            width=width, 
-            height=height,
-            config=config,
-            nusc=nusc,
-            lidar_token=current_token
+        # Create the comparison frame
+        bgr_comparison_frame = create_comparison_visualization_frame(
+            nusc,
+            current_sweep_data_dict,
+            mdetector_points,
+            config,
+            video_frame_idx_counter 
         )
         
-        # Add to video
-        video_writer.write(frame)
-        
-        # Increment frame counter
-        current_frame += 1
-    
-    # Process the scene
-    results = processor.process_scene(
-        scene_index=scene_index,
+        video_writer.write(bgr_comparison_frame)
+        video_frame_idx_counter += 1
+
+    # Process the scene using NuScenesProcessor
+    detector_run_results = processor.process_scene(
+        scene_index=scene_index, 
         detector=detector,
-        frame_callback=process_frame,
-        skip_frames=config.get('processing', {}).get('skip_frames', 0),
-        max_frames=config.get('processing', {}).get('max_frames', None),
-        with_progress=True
+        frame_callback=frame_processing_callback,
+        with_progress=True 
+        # skip_frames and max_frames are handled by NuScenesProcessor via config
     )
     
-    # Finalize video
     video_writer.release()
     
     return {
         'video_path': output_path,
-        'frames_processed': current_frame,
-        'results': results
+        'frames_processed_for_video': video_frame_idx_counter,
+        'detector_results': detector_run_results 
     }
-
-def extract_dynamic_points(depth_image):
-    """
-    Extract points by label from a depth image.
-    
-    Args:
-        depth_image: Processed depth image
-        
-    Returns:
-        Dict with points by category
-    """
-    dynamic_points = []
-    occluded_points = []
-    undetermined_points = []
-    
-    # Extract points by category
-    for pixel_key, points_list in depth_image.pixel_points.items():
-        for pt_info in points_list:
-            label = pt_info.get('label')
-            point = pt_info['global_pt']
-            
-            if label == OcclusionResult.OCCLUDING_IMAGE:
-                dynamic_points.append(point)
-            elif label == OcclusionResult.OCCLUDED_BY_IMAGE:
-                occluded_points.append(point)
-            elif label == OcclusionResult.UNDETERMINED:
-                undetermined_points.append(point)
-    
-    return {
-        'dynamic': np.array(dynamic_points) if dynamic_points else np.empty((0, 3)),
-        'occluded': np.array(occluded_points) if occluded_points else np.empty((0, 3)),
-        'undetermined': np.array(undetermined_points) if undetermined_points else np.empty((0, 3))
-    }
-
-def create_visualization_frame(depth_image, points, frame_index, width, height, config=None, nusc=None, lidar_token=None):
-    """
-    Create a visualization frame for the video.
-    
-    Args:
-        depth_image: Processed depth image
-        points: Dictionary with categorized points ('dynamic', 'occluded', 'undetermined')
-        frame_index: Current frame index
-        width: Frame width
-        height: Frame height
-        config: Configuration dictionary
-        nusc: NuScenes instance (for ground truth boxes)
-        lidar_token: Current lidar token
-        
-    Returns:
-        np.ndarray: BGR visualization frame
-    """
-    import matplotlib.pyplot as plt
-    import numpy as np
-    from pyquaternion import Quaternion
-    
-    # Extract visualization settings from config
-    video_cfg = config.get('video_generation', {}) if config else {}
-    bev_range_meters = video_cfg.get('bev_range_meters', 50)
-    point_size_all_lidar = video_cfg.get('point_size_all_lidar', 0.2)
-    point_size_dynamic = video_cfg.get('point_size_dynamic', 2.0)
-    plot_gt_boxes = video_cfg.get('plot_ground_truth_boxes', True) and nusc is not None
-    
-    # Create figure and axis
-    fig, ax = plt.subplots(figsize=(10, 10))
-    
-    # Get original lidar points and transform to global frame
-    original_points_global = None
-    ego_translation_global = None
-    ego_rotation_global = None
-    
-    if nusc and lidar_token:
-        # Get lidar data and ego pose
-        lidar_data = nusc.get('sample_data', lidar_token)
-        ego_pose_data = nusc.get('ego_pose', lidar_data['ego_pose_token'])
-        ego_translation_global = np.array(ego_pose_data['translation'])
-        ego_rotation_global = Quaternion(ego_pose_data['rotation'])
-        
-        # Get all points in global frame
-        from src.data_utils.nuscenes_helper import get_lidar_sweep_data
-        from src.utils.transformations import transform_points_numpy
-        
-        points_lidar_sensor_frame, T_global_lidar, _ = get_lidar_sweep_data(nusc, lidar_token)
-        original_points_global = transform_points_numpy(points_lidar_sensor_frame, T_global_lidar)
-        
-        # Plot all lidar points in grey
-        ax.scatter(
-            original_points_global[:, 0], 
-            original_points_global[:, 1], 
-            s=point_size_all_lidar, 
-            color='lightgrey', 
-            alpha=0.6
-        )
-        
-        # Plot ego vehicle
-        ax.plot(
-            ego_translation_global[0], 
-            ego_translation_global[1], 
-            'o', 
-            markersize=8, 
-            color='blue', 
-            label='Ego Vehicle'
-        )
-        
-        # Add direction arrow for ego vehicle
-        ego_front_direction = ego_rotation_global.rotate(np.array([2.0, 0, 0]))
-        ax.arrow(
-            ego_translation_global[0], 
-            ego_translation_global[1],
-            ego_front_direction[0], 
-            ego_front_direction[1],
-            head_width=0.8, 
-            head_length=1.0, 
-            fc='blue', 
-            ec='blue'
-        )
-        
-    else:
-        # If nusc is not available, use depth_image for the ego pose
-        ego_translation_global = depth_image.image_pose_global[:3, 3]
-    
-    # If points is None, extract points from depth_image
-    if points is None and depth_image:
-        points = depth_image.get_all_points(with_labels=True)
-    
-    # Plot dynamic points
-    if points['dynamic'].shape[0] > 0:
-        ax.scatter(
-            points['dynamic'][:, 0], 
-            points['dynamic'][:, 1], 
-            s=point_size_dynamic, 
-            color='green', 
-            label='MDet: OCCLUDING', 
-            zorder=5
-        )
-    
-    # Plot occluded points if desired
-    if points['occluded'].shape[0] > 0 and video_cfg.get('show_occluded_points', False):
-        ax.scatter(
-            points['occluded'][:, 0], 
-            points['occluded'][:, 1], 
-            s=point_size_dynamic * 0.8, 
-            color='red', 
-            label='MDet: OCCLUDED', 
-            zorder=4
-        )
-    
-    # Set plot limits centered on ego vehicle
-    ax.set_xlim(ego_translation_global[0] - bev_range_meters, ego_translation_global[0] + bev_range_meters)
-    ax.set_ylim(ego_translation_global[1] - bev_range_meters, ego_translation_global[1] + bev_range_meters)
-    ax.set_aspect('equal', adjustable='box')
-    
-    # Add labels and title
-    ax.set_xlabel("Global X (meters)")
-    ax.set_ylabel("Global Y (meters)")
-    
-    # Create informative title
-    title_str = f"LiDAR Frame: {frame_index}"
-    if depth_image:
-        title_str += f" - TS: {depth_image.timestamp/1e6:.2f}s"
-    if points['dynamic'].shape[0] > 0:
-        title_str += f" - Dynamic Points: {points['dynamic'].shape[0]}"
-    
-    ax.set_title(title_str, fontsize=9)
-    ax.grid(True, linestyle='--', alpha=0.5)
-    
-    # Add legend on first frame
-    # if frame_index == 0:
-    ax.legend(loc='upper right', fontsize='small')
-    
-    # Convert matplotlib figure to OpenCV image
-    from src.utils.visualization import mpl_fig_to_opencv_bgr
-    frame_bgr = mpl_fig_to_opencv_bgr(fig)
-    
-    # Close the figure to prevent memory leaks
-    plt.close(fig)
-    
-    return frame_bgr
