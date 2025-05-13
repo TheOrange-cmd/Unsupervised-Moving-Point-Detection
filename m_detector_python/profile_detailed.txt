@@ -1,627 +1,675 @@
-Mon May 12 13:58:12 2025    mdetector_profile.prof
+Tue May 13 12:00:15 2025    mdetector_profile.prof
 
-         432571239 function calls (422433002 primitive calls) in 720.494 seconds
+         42488927 function calls (42487232 primitive calls) in 65.315 seconds
 
    Ordered by: cumulative time
 
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-      2/1    0.000    0.000  720.494  720.494 {built-in method builtins.exec}
-        1    0.353    0.353  720.494  720.494 <string>:1(<module>)
-        1    0.002    0.002  720.141  720.141 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/scripts/run_mdetector_and_save.py:32(main)
-        1    0.015    0.015  718.973  718.973 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:128(process_scene)
-       82    0.001    0.000  685.573    8.361 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:232(decide_and_process_frame)
-       79    0.256    0.003  685.572    8.678 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:213(_process_bidirectional_di_wrapper)
-       79   25.785    0.326  685.316    8.675 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/temporal.py:7(process_and_label_di_bidirectional)
-  3462188  150.443    0.000  524.352    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/map_consistency.py:7(is_map_consistent)
- 10135567   94.905    0.000  288.547    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image.py:163(project_point_to_pixel_indices)
-23683831/13546208   31.725    0.000  118.582    0.000 {built-in method numpy.core._multiarray_umath.implement_array_function}
- 10135884    8.105    0.000  107.111    0.000 <__array_function__ internals>:2(norm)
-      157   51.620    0.329  100.830    0.642 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/occlusion_checks.py:71(check_occlusion_batch)
- 10135884   48.619    0.000   89.212    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:2363(norm)
- 11325037   71.755    0.000   71.755    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image.py:268(get_pixel_info)
- 10135567   49.472    0.000   65.224    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image.py:63(_apply_transformation_to_point)
- 20273953   33.063    0.000   33.063    0.000 {built-in method numpy.array}
-       80    0.235    0.003   30.204    0.378 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:113(add_sweep_and_create_depth_image)
-       80   16.834    0.210   28.871    0.361 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image.py:391(add_points_batch)
- 10137123    6.885    0.000   27.454    0.000 <__array_function__ internals>:2(dot)
-  3406074    2.084    0.000   22.892    0.000 <__array_function__ internals>:2(any)
- 10149415   19.423    0.000   19.423    0.000 {method 'reduce' of 'numpy.ufunc' objects}
-  3475684   12.413    0.000   16.868    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/temporal.py:158(_determine_final_label_bidirectional_simplified)
-  3406074    2.898    0.000   16.248    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:2268(any)
- 48205769   14.846    0.000   14.846    0.000 {method 'get' of 'dict' objects}
-  3406074    4.612    0.000   13.349    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:69(_wrapreduction)
- 21637000   12.895    0.000   12.895    0.000 {built-in method builtins.min}
-  3462189    6.956    0.000    9.810    0.000 {method 'sort' of 'list' objects}
-  3371512    1.676    0.000    9.245    0.000 {method 'min' of 'numpy.ndarray' objects}
- 21637188    8.774    0.000    8.774    0.000 {built-in method builtins.max}
-  3371512    1.036    0.000    7.569    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:42(_amin)
-  3371512    1.223    0.000    7.534    0.000 {method 'max' of 'numpy.ndarray' objects}
-  3371512    0.858    0.000    6.311    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:38(_amax)
- 10135567    4.568    0.000    4.568    0.000 {method 'ravel' of 'numpy.ndarray' objects}
- 10135727    3.308    0.000    4.450    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:112(isComplexType)
-      157    1.465    0.009    3.333    0.021 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/occlusion_checks.py:139(<listcomp>)
- 20271691    3.304    0.000    3.304    0.000 {built-in method builtins.issubclass}
- 36703885    3.299    0.000    3.299    0.000 {method 'append' of 'list' objects}
-       79    1.516    0.019    2.862    0.036 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/processing.py:10(extract_mdetector_points)
- 27997680    2.520    0.000    2.520    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/map_consistency.py:50(<lambda>)
- 15789296    2.460    0.000    2.460    0.000 {built-in method builtins.abs}
-      237    1.604    0.007    2.339    0.010 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image.py:294(project_points_batch)
-  3476237    1.611    0.000    2.224    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:615(__hash__)
-  3451019    0.969    0.000    1.869    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:289(__call__)
- 10138482    1.713    0.000    1.713    0.000 {built-in method numpy.asarray}
- 10135884    1.548    0.000    1.548    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:2359(_norm_dispatcher)
- 10137123    1.422    0.000    1.422    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/multiarray.py:736(dot)
-  3017557    1.271    0.000    1.271    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/temporal.py:171(to_occ_res)
-  6397175    1.198    0.000    1.198    0.000 {method 'upper' of 'str' objects}
-  3406074    1.176    0.000    1.176    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:70(<dictcomp>)
-  3451019    0.900    0.000    0.900    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:531(__new__)
-       80    0.000    0.000    0.820    0.010 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image_library.py:31(add_image)
-       81    0.820    0.010    0.820    0.010 {method 'append' of 'collections.deque' objects}
-        1    0.000    0.000    0.721    0.721 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:44(__init__)
-       79    0.001    0.000    0.664    0.008 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/processing.py:42(<dictcomp>)
-  3476237    0.613    0.000    0.613    0.000 {built-in method builtins.hash}
-       13    0.000    0.000    0.556    0.043 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:134(__load_table__)
-       13    0.002    0.000    0.556    0.043 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/__init__.py:274(load)
-       13    0.000    0.000    0.511    0.039 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/__init__.py:299(loads)
-       13    0.000    0.000    0.511    0.039 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/decoder.py:332(decode)
-       13    0.510    0.039    0.510    0.039 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/decoder.py:343(raw_decode)
-  3406074    0.507    0.000    0.507    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:2263(_any_dispatcher)
-        1    0.000    0.000    0.408    0.408 <__array_function__ internals>:2(savez)
-        1    0.000    0.000    0.408    0.408 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/npyio.py:538(savez)
-        1    0.000    0.000    0.408    0.408 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/npyio.py:692(_savez)
-  3406261    0.381    0.000    0.381    0.000 {method 'items' of 'dict' objects}
-        2    0.000    0.000    0.339    0.170 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1811(close)
-        1    0.000    0.000    0.339    0.339 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1935(_fpclose)
-        1    0.339    0.339    0.339    0.339 {method 'close' of '_io.BufferedRandom' objects}
-  1713177    0.334    0.000    0.334    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/map_consistency.py:59(<lambda>)
-  1744718    0.307    0.000    0.307    0.000 {built-in method builtins.isinstance}
+      2/1    0.000    0.000   65.315   65.315 {built-in method builtins.exec}
+        1    0.047    0.047   65.315   65.315 <string>:1(<module>)
+        1    0.001    0.001   65.268   65.268 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/scripts/run_mdetector_and_save.py:32(main)
+        1    1.255    1.255   64.529   64.529 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:128(process_scene)
+       32    0.000    0.000   54.978    1.718 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:220(decide_and_process_frame)
+       29    0.056    0.002   54.977    1.896 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:206(_process_bidirectional_di_wrapper)
+       29    5.312    0.183   54.921    1.894 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/temporal.py:158(process_and_label_di_bidirectional)
+       57   23.433    0.411   41.395    0.726 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/occlusion_checks.py:71(check_occlusion_batch)
+  1181582    0.850    0.000    8.708    0.000 <__array_function__ internals>:2(any)
+1185615/1184540    1.620    0.000    8.156    0.000 {built-in method numpy.core._multiarray_umath.implement_array_function}
+  3521279    7.049    0.000    7.049    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+  1181582    1.000    0.000    6.132    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:2268(any)
+       30    0.119    0.004    5.866    0.196 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:113(add_sweep_and_create_depth_image)
+  3043220    1.393    0.000    5.854    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:289(__call__)
+       30    4.544    0.151    5.625    0.187 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image.py:680(add_points_batch)
+  1181611    1.562    0.000    5.133    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:69(_wrapreduction)
+  3043220    4.461    0.000    4.461    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:531(__new__)
+  1169761    0.537    0.000    3.280    0.000 {method 'min' of 'numpy.ndarray' objects}
+   613022    2.361    0.000    3.088    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/temporal.py:346(_determine_final_label_bidirectional_simplified)
+  1169761    0.381    0.000    2.742    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:42(_amin)
+  1169761    0.424    0.000    2.385    0.000 {method 'max' of 'numpy.ndarray' objects}
+  1169761    0.312    0.000    1.961    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:38(_amax)
+     2547    1.797    0.001    1.797    0.001 {built-in method numpy.array}
+       57    0.512    0.009    1.564    0.027 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/occlusion_checks.py:139(<listcomp>)
+      116    0.614    0.005    0.906    0.008 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image.py:615(project_points_batch)
+  1850127    0.519    0.000    0.763    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/types.py:164(__get__)
+  2452407    0.533    0.000    0.714    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:615(__hash__)
+  1105753    0.638    0.000    0.638    0.000 {built-in method builtins.min}
+        1    0.000    0.000    0.604    0.604 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:44(__init__)
+  1181611    0.491    0.000    0.491    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:70(<dictcomp>)
+       13    0.000    0.000    0.448    0.034 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:134(__load_table__)
+       13    0.002    0.000    0.447    0.034 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/__init__.py:274(load)
+       13    0.000    0.000    0.402    0.031 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/__init__.py:299(loads)
+       13    0.000    0.000    0.401    0.031 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/decoder.py:332(decode)
+       13    0.401    0.031    0.401    0.031 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/decoder.py:343(raw_decode)
+  3665498    0.374    0.000    0.374    0.000 {method 'get' of 'dict' objects}
+       29    0.128    0.004    0.328    0.011 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/temporal.py:233(<listcomp>)
+       28    0.124    0.004    0.317    0.011 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/temporal.py:239(<listcomp>)
       390    0.002    0.000    0.250    0.001 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:63(get_scene_sweep_data_sequence)
-      389    0.010    0.000    0.246    0.001 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:20(get_lidar_sweep_data)
-      389    0.002    0.000    0.195    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/utils/data_classes.py:246(from_file)
-      389    0.191    0.000    0.192    0.000 {built-in method numpy.fromfile}
-      320    0.001    0.000    0.188    0.001 <__array_function__ internals>:2(concatenate)
-        1    0.082    0.082    0.164    0.164 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:150(__make_reverse_index__)
-      317    0.001    0.000    0.164    0.001 <__array_function__ internals>:2(hstack)
-  1769941    0.162    0.000    0.162    0.000 {built-in method builtins.len}
-      317    0.003    0.000    0.161    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/shape_base.py:285(hstack)
-      711    0.002    0.000    0.115    0.000 <__array_function__ internals>:2(clip)
-      711    0.003    0.000    0.111    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:2046(clip)
-      711    0.002    0.000    0.108    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:51(_wrapfunc)
-      711    0.003    0.000    0.105    0.000 {method 'clip' of 'numpy.ndarray' objects}
-      711    0.006    0.000    0.103    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:125(_clip)
-   112519    0.063    0.000    0.093    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/types.py:164(__get__)
-   125211    0.051    0.000    0.084    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:207(get)
-      790    0.002    0.000    0.062    0.000 <__array_function__ internals>:2(where)
-       15    0.000    0.000    0.059    0.004 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:627(write_array)
-      711    0.058    0.000    0.058    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:106(_clip_dep_invoke_with_casting)
-     1806    0.050    0.000    0.050    0.000 {built-in method numpy.zeros}
-       31    0.000    0.000    0.048    0.002 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1122(write)
-       17    0.024    0.001    0.043    0.003 {method 'read' of '_io.TextIOWrapper' objects}
-     1422    0.017    0.000    0.035    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:91(_clip_dep_is_scalar_nan)
-        1    0.000    0.000    0.034    0.034 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/__init__.py:117(safe_load)
-        1    0.000    0.000    0.034    0.034 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/__init__.py:74(load)
-        1    0.000    0.000    0.034    0.034 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:47(get_single_data)
-        1    0.000    0.000    0.033    0.033 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:29(get_single_node)
-        1    0.000    0.000    0.032    0.032 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:50(compose_document)
-    184/1    0.001    0.000    0.032    0.032 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:63(compose_node)
-     13/1    0.000    0.000    0.032    0.032 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:117(compose_mapping_node)
-       80    0.005    0.000    0.031    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image.py:18(__init__)
-      510    0.001    0.000    0.030    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:94(check_event)
-       31    0.030    0.001    0.030    0.001 {built-in method zlib.crc32}
-      792    0.002    0.000    0.030    0.000 <__array_function__ internals>:2(copyto)
-      475    0.003    0.000    0.029    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/numeric.py:289(full)
-   112519    0.029    0.000    0.029    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:633(value)
-       81    0.001    0.000    0.027    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1160(__iter__)
-     1373    0.001    0.000    0.027    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:113(check_token)
-       80    0.002    0.000    0.025    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1198(update)
-       83    0.001    0.000    0.024    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1325(refresh)
-   125211    0.023    0.000    0.023    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:218(getind)
-      266    0.001    0.000    0.023    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:156(fetch_more_tokens)
-      778    0.003    0.000    0.023    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:980(rotation_matrix)
-       84    0.001    0.000    0.022    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1464(display)
-      868    0.021    0.000    0.021    0.000 {method 'astype' of 'numpy.ndarray' objects}
-      101    0.000    0.000    0.020    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:427(parse_block_mapping_key)
-       17    0.000    0.000    0.019    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/codecs.py:319(decode)
-       17    0.019    0.001    0.019    0.001 {built-in method _codecs.utf_8_decode}
-      123    0.018    0.000    0.018    0.000 {method 'write' of '_io.BufferedRandom' objects}
-       80    0.000    0.000    0.016    0.000 <__array_function__ internals>:2(inv)
-       80    0.013    0.000    0.015    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:476(inv)
-      266    0.004    0.000    0.014    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:752(scan_to_next_token)
-     1422    0.003    0.000    0.013    0.000 <__array_function__ internals>:2(ndim)
-      317    0.001    0.000    0.012    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/numeric.py:149(ones)
-       84    0.001    0.000    0.011    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1150(__str__)
-   126076    0.011    0.000    0.011    0.000 {built-in method builtins.getattr}
-       16    0.010    0.001    0.010    0.001 {method 'tobytes' of 'numpy.ndarray' objects}
-       86    0.000    0.000    0.010    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:457(print_status)
-       84    0.005    0.000    0.009    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:464(format_meter)
-     8014    0.008    0.000    0.009    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:99(forward)
-       88    0.000    0.000    0.008    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:446(parse_block_mapping_value)
-     1422    0.006    0.000    0.008    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:3127(ndim)
-       15    0.007    0.000    0.007    0.000 {built-in method io.open}
+      389    0.012    0.000    0.246    0.001 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:20(get_lidar_sweep_data)
+  1850040    0.244    0.000    0.244    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:633(value)
+      146    0.001    0.000    0.243    0.002 <__array_function__ internals>:2(norm)
+      146    0.131    0.001    0.242    0.002 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:2363(norm)
+  1863959    0.204    0.000    0.204    0.000 {method 'append' of 'list' objects}
+      389    0.002    0.000    0.198    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/utils/data_classes.py:246(from_file)
+      389    0.193    0.000    0.194    0.000 {built-in method numpy.fromfile}
+  1181582    0.189    0.000    0.189    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:2263(_any_dispatcher)
+  2452407    0.181    0.000    0.181    0.000 {built-in method builtins.hash}
+   625574    0.181    0.000    0.181    0.000 {built-in method builtins.max}
+  1212295    0.181    0.000    0.181    0.000 {method 'upper' of 'str' objects}
+   613022    0.174    0.000    0.174    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/temporal.py:359(to_occ_res)
+        1    0.076    0.076    0.156    0.156 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:150(__make_reverse_index__)
+  1181669    0.152    0.000    0.152    0.000 {method 'items' of 'dict' objects}
+  1116874    0.108    0.000    0.108    0.000 {built-in method builtins.len}
+        1    0.000    0.000    0.098    0.098 <__array_function__ internals>:2(savez)
+        1    0.000    0.000    0.098    0.098 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/npyio.py:538(savez)
+        1    0.000    0.000    0.098    0.098 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/npyio.py:692(_savez)
+   125211    0.051    0.000    0.082    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:207(get)
+        2    0.000    0.000    0.061    0.031 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1811(close)
+        1    0.000    0.000    0.061    0.061 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1935(_fpclose)
+        1    0.061    0.061    0.061    0.061 {method 'close' of '_io.BufferedRandom' objects}
+      178    0.000    0.000    0.056    0.000 <__array_function__ internals>:2(concatenate)
+      146    0.000    0.000    0.053    0.000 <__array_function__ internals>:2(hstack)
+      146    0.001    0.000    0.053    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/shape_base.py:285(hstack)
+      348    0.001    0.000    0.048    0.000 <__array_function__ internals>:2(clip)
+      348    0.001    0.000    0.046    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:2046(clip)
+      377    0.001    0.000    0.045    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:51(_wrapfunc)
+      348    0.001    0.000    0.044    0.000 {method 'clip' of 'numpy.ndarray' objects}
+       17    0.024    0.001    0.044    0.003 {method 'read' of '_io.TextIOWrapper' objects}
+      348    0.003    0.000    0.043    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:125(_clip)
+        1    0.000    0.000    0.027    0.027 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/__init__.py:117(safe_load)
+        1    0.000    0.000    0.027    0.027 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/__init__.py:74(load)
+        1    0.000    0.000    0.027    0.027 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:47(get_single_data)
+        1    0.000    0.000    0.026    0.026 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:29(get_single_node)
+        1    0.000    0.000    0.026    0.026 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:50(compose_document)
+    186/1    0.001    0.000    0.025    0.025 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:63(compose_node)
+     13/1    0.000    0.000    0.025    0.025 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:117(compose_mapping_node)
+      515    0.000    0.000    0.024    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:94(check_event)
+      348    0.023    0.000    0.023    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:106(_clip_dep_invoke_with_casting)
+       15    0.023    0.002    0.023    0.002 {built-in method io.open}
+        1    0.000    0.000    0.023    0.023 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/npyio.py:100(zipfile_factory)
+        1    0.000    0.000    0.023    0.023 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1208(__init__)
+       30    0.000    0.000    0.021    0.001 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image_library.py:26(add_image)
+       31    0.021    0.001    0.021    0.001 {method 'append' of 'collections.deque' objects}
+     1387    0.001    0.000    0.021    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:113(check_token)
+   125211    0.021    0.000    0.021    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:218(getind)
+      778    0.003    0.000    0.020    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:980(rotation_matrix)
+       17    0.000    0.000    0.020    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/codecs.py:319(decode)
+       17    0.020    0.001    0.020    0.001 {built-in method _codecs.utf_8_decode}
+      269    0.001    0.000    0.018    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:156(fetch_more_tokens)
+      319    0.001    0.000    0.017    0.000 <__array_function__ internals>:2(where)
+      102    0.000    0.000    0.016    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:427(parse_block_mapping_key)
+      696    0.007    0.000    0.016    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:91(_clip_dep_is_scalar_nan)
+       31    0.000    0.000    0.013    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1160(__iter__)
+       33    0.000    0.000    0.012    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1325(refresh)
+       30    0.001    0.000    0.012    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1198(update)
+     1302    0.012    0.000    0.012    0.000 {built-in method numpy.zeros}
+       15    0.000    0.000    0.012    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:627(write_array)
+       34    0.000    0.000    0.011    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1464(display)
+      269    0.003    0.000    0.011    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:752(scan_to_next_token)
+   125692    0.011    0.000    0.011    0.000 {built-in method builtins.getattr}
+      406    0.011    0.000    0.011    0.000 {method 'astype' of 'numpy.ndarray' objects}
+       30    0.002    0.000    0.011    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image.py:515(__init__)
+      116    0.000    0.000    0.010    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1380(warning)
+      116    0.000    0.000    0.009    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1491(_log)
+       29    0.000    0.000    0.008    0.000 <__array_function__ internals>:2(unique)
+       30    0.000    0.000    0.008    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1122(write)
+       34    0.000    0.000    0.008    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1150(__str__)
+       29    0.000    0.000    0.008    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/arraysetops.py:138(unique)
+       29    0.001    0.000    0.008    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/arraysetops.py:320(_unique1d)
+       34    0.002    0.000    0.008    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:464(format_meter)
+        1    0.000    0.000    0.008    0.008 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/os.py:198(makedirs)
+       30    0.000    0.000    0.007    0.000 <__array_function__ internals>:2(inv)
+       30    0.006    0.000    0.007    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:476(inv)
+     8065    0.006    0.000    0.007    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:99(forward)
       778    0.003    0.000    0.007    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:53(__init__)
-        1    0.000    0.000    0.007    0.007 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/npyio.py:100(zipfile_factory)
-        1    0.000    0.000    0.007    0.007 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1208(__init__)
-        3    0.000    0.000    0.007    0.002 <frozen importlib._bootstrap>:978(_find_and_load)
-        3    0.000    0.000    0.007    0.002 <frozen importlib._bootstrap>:948(_find_and_load_unlocked)
-     1029    0.006    0.000    0.006    0.000 {built-in method numpy.empty}
-        1    0.000    0.000    0.006    0.006 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:952(__init__)
-      778    0.003    0.000    0.006    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:580(_q_matrix)
-        3    0.000    0.000    0.006    0.002 <frozen importlib._bootstrap>:663(_load_unlocked)
-      778    0.001    0.000    0.006    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:504(_normalise)
-      140    0.000    0.000    0.005    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:668(fetch_plain)
-     1427    0.002    0.000    0.005    0.000 <frozen importlib._bootstrap>:1009(_handle_fromlist)
+      398    0.000    0.000    0.007    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/genericpath.py:16(exists)
+      411    0.006    0.000    0.006    0.000 {built-in method posix.stat}
+       89    0.000    0.000    0.006    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:446(parse_block_mapping_value)
+      351    0.001    0.000    0.006    0.000 <__array_function__ internals>:2(copyto)
+      104    0.000    0.000    0.006    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:378(disp_len)
+      696    0.001    0.000    0.006    0.000 <__array_function__ internals>:2(ndim)
+      104    0.000    0.000    0.006    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:374(_text_width)
+      104    0.001    0.000    0.005    0.000 {built-in method builtins.sum}
+     1556    0.001    0.000    0.005    0.000 <__array_function__ internals>:2(dot)
+      778    0.000    0.000    0.005    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:504(_normalise)
+       30    0.005    0.000    0.005    0.000 {built-in method zlib.crc32}
+      778    0.002    0.000    0.005    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:580(_q_matrix)
       778    0.001    0.000    0.005    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:569(is_unit)
-       86    0.000    0.000    0.005    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:378(disp_len)
-        1    0.000    0.000    0.005    0.005 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:333(_screen_shape_linux)
-      140    0.002    0.000    0.005    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:1270(scan_plain)
-      778    0.002    0.000    0.005    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:589(_q_bar_matrix)
-       86    0.000    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:374(_text_width)
-      398    0.000    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/genericpath.py:16(exists)
-       86    0.000    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:451(fp_write)
-     2044    0.004    0.000    0.004    0.000 {built-in method builtins.hasattr}
-       86    0.001    0.000    0.004    0.000 {built-in method builtins.sum}
-        3    0.000    0.000    0.004    0.001 <frozen importlib._bootstrap>:576(module_from_spec)
-      411    0.004    0.000    0.004    0.000 {built-in method posix.stat}
-      184    0.000    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:194(inner)
-      176    0.000    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:270(parse_block_node_or_indentless_sequence)
-      184    0.001    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:273(parse_node)
-      778    0.001    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:138(_validate_number_sequence)
-       92    0.004    0.000    0.004    0.000 {method 'flush' of '_io.TextIOWrapper' objects}
-     1422    0.003    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:101(_clip_dep_is_byte_swapped)
-        5    0.000    0.000    0.004    0.001 <frozen importlib._bootstrap>:211(_call_with_frames_removed)
-      778    0.001    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:458(_sum_of_squares)
-     8290    0.002    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:375(<genexpr>)
-        2    0.000    0.000    0.003    0.002 <frozen importlib._bootstrap_external>:1040(create_module)
-        2    0.003    0.002    0.003    0.002 {built-in method _imp.create_dynamic}
-      778    0.003    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/twodim_base.py:161(eye)
-     2224    0.002    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:145(need_more_tokens)
-      317    0.001    0.000    0.003    0.000 <__array_function__ internals>:2(atleast_1d)
-    12538    0.003    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:87(peek)
-      428    0.002    0.000    0.002    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/posixpath.py:75(join)
-      317    0.001    0.000    0.002    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/shape_base.py:23(atleast_1d)
-        1    0.000    0.000    0.002    0.002 <frozen importlib._bootstrap_external>:722(exec_module)
+      205    0.001    0.000    0.005    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/numeric.py:289(full)
+       29    0.005    0.000    0.005    0.000 {method 'sort' of 'numpy.ndarray' objects}
+      116    0.000    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1516(handle)
+    14900    0.003    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:375(<genexpr>)
+        1    0.004    0.004    0.004    0.004 {built-in method posix.mkdir}
+      116    0.000    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1570(callHandlers)
+      142    0.000    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:668(fetch_plain)
+      778    0.002    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:589(_q_bar_matrix)
+      116    0.000    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:881(handle)
+      146    0.000    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/numeric.py:149(ones)
+       60    0.004    0.000    0.004    0.000 {method 'copy' of 'numpy.ndarray' objects}
+      116    0.000    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1476(makeRecord)
+      696    0.002    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:3127(ndim)
+      142    0.001    0.000    0.004    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:1270(scan_plain)
+      778    0.001    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:138(_validate_number_sequence)
+      116    0.000    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1013(emit)
+      116    0.002    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:282(__init__)
+      778    0.001    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:458(_sum_of_squares)
+      186    0.001    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:273(parse_node)
+      178    0.000    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:270(parse_block_node_or_indentless_sequence)
+      122    0.003    0.000    0.003    0.000 {method 'write' of '_io.BufferedRandom' objects}
+      778    0.002    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/twodim_base.py:161(eye)
+       36    0.000    0.000    0.003    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:457(print_status)
+       15    0.003    0.000    0.003    0.000 {method 'tobytes' of 'numpy.ndarray' objects}
+     1650    0.003    0.000    0.003    0.000 {built-in method numpy.asarray}
+        3    0.000    0.000    0.003    0.001 <frozen importlib._bootstrap>:978(_find_and_load)
+      701    0.001    0.000    0.003    0.000 <frozen importlib._bootstrap>:1009(_handle_fromlist)
+        3    0.000    0.000    0.003    0.001 <frozen importlib._bootstrap>:948(_find_and_load_unlocked)
+     2247    0.001    0.000    0.002    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:145(need_more_tokens)
+      428    0.001    0.000    0.002    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/posixpath.py:75(join)
+       34    0.000    0.000    0.002    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:386(disp_trim)
+     1316    0.002    0.000    0.002    0.000 {built-in method builtins.hasattr}
+        3    0.000    0.000    0.002    0.001 <frozen importlib._bootstrap>:663(_load_unlocked)
+    12656    0.002    0.000    0.002    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:87(peek)
+        1    0.000    0.000    0.002    0.002 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:952(__init__)
+      180    0.002    0.000    0.002    0.000 {method 'write' of '_io.TextIOWrapper' objects}
        10    0.000    0.000    0.002    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:716(write)
-        3    0.000    0.000    0.002    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:99(compose_sequence_node)
-        1    0.000    0.000    0.002    0.002 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/os.py:198(makedirs)
-      181    0.001    0.000    0.001    0.000 {method 'format' of 'str' objects}
-      317    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/shape_base.py:218(_vhstack_dispatcher)
-     8204    0.001    0.000    0.001    0.000 {built-in method unicodedata.east_asian_width}
-        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap_external>:793(get_code)
-      166    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:400(format_interval)
-        1    0.000    0.000    0.001    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:663(__new__)
+    14796    0.002    0.000    0.002    0.000 {built-in method unicodedata.east_asian_width}
+      696    0.001    0.000    0.002    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/_methods.py:101(_clip_dep_is_byte_swapped)
+      145    0.001    0.000    0.001    0.000 {built-in method builtins.print}
+        1    0.000    0.000    0.001    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:333(_screen_shape_linux)
+     5960    0.001    0.000    0.001    0.000 {built-in method builtins.isinstance}
+      467    0.001    0.000    0.001    0.000 {built-in method numpy.empty}
     38/36    0.000    0.000    0.001    0.000 {built-in method builtins.next}
        20    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:725(external_write_mode)
-        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap_external>:523(_compile_bytecode)
-        1    0.001    0.001    0.001    0.001 {built-in method marshal.loads}
-     2308    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:279(stale_possible_simple_keys)
-      168    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:88(compose_scalar_node)
-       88    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:545(fetch_value)
+        3    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:99(compose_sequence_node)
+        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap_external>:722(exec_module)
+      146    0.000    0.000    0.001    0.000 <__array_function__ internals>:2(atleast_1d)
+      116    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1446(findCaller)
+      116    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:858(format)
+        5    0.000    0.000    0.001    0.000 <frozen importlib._bootstrap>:211(_call_with_frames_removed)
+       89    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:545(fetch_value)
+      170    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:88(compose_scalar_node)
         5    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:381(parse_block_sequence_entry)
-       79    0.000    0.000    0.001    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/temporal.py:76(<dictcomp>)
-        1    0.000    0.000    0.001    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/_monitor.py:30(__init__)
-       84    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1446(format_dict)
-       28    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:657(fetch_flow_scalar)
-      168    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:273(_is_ascii)
-      642    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:114(get_mark)
         1    0.000    0.000    0.001    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:54(construct_document)
-      383    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:135(get_token)
-     1095    0.001    0.000    0.001    0.000 {method 'conj' of 'numpy.ndarray' objects}
+      116    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1002(flush)
+        3    0.000    0.000    0.001    0.000 <frozen importlib._bootstrap>:576(module_from_spec)
+     2332    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:279(stale_possible_simple_keys)
+       28    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:657(fetch_flow_scalar)
     26/14    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:410(construct_yaml_map)
-       28    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:1134(scan_flow_scalar)
-       95    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:102(acquire)
-      470    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:231(__call__)
-       23    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:654(fetch_double)
+      649    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:114(get_mark)
+      116    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:595(format)
        13    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:215(construct_mapping)
-      140    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:1311(scan_plain_spaces)
-      466    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:1416(scan_line_break)
-        3    0.000    0.000    0.001    0.000 <frozen importlib._bootstrap>:504(_init_module_attrs)
-       80    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:135(_commonType)
-       13    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:132(construct_mapping)
-      317    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/shape_base.py:207(_arrays_for_stack_dispatcher)
-       10    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/contextlib.py:107(__enter__)
-        4    0.001    0.000    0.001    0.000 <frozen importlib._bootstrap>:416(parent)
-        3    0.000    0.000    0.001    0.000 <frozen importlib._bootstrap>:882(_find_spec)
+      387    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:135(get_token)
+        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap_external>:793(get_code)
+       36    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:451(fp_write)
+       28    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:1134(scan_flow_scalar)
+       23    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:654(fetch_double)
       778    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/pyquaternion/quaternion.py:148(<listcomp>)
-      478    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/abc.py:137(__instancecheck__)
+       29    0.000    0.000    0.001    0.000 <__array_function__ internals>:2(diff)
+       13    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:132(construct_mapping)
+      473    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:1416(scan_line_break)
+       10    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/contextlib.py:116(__exit__)
+       10    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/contextlib.py:107(__enter__)
       389    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/utils/data_classes.py:30(__init__)
-        1    0.000    0.000    0.001    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/__init__.py:183(dumps)
-        1    0.001    0.001    0.001    0.001 {built-in method posix.mkdir}
-      389    0.001    0.000    0.001    0.000 {method 'reshape' of 'numpy.ndarray' objects}
-      184    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:67(construct_object)
-      160    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1356(debug)
-        1    0.000    0.000    0.001    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:182(encode)
-       28    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:1185(scan_flow_scalar_non_spaces)
-        3    0.000    0.000    0.001    0.000 <frozen importlib._bootstrap_external>:1272(find_spec)
-       84    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:186(__format__)
-        3    0.000    0.000    0.001    0.000 <frozen importlib._bootstrap_external>:1240(_get_spec)
+        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap_external>:523(_compile_bytecode)
+      142    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:1311(scan_plain_spaces)
        15    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1134(close)
-        1    0.000    0.000    0.001    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:834(start)
-      184    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/resolver.py:143(resolve)
-      170    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:295(save_possible_simple_key)
-     1422    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:3123(_ndim_dispatcher)
-       95    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:106(release)
-      478    0.000    0.000    0.001    0.000 {built-in method _abc._abc_instancecheck}
-       13    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:422(parse_block_mapping_first_key)
-      390    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:413(_iterencode)
-      790    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/multiarray.py:341(where)
-        8    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1356(find_spec)
-      528    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:94(prefix)
+      146    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/shape_base.py:23(atleast_1d)
+        1    0.001    0.001    0.001    0.001 {built-in method marshal.loads}
+        2    0.000    0.000    0.001    0.000 <frozen importlib._bootstrap_external>:1040(create_module)
+        2    0.001    0.000    0.001    0.000 {built-in method _imp.create_dynamic}
+       84    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:194(inner)
+      479    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/abc.py:137(__instancecheck__)
+       29    0.000    0.000    0.001    0.000 <__array_function__ internals>:2(all)
+      389    0.001    0.000    0.001    0.000 {method 'reshape' of 'numpy.ndarray' objects}
+       81    0.000    0.000    0.001    0.000 {method 'format' of 'str' objects}
+      186    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:67(construct_object)
+       29    0.001    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/function_base.py:1164(diff)
+      116    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/posixpath.py:121(splitext)
+      116    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/posixpath.py:144(basename)
+        1    0.000    0.000    0.001    0.001 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:663(__new__)
+       29    0.000    0.000    0.001    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:2367(all)
+        3    0.000    0.000    0.001    0.000 <frozen importlib._bootstrap>:882(_find_spec)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/__init__.py:183(dumps)
+       28    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:1185(scan_flow_scalar_non_spaces)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:182(encode)
+      186    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/resolver.py:143(resolve)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/_monitor.py:30(__init__)
+      172    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:295(save_possible_simple_key)
+      924    0.000    0.000    0.000    0.000 {method 'conj' of 'numpy.ndarray' objects}
+      146    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/shape_base.py:218(_vhstack_dispatcher)
+      479    0.000    0.000    0.000    0.000 {built-in method _abc._abc_instancecheck}
+       29    0.000    0.000    0.000    0.000 <__array_function__ internals>:2(nonzero)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1272(find_spec)
+      394    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:413(_iterencode)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1240(_get_spec)
+      547    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/posixpath.py:41(_get_sep)
        15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1467(open)
-       10    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/contextlib.py:116(__exit__)
-       82    0.000    0.000    0.000    0.000 {built-in method now}
-      642    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/error.py:6(__init__)
-     2042    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:264(next_possible_simple_key)
-      711    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:2042(_clip_dispatcher)
-  794/390    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:333(_iterencode_dict)
+      185    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:231(__call__)
+       13    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:422(parse_block_mapping_first_key)
+        8    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1356(find_spec)
+  802/394    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:333(_iterencode_dict)
+       66    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:400(format_interval)
+       34    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1446(format_dict)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:834(start)
+     2063    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:264(next_possible_simple_key)
+      536    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:94(prefix)
+       45    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:102(acquire)
        15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:416(_write_array_header)
-       79    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:359(__iter__)
-       86    0.000    0.000    0.000    0.000 {method 'sub' of 're.Pattern' objects}
-      202    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:125(peek_token)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:5(<module>)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:534(wait)
-      431    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/posixpath.py:41(_get_sep)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:264(wait)
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1565(_open_to_write)
-       84    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:153(__init__)
-        5    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:476(parse_flow_sequence_entry)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:763(__init__)
-      778    0.000    0.000    0.000    0.000 {method 'transpose' of 'numpy.ndarray' objects}
-        4    0.000    0.000    0.000    0.000 {method 'acquire' of '_thread.lock' objects}
-      114    0.000    0.000    0.000    0.000 {method 'write' of '_io.TextIOWrapper' objects}
-      792    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/multiarray.py:1071(copyto)
-       30    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:404(FileHeader)
-       11    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:760(get_lock)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:139(parse_implicit_document_start)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/loader.py:33(__init__)
-      395    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:360(<genexpr>)
-     1764    0.000    0.000    0.000    0.000 {built-in method builtins.ord}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:90(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:116(create_mp_lock)
-       95    0.000    0.000    0.000    0.000 {method 'acquire' of '_multiprocessing.SemLock' objects}
-       80    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:107(_makearray)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/context.py:69(RLock)
-       11    0.000    0.000    0.000    0.000 {built-in method builtins.__build_class__}
-       80    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:102(get_linalg_error_extobj)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/synchronize.py:186(__init__)
-      164    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1614(isEnabledFor)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/synchronize.py:50(__init__)
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:58(__iter__)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:471(parse_flow_sequence_first_entry)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:59(__init__)
-      128    0.000    0.000    0.000    0.000 {method 'match' of 're.Pattern' objects}
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1265(close)
-        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:26(__init__)
-      168    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:173(construct_scalar)
-      823    0.000    0.000    0.000    0.000 {method 'endswith' of 'str' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:122(determine_encoding)
-      485    0.000    0.000    0.000    0.000 {method 'startswith' of 'str' objects}
-        1    0.000    0.000    0.000    0.000 {built-in method _thread.start_new_thread}
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1309(clear)
-      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:402(construct_yaml_str)
+       29    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/temporal.py:243(<dictcomp>)
+      649    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/error.py:6(__init__)
        47    0.000    0.000    0.000    0.000 {method 'seek' of '_io.BufferedRandom' objects}
-        5    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:146(update)
-      326    0.000    0.000    0.000    0.000 {built-in method time.time}
-      649    0.000    0.000    0.000    0.000 {built-in method numpy.asanyarray}
-      438    0.000    0.000    0.000    0.000 {built-in method posix.fspath}
-      597    0.000    0.000    0.000    0.000 {method 'pop' of 'list' objects}
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:392(_wrap_header_guess_version)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:376(parse_block_sequence_first_entry)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1265(close)
+       29    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:1829(nonzero)
+       68    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:273(_is_ascii)
+       30    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:135(_commonType)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:5(<module>)
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1565(_open_to_write)
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/genericpath.py:121(_splitext)
+       30    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:404(FileHeader)
+      204    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:125(peek_token)
+      786    0.000    0.000    0.000    0.000 {built-in method posix.fspath}
+       29    0.000    0.000    0.000    0.000 {method 'flatten' of 'numpy.ndarray' objects}
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/posixpath.py:52(normcase)
+       34    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:186(__format__)
+      146    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/shape_base.py:207(_arrays_for_stack_dispatcher)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:534(wait)
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:573(usesTime)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:264(wait)
+      778    0.000    0.000    0.000    0.000 {method 'transpose' of 'numpy.ndarray' objects}
+       28    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:199(<dictcomp>)
+       11    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:760(get_lock)
+     1556    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/multiarray.py:736(dot)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/loader.py:33(__init__)
+       11    0.000    0.000    0.000    0.000 {built-in method builtins.__build_class__}
+      696    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:3123(_ndim_dispatcher)
+       45    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:106(release)
+      232    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:838(acquire)
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:579(formatMessage)
+        4    0.000    0.000    0.000    0.000 {method 'acquire' of '_thread.lock' objects}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:90(__init__)
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:154(<lambda>)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:139(parse_implicit_document_start)
+        5    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:476(parse_flow_sequence_entry)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:116(create_mp_lock)
+       60    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1356(debug)
+      485    0.000    0.000    0.000    0.000 {method 'startswith' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/context.py:69(RLock)
+      348    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:2042(_clip_dispatcher)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:59(__init__)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:504(_init_module_attrs)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/synchronize.py:186(__init__)
+      823    0.000    0.000    0.000    0.000 {method 'endswith' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/synchronize.py:50(__init__)
+      351    0.000    0.000    0.000    0.000 {method 'rfind' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:26(__init__)
+      104    0.000    0.000    0.000    0.000 {method 'sub' of 're.Pattern' objects}
+      319    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/multiarray.py:341(where)
+       58    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:359(__iter__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:122(determine_encoding)
+      125    0.000    0.000    0.000    0.000 {method 'match' of 're.Pattern' objects}
+       32    0.000    0.000    0.000    0.000 {built-in method now}
+      816    0.000    0.000    0.000    0.000 {built-in method builtins.abs}
+      170    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:173(construct_scalar)
+       29    0.000    0.000    0.000    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:421(format)
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:418(usesTime)
+      232    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:845(release)
+      117    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:402(construct_yaml_str)
+      117    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:1225(current_thread)
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:117(getLevelName)
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:58(__iter__)
       778    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/utils/data_classes.py:238(nbr_dims)
-       17    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:129(table_root)
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:367(_wrap_header)
-        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:46(reset_scene_state)
-      416    0.000    0.000    0.000    0.000 {built-in method builtins.divmod}
-      267    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:325(unwind_indent)
-       10    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/contextlib.py:237(helper)
-      100    0.000    0.000    0.000    0.000 {method 'acquire' of '_thread.RLock' objects}
-      317    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/shape_base.py:19(_atleast_1d_dispatcher)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:347(<listcomp>)
-      168    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:65(__init__)
+        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:146(update)
+      236    0.000    0.000    0.000    0.000 {built-in method builtins.issubclass}
+        4    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:416(parent)
+      180    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1614(isEnabledFor)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:471(parse_flow_sequence_first_entry)
+      603    0.000    0.000    0.000    0.000 {method 'pop' of 'list' objects}
+      232    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:736(filter)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:376(parse_block_sequence_first_entry)
        12    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:74(_path_stat)
+      290    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:360(<genexpr>)
+      283    0.000    0.000    0.000    0.000 {method 'acquire' of '_thread.RLock' objects}
+      158    0.000    0.000    0.000    0.000 {method 'flush' of '_io.TextIOWrapper' objects}
         4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:177(update_raw)
-       80    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:125(_realType)
-       84    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:108(__init__)
-        5    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:651(fetch_single)
-       80    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:199(_assert_stacked_square)
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:339(header_data_from_array_1_0)
-        5    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:264(parse_block_node)
-       28    0.000    0.000    0.000    0.000 {built-in method builtins.sorted}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/joblib/externals/loky/backend/__init__.py:7(_make_name)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:147(__enter__)
-       97    0.000    0.000    0.000    0.000 {method 'update' of 'dict' objects}
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:392(_wrap_header_guess_version)
+      118    0.000    0.000    0.000    0.000 {built-in method posix.getpid}
+       17    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:129(table_root)
+      351    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/multiarray.py:1071(copyto)
+      242    0.000    0.000    0.000    0.000 {built-in method time.time}
+      270    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:325(unwind_indent)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1309(clear)
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:367(_wrap_header)
+       34    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:153(__init__)
         1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:62(_load_map_consistency_config)
-      140    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:731(check_plain)
-       80    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:193(_assert_stacked_2d)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:499(__init__)
-      320    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/multiarray.py:148(concatenate)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:438(status_printer)
-      204    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:114(get_event)
+      146    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:2359(_norm_dispatcher)
+      394    0.000    0.000    0.000    0.000 {built-in method numpy.asanyarray}
+      283    0.000    0.000    0.000    0.000 {method 'release' of '_thread.RLock' objects}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/joblib/externals/loky/backend/__init__.py:7(_make_name)
+      464    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1146(stream)
+        5    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:651(fetch_single)
+        5    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:264(parse_block_node)
+       10    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/contextlib.py:237(helper)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1833(_write_end_record)
+      170    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:65(__init__)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:147(__enter__)
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:1064(name)
+        1    0.000    0.000    0.000    0.000 {built-in method _thread.start_new_thread}
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:339(header_data_from_array_1_0)
+      216    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/tokens.py:3(__init__)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/tempfile.py:153(__next__)
         3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/reader.py:138(check_printable)
-      214    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/tokens.py:3(__init__)
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:360(getMessage)
+       30    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:107(_makearray)
         3    0.000    0.000    0.000    0.000 {method 'search' of 're.Pattern' objects}
-      168    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/tokens.py:98(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:679(_get_free_pos)
-       79    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:106(is_ready_for_processing)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/os.py:676(__getitem__)
-      168    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/nodes.py:27(__init__)
-       26    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:270(construct_yaml_float)
-       10    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/contextlib.py:81(__init__)
-        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:110(__enter__)
-       23    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:237(construct_yaml_int)
-       88    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:721(check_value)
-       79    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:276(<lambda>)
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:247(dtype_to_descr)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/functools.py:381(__get__)
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:339(__init__)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:216(__init__)
-       14    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_bootlocale.py:33(getpreferredencoding)
-       33    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:56(_path_join)
-        3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:267(parse_flow_node)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/abc.py:125(__new__)
-      168    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:117(construct_scalar)
-        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1441(moveto)
-       84    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:167(colour)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/tempfile.py:142(rng)
-        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:914(get_data)
+      170    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/tokens.py:98(__init__)
+      142    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:731(check_plain)
+      206    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:114(get_event)
+       45    0.000    0.000    0.000    0.000 {method 'acquire' of '_multiprocessing.SemLock' objects}
+      116    0.000    0.000    0.000    0.000 {built-in method sys._getframe}
+      714    0.000    0.000    0.000    0.000 {built-in method builtins.ord}
+       27    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:270(construct_yaml_float)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:763(__init__)
         3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:157(_get_module_lock)
-      220    0.000    0.000    0.000    0.000 {method 'join' of 'str' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:682(<setcomp>)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1351(_get_spec)
-      184    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/resolver.py:91(descend_resolver)
-       12    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:26(__exit__)
-       95    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:38(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:213(__init__)
+       30    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:102(get_linalg_error_extobj)
+       28    0.000    0.000    0.000    0.000 {built-in method builtins.sorted}
+      131    0.000    0.000    0.000    0.000 {method 'find' of 'str' objects}
+      170    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/nodes.py:27(__init__)
+       23    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:237(construct_yaml_int)
+       14    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_bootlocale.py:33(getpreferredencoding)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:914(get_data)
+      186    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/resolver.py:91(descend_resolver)
+       89    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:721(check_value)
+       33    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:56(_path_join)
        13    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:180(flatten_mapping)
-        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image_library.py:147(clear)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:686(_decr_instances)
-       91    0.000    0.000    0.000    0.000 {built-in method _struct.pack}
-      184    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/resolver.py:114(ascend_resolver)
-      116    0.000    0.000    0.000    0.000 {built-in method _json.encode_basestring_ascii}
-       32    0.000    0.000    0.000    0.000 {method 'tell' of '_io.BufferedRandom' objects}
-        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1368(info)
-      100    0.000    0.000    0.000    0.000 {method 'release' of '_thread.RLock' objects}
-        4    0.000    0.000    0.000    0.000 {built-in method __new__ of type object at 0x56159c3406e0}
-       84    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:112(__format__)
-       80    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:472(_unary_dispatcher)
-       80    0.000    0.000    0.000    0.000 {method '__array_prepare__' of 'numpy.ndarray' objects}
-      103    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:312(remove_possible_simple_key)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:93(_path_isfile)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:81(add)
-       95    0.000    0.000    0.000    0.000 {method 'release' of '_multiprocessing.SemLock' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:86(<listcomp>)
-       92    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:349(add_indent)
-        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:484(fetch_block_entry)
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1105(__init__)
-        1    0.000    0.000    0.000    0.000 {built-in method fcntl.ioctl}
-        6    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:405(construct_yaml_seq)
-       14    0.000    0.000    0.000    0.000 {built-in method _locale.nl_langinfo}
-       91    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1115(_fileobj)
+       10    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/contextlib.py:81(__init__)
+       60    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:112(isComplexType)
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:339(__init__)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/abc.py:125(__new__)
        45    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:450(_encodeFilenameFlags)
-        4    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:403(cached)
-       12    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:20(__enter__)
-       50    0.000    0.000    0.000    0.000 {built-in method _struct.calcsize}
-      101    0.000    0.000    0.000    0.000 {method 'insert' of 'list' objects}
-      184    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:107(peek_event)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/tempfile.py:142(rng)
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:247(dtype_to_descr)
+      178    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/multiarray.py:148(concatenate)
+      170    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:117(construct_scalar)
+       30    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:199(_assert_stacked_square)
+      239    0.000    0.000    0.000    0.000 {built-in method _thread.get_ident}
+      166    0.000    0.000    0.000    0.000 {built-in method builtins.divmod}
+       34    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:108(__init__)
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/process.py:36(current_process)
+      116    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/process.py:180(name)
+       47    0.000    0.000    0.000    0.000 {method 'update' of 'dict' objects}
+       12    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:26(__exit__)
+       91    0.000    0.000    0.000    0.000 {built-in method _struct.pack}
+       32    0.000    0.000    0.000    0.000 {method 'tell' of '_io.BufferedRandom' objects}
+      222    0.000    0.000    0.000    0.000 {method 'join' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:686(_decr_instances)
+       30    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:193(_assert_stacked_2d)
+       58    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image_library.py:39(get_image_by_index)
+        3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:267(parse_flow_node)
+       30    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:125(_realType)
+       29    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image.py:784(get_all_point_labels)
+        4    0.000    0.000    0.000    0.000 {built-in method __new__ of type object at 0x5588447796e0}
+        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1441(moveto)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:86(<listcomp>)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1928(getLogger)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:204(iterencode)
-       33    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:58(<listcomp>)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1351(_get_spec)
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1105(__init__)
+       96    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:38(__init__)
+       61    0.000    0.000    0.000    0.000 {method 'encode' of 'str' objects}
+        6    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:405(construct_yaml_seq)
+       87    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:628(name)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1216(getLogger)
+      186    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/resolver.py:114(ascend_resolver)
+      104    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:312(remove_possible_simple_key)
+       14    0.000    0.000    0.000    0.000 {built-in method _locale.nl_langinfo}
+      146    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/shape_base.py:19(_atleast_1d_dispatcher)
+       90    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1115(_fileobj)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:499(__init__)
+       50    0.000    0.000    0.000    0.000 {built-in method _struct.calcsize}
+      102    0.000    0.000    0.000    0.000 {method 'insert' of 'list' objects}
+        1    0.000    0.000    0.000    0.000 {method 'sort' of 'list' objects}
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:93(_path_isfile)
+       29    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image.py:780(get_original_points_global)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/random.py:88(__init__)
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:196(magic)
+        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:484(fetch_block_entry)
+      189    0.000    0.000    0.000    0.000 {method 'extend' of 'list' objects}
+       12    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:20(__enter__)
+       29    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:106(is_ready_for_processing)
         4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/utils/map_mask.py:17(__init__)
         3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:124(construct_sequence)
-       79    0.000    0.000    0.000    0.000 {method 'setdefault' of 'dict' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:48(__init__)
+       93    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:349(add_indent)
        14    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/codecs.py:309(__init__)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:78(acquire)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:1225(current_thread)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1216(getLogger)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/random.py:88(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/tempfile.py:156(<listcomp>)
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/compat/py3k.py:53(isfileobj)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:369(_get_cached)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:574(spec_from_file_location)
-       45    0.000    0.000    0.000    0.000 {built-in method builtins.repr}
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:196(magic)
-        3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:129(<listcomp>)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/abc.py:141(__subclasscheck__)
-       11    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1203(_path_importer_cache)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:156(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/random.py:97(seed)
         3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:84(_path_is_mode_type)
-       84    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:163(colour)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/random.py:97(seed)
+      117    0.000    0.000    0.000    0.000 {built-in method _json.encode_basestring_ascii}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/functools.py:381(__get__)
+       33    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:58(<listcomp>)
        15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1695(_writecheck)
-        2    0.000    0.000    0.000    0.000 {built-in method fromtimestamp}
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:424(fetch_flow_sequence_start)
+        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:46(reset_scene_state)
+      186    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:107(peek_event)
+        4    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:403(cached)
         1    0.000    0.000    0.000    0.000 {method 'read' of '_io.FileIO' objects}
-        8    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/random.py:256(choice)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:447(fetch_flow_sequence_end)
-       62    0.000    0.000    0.000    0.000 {method 'encode' of 'str' objects}
-       13    0.000    0.000    0.000    0.000 {method 'remove' of 'set' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:127(parse_stream_start)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:359(fetch_stream_start)
-        2    0.000    0.000    0.000    0.000 {built-in method _abc._abc_subclasscheck}
-       12    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:16(__init__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:213(__init__)
+       34    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:167(colour)
+       29    0.000    0.000    0.000    0.000 {built-in method numpy.core._multiarray_umath.normalize_axis_index}
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:574(spec_from_file_location)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:58(__init__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:679(_get_free_pos)
+       40    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:222(_verbose_message)
+       45    0.000    0.000    0.000    0.000 {built-in method builtins.repr}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/tempfile.py:156(<listcomp>)
+       27    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:223(floatstr)
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/compat/py3k.py:53(isfileobj)
+       34    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:112(__format__)
+        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:110(__enter__)
+       29    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/arraysetops.py:125(_unpack_tuple)
+        3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:129(<listcomp>)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:48(__init__)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:424(fetch_flow_sequence_start)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/abc.py:141(__subclasscheck__)
         8    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:222(__eq__)
-       26    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:223(floatstr)
+        8    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/random.py:256(choice)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:127(parse_stream_start)
+        2    0.000    0.000    0.000    0.000 {built-in method _abc._abc_subclasscheck}
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:216(__init__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:438(status_printer)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:369(_get_cached)
+       13    0.000    0.000    0.000    0.000 {method 'remove' of 'set' objects}
+       12    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:16(__init__)
+       29    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:300(<lambda>)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:313(ZipInfo)
+       45    0.000    0.000    0.000    0.000 {method 'release' of '_multiprocessing.SemLock' objects}
        15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:237(_has_metadata)
         2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:430(fetch_flow_collection_start)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:453(fetch_flow_collection_end)
-       40    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:222(_verbose_message)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:728(_newname)
-        3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:226(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/util.py:171(register_after_fork)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:1116(daemon)
-        1    0.000    0.000    0.000    0.000 {function Random.seed at 0x7f1fc54227a0}
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:719(find_spec)
-      187    0.000    0.000    0.000    0.000 {method 'extend' of 'list' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:106(remove)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:104(__init__)
-       16    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:22(__init__)
-        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:271(cache_from_source)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:143(__init__)
-        2    0.000    0.000    0.000    0.000 {built-in method _abc._abc_init}
-        8    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/random.py:224(_randbelow)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/os.py:754(encode)
+        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image_library.py:173(clear)
+        1    0.000    0.000    0.000    0.000 {built-in method fcntl.ioctl}
         3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:318(__exit__)
-       12    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:52(_commit_removals)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:371(fetch_stream_end)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/genericpath.py:39(isdir)
-       15    0.000    0.000    0.000    0.000 {function _ZipWriteFile.close at 0x7f1db12cd5f0}
-        3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:152(wrapper_setattr)
+        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:271(cache_from_source)
+       15    0.000    0.000    0.000    0.000 {function _ZipWriteFile.close at 0x7f4af0d3bdd0}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:106(remove)
         4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:113(__exit__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/weakref.py:165(__setitem__)
-       16    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:277(_iterencode_list)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/util.py:171(register_after_fork)
+       30    0.000    0.000    0.000    0.000 {method '__array_prepare__' of 'numpy.ndarray' objects}
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:447(fetch_flow_sequence_end)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:719(find_spec)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1336(__init__)
+        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1368(info)
+        1    0.000    0.000    0.000    0.000 {function Random.seed at 0x7f4cebd32710}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/genericpath.py:39(isdir)
+        8    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/random.py:224(_randbelow)
+       29    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/arraysetops.py:133(_unique_dispatcher)
+       29    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/function_base.py:1160(_diff_dispatcher)
+       16    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:22(__init__)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:453(fetch_flow_collection_end)
+        2    0.000    0.000    0.000    0.000 {built-in method _abc._abc_init}
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:81(add)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:682(<setcomp>)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:359(fetch_stream_start)
         2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1048(exec_module)
         3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:151(__exit__)
-        1    0.000    0.000    0.000    0.000 {built-in method atexit.register}
-       15    0.000    0.000    0.000    0.000 {built-in method builtins.chr}
-       14    0.000    0.000    0.000    0.000 {method 'add' of 'set' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1182(ZipFile)
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:191(_check_version)
-        3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:233(construct_yaml_bool)
-       16    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/nodes.py:36(__init__)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/posixpath.py:64(isabs)
+       12    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_weakrefset.py:52(_commit_removals)
+       29    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:1825(_nonzero_dispatcher)
+        2    0.000    0.000    0.000    0.000 {built-in method fromtimestamp}
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:369(__init__)
         3    0.000    0.000    0.000    0.000 {built-in method _imp.is_builtin}
         2    0.000    0.000    0.000    0.000 {built-in method builtins.all}
-       29    0.000    0.000    0.000    0.000 {method 'lower' of 'str' objects}
-       16    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/npyio.py:533(_savez_dispatcher)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:470(fetch_flow_entry)
-       14    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/codecs.py:260(__init__)
-        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:438(_classify_pyc)
+       34    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:163(colour)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/weakref.py:165(__setitem__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:204(iterencode)
+       16    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:277(_iterencode_list)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:371(fetch_stream_end)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:78(acquire)
+       26    0.000    0.000    0.000    0.000 {method 'end' of 're.Match' objects}
+       29    0.000    0.000    0.000    0.000 {method 'setdefault' of 'dict' objects}
+       29    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/core/fromnumeric.py:2362(_all_dispatcher)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/posixpath.py:64(isabs)
         3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:103(release)
-        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:86(_load_temporal_processing_config)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:187(disable_on_exception)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1336(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1267(_fixupParents)
-       88    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:353(<lambda>)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:190(parse_document_end)
-       17    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:5(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:340(__getattr__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/posixpath.py:104(split)
        15    0.000    0.000    0.000    0.000 {built-in method _imp.acquire_lock}
+       69    0.000    0.000    0.000    0.000 {method 'rstrip' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1182(ZipFile)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:728(_newname)
+        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:86(_load_temporal_processing_config)
+        3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:152(wrapper_setattr)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:156(__init__)
+       16    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/nodes.py:36(__init__)
+       14    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/codecs.py:260(__init__)
+       14    0.000    0.000    0.000    0.000 {method 'add' of 'set' objects}
+        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:253(<dictcomp>)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1286(fp_write)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1267(_fixupParents)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:470(fetch_flow_entry)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:340(__getattr__)
+       11    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1203(_path_importer_cache)
+        9    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:859(__exit__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:438(_classify_pyc)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:176(cb)
+        3    0.000    0.000    0.000    0.000 {built-in method builtins.any}
+       50    0.000    0.000    0.000    0.000 {method 'replace' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image_library.py:13(__init__)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:266(_supports_unicode)
         6    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:744(<genexpr>)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:259(_make_iterencode)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:159(parse_document_start)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:58(__init__)
-       26    0.000    0.000    0.000    0.000 {method 'end' of 're.Match' objects}
-       49    0.000    0.000    0.000    0.000 {method 'replace' of 'str' objects}
-       19    0.000    0.000    0.000    0.000 {method 'rpartition' of 'str' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/depth_image_library.py:18(__init__)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1286(fp_write)
-       16    0.000    0.000    0.000    0.000 {method 'getrandbits' of '_random.Random' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:584(__repr__)
-        9    0.000    0.000    0.000    0.000 {built-in method _thread.allocate_lock}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:187(_checkLevel)
+        5    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:212(_acquireLock)
+       30    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/linalg/linalg.py:472(_unary_dispatcher)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/os.py:1079(__subclasshook__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/posixpath.py:104(split)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:951(path_stats)
         1    0.000    0.000    0.000    0.000 {built-in method _imp._fix_co_filename}
-        3    0.000    0.000    0.000    0.000 {built-in method builtins.any}
-       69    0.000    0.000    0.000    0.000 {method 'rstrip' of 'str' objects}
-       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:694(_get_compressor)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:255(_is_owned)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:187(disable_on_exception)
+        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1600(getEffectiveLevel)
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/format.py:191(_check_version)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:159(parse_document_start)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:190(parse_document_end)
+        3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:233(construct_yaml_bool)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:584(__repr__)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_collections_abc.py:72(_check_methods)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:792(find_spec)
+        9    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:855(__enter__)
+       15    0.000    0.000    0.000    0.000 {built-in method builtins.chr}
+       19    0.000    0.000    0.000    0.000 {built-in method builtins.id}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:1131(daemon)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:125(__eq__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/utils/color_map.py:4(get_colormap)
+       16    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/numpy/lib/npyio.py:533(_savez_dispatcher)
+       17    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:5(__init__)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:51(_r_long)
+        1    0.000    0.000    0.000    0.000 {method 'flush' of '_io.BufferedRandom' objects}
+       16    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:675(_check_compression)
+       15    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:694(_get_compressor)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:252(_is_utf)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1147(__del__)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/weakref.py:336(__new__)
-        6    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:706(check_block_entry)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/os.py:1079(__subclasshook__)
-        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:951(path_stats)
-        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1029(__init__)
-        9    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:855(__enter__)
-        9    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:859(__exit__)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:176(cb)
-       15    0.000    0.000    0.000    0.000 {method 'find' of 'str' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1807(__del__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:785(ZipExtFile)
-       16    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:675(_check_compression)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/utils/color_map.py:4(get_colormap)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:104(__init__)
+       89    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:353(<lambda>)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/json/encoder.py:259(_make_iterencode)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:81(__init__)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_collections_abc.py:72(_check_methods)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/_collections_abc.py:92(__subclasshook__)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:369(__init__)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:792(find_spec)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:51(_r_long)
-        3    0.000    0.000    0.000    0.000 {method 'rfind' of 'str' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:313(ZipInfo)
-        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:53(_load_occlusion_check_config)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1153(_comparable)
-        3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:1600(getEffectiveLevel)
-        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:212(_acquireLock)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/tokens.py:33(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:26(_is_dunder)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:311(__enter__)
-        1    0.000    0.000    0.000    0.000 {method 'flush' of '_io.BufferedRandom' objects}
-        7    0.000    0.000    0.000    0.000 {built-in method _thread.get_ident}
-       15    0.000    0.000    0.000    0.000 {built-in method _imp.release_lock}
         3    0.000    0.000    0.000    0.000 {built-in method _imp.is_frozen}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1104(_ZipWriteFile)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:785(ZipExtFile)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1807(__del__)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:240(__enter__)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:139(__getattr__)
-        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:370(_term_move_up)
-        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:221(_releaseLock)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:24(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:37(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:46(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:356(__getitem__)
-        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:62(_path_split)
-        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:471(_validate_timestamp_pyc)
-        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:35(_new_module)
-        2    0.000    0.000    0.000    0.000 {built-in method posix.getpid}
-        2    0.000    0.000    0.000    0.000 {built-in method _imp.exec_dynamic}
-       19    0.000    0.000    0.000    0.000 {built-in method builtins.id}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:727(_SharedFile)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:75(RLock)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:243(__exit__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:1131(daemon)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:252(_is_utf)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:282(_screen_shape_wrapper)
+        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:53(_load_occlusion_check_config)
+        4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:370(_term_move_up)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1153(_comparable)
         2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1157(__hash__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/synchronize.py:90(_make_methods)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/context.py:232(get_context)
+       13    0.000    0.000    0.000    0.000 {method 'getrandbits' of '_random.Random' objects}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:37(__init__)
+        6    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:706(check_block_entry)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:26(_is_dunder)
+        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1029(__init__)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:311(__enter__)
+       12    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:321(<genexpr>)
+        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:62(_path_split)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:401(_check_name_wrapper)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:471(_validate_timestamp_pyc)
+        8    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:40(_relax_case)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:143(__init__)
+        9    0.000    0.000    0.000    0.000 {built-in method _thread.allocate_lock}
+        1    0.000    0.000    0.000    0.000 {method 'index' of 'collections.deque' objects}
+       15    0.000    0.000    0.000    0.000 {built-in method _imp.release_lock}
+       30    0.000    0.000    0.000    0.000 {method 'lower' of 'str' objects}
+       19    0.000    0.000    0.000    0.000 {method 'rpartition' of 'str' objects}
+        4    0.000    0.000    0.000    0.000 {method 'strip' of 'str' objects}
+        3    0.000    0.000    0.000    0.000 {built-in method from_bytes}
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1104(_ZipWriteFile)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:75(RLock)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:249(_release_save)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:255(_is_owned)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:1116(daemon)
+        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:124(__init__)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:139(__getattr__)
+        3    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:226(__init__)
+        5    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:221(_releaseLock)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/nuscenes/nuscenes.py:640(__init__)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/weakref.py:341(__init__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/constructor.py:24(__init__)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/resolver.py:21(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:55(__init__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/tokens.py:33(__init__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:46(__init__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/enum.py:356(__getitem__)
         4    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/codecs.py:331(getstate)
-        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:884(__init__)
-       12    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:321(<genexpr>)
-        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:401(_check_name_wrapper)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:35(_new_module)
         1    0.000    0.000    0.000    0.000 {method 'setter' of 'property' objects}
-        1    0.000    0.000    0.000    0.000 {built-in method _stat.S_ISDIR}
+        1    0.000    0.000    0.000    0.000 {method '__enter__' of '_thread.lock' objects}
         1    0.000    0.000    0.000    0.000 {method 'clear' of 'collections.deque' objects}
-        1    0.000    0.000    0.000    0.000 {method 'index' of 'collections.deque' objects}
         2    0.000    0.000    0.000    0.000 {built-in method _weakref.proxy}
-        4    0.000    0.000    0.000    0.000 {method 'strip' of 'str' objects}
+        2    0.000    0.000    0.000    0.000 {built-in method _imp.exec_dynamic}
         1    0.000    0.000    0.000    0.000 {method 'difference' of 'set' objects}
-        3    0.000    0.000    0.000    0.000 {built-in method from_bytes}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1942(PyZipFile)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:765(_Tellable)
+        8    0.000    0.000    0.000    0.000 {method 'bit_length' of 'int' objects}
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:604(LZMACompressor)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:249(_release_save)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:627(LZMADecompressor)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:727(_SharedFile)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:765(_Tellable)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:252(_acquire_restore)
-        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:507(is_set)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:38(BadZipFile)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:42(LargeZipFile)
-        1    0.000    0.000    0.000    0.000 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:124(__init__)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:98(<listcomp>)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/util.py:48(debug)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1301(<lambda>)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/utils.py:282(_screen_shape_wrapper)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/synchronize.py:90(_make_methods)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/context.py:196(get_start_method)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:187(_checkLevel)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:716(__init__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/context.py:232(get_context)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/parser.py:89(dispose)
         1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/composer.py:13(__init__)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/events.py:55(__init__)
         6    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/yaml/scanner.py:690(check_document_start)
         1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
         1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:719(create_module)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:884(__init__)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:307(__init__)
         3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:424(has_location)
-        8    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:40(_relax_case)
         1    0.000    0.000    0.000    0.000 {method 'release' of '_thread.lock' objects}
-        1    0.000    0.000    0.000    0.000 {method '__enter__' of '_thread.lock' objects}
         1    0.000    0.000    0.000    0.000 {method '__exit__' of '_thread.lock' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method _stat.S_ISDIR}
+        1    0.000    0.000    0.000    0.000 {built-in method atexit.register}
         1    0.000    0.000    0.000    0.000 {built-in method builtins.callable}
         1    0.000    0.000    0.000    0.000 {method 'keys' of 'dict' objects}
         1    0.000    0.000    0.000    0.000 {method 'values' of 'dict' objects}
-        8    0.000    0.000    0.000    0.000 {method 'bit_length' of 'int' objects}
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:627(LZMADecompressor)
-        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:1301(<lambda>)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:1942(PyZipFile)
+        2    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/threading.py:507(is_set)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:38(BadZipFile)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/zipfile.py:42(LargeZipFile)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/site-packages/tqdm/std.py:98(<listcomp>)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/multiprocessing/util.py:48(debug)
+        1    0.000    0.000    0.000    0.000 /home/drugge/miniconda3/envs/mdet_env/lib/python3.7/logging/__init__.py:716(__init__)
         1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:909(get_filename)
-        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:307(__init__)
 
 

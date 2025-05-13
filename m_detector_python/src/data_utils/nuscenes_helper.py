@@ -127,25 +127,22 @@ class NuScenesProcessor:
 
     def process_scene(self,
                       scene_index: int,
-                      detector: MDetector, # Type hint for MDetector
+                      detector: MDetector, 
                       with_progress: bool = True) -> Optional[Dict[str, np.ndarray]]:
         
         scene_rec = self.nusc.scene[scene_index]
-        scene_token = scene_rec['token']
-
+        # ... (initial setup, skip_frames, max_frames etc. remains the same) ...
         processing_cfg = self.config.get('processing', {})
         skip_frames_config = processing_cfg.get('skip_frames', 0)
-        max_frames_config = processing_cfg.get('max_frames', None) # Max frames to *feed* to detector
+        max_frames_config = processing_cfg.get('max_frames', None) 
         logger.info(f"Skipping first {skip_frames_config} frames. Processing max: {max_frames_config} frames.")
 
-        # Get all sweep data for the scene first
-        all_scene_sweep_data_dicts = list(get_scene_sweep_data_sequence(self.nusc, scene_token))
+        all_scene_sweep_data_dicts = list(get_scene_sweep_data_sequence(self.nusc, scene_rec['token']))
         
         if not all_scene_sweep_data_dicts:
             tqdm.write(f"No sweeps found for scene {scene_rec['name']}. Skipping M-Detector processing.")
             return None
 
-        # Apply skip_frames and max_frames to the list of sweeps to be processed
         start_idx = min(skip_frames_config, len(all_scene_sweep_data_dicts))
         end_idx = len(all_scene_sweep_data_dicts)
         if max_frames_config is not None:
@@ -158,109 +155,136 @@ class NuScenesProcessor:
             tqdm.write(f"No sweeps selected to feed to M-Detector for scene {scene_rec['name']} based on skip/max frames.")
             return None
 
-        # This list will store the actual MDetector outputs, one entry per successfully processed frame by MDetector
         collected_mdetector_outputs = [] 
-        # To map a processed_timestamp back to its original full sweep_data dictionary
         fed_sweep_data_by_timestamp: Dict[int, Dict] = {} 
 
-        # Reset MDetector state for the new scene (e.g., clear its depth_image_library, reset counters)
-        # detector.reset_scene_state() # Implement this method in MDetector
         if hasattr(detector, 'reset_scene_state') and callable(detector.reset_scene_state):
             detector.reset_scene_state()
         else:
             tqdm.write("Warning: MDetector does not have a 'reset_scene_state' method. State might carry over.")
-
 
         desc = f"Feeding sweeps to M-Detector for Scene {scene_rec['name']}"
         iterator_for_feeding = tqdm(sweeps_to_feed_list, total=num_sweeps_to_feed, desc=desc) if with_progress else sweeps_to_feed_list
         
         # --- Phase 1: Feed sweeps and collect M-Detector outputs ---
         for sweep_data in iterator_for_feeding:
-            # Store a reference to the full sweep_data, keyed by its unique timestamp
+            # === CORRECTED ORDER AND ADDITIONS START ===
+            # 1. Store a reference to the full sweep_data, keyed by its unique timestamp
             fed_sweep_data_by_timestamp[sweep_data['timestamp']] = sweep_data
             
-            # Add sweep to MDetector's internal library
-            # Assuming MDetector has a method like `add_sweep_and_create_depth_image`
-            # or simply `add_sweep` which handles DI creation.
+            # 2. Add sweep to MDetector's internal library
             detector.add_sweep_and_create_depth_image(
-                sweep_data['points_sensor_frame'], 
-                sweep_data['T_global_lidar'], 
-                sweep_data['timestamp']
-                # Pass lidar_sd_token if MDetector needs it during DI creation
-                # lidar_sd_token=sweep_data['lidar_sd_token'] 
+                points_lidar_frame=sweep_data['points_sensor_frame'], 
+                T_global_lidar=sweep_data['T_global_lidar'], 
+                lidar_timestamp=sweep_data['timestamp'],
+                lidar_sd_token=sweep_data['lidar_sd_token'] # Pass token if your MDetector uses it
             )
+            # === CORRECTED ORDER AND ADDITIONS END ===
             
-            # Ask MDetector to process whatever frame it deems ready now
-            # `is_end_of_sequence` is False because we are still feeding sweeps
+            # 3. Ask MDetector to process whatever frame it deems ready now
             mdet_result = detector.decide_and_process_frame(is_end_of_sequence=False)
             
             if mdet_result and mdet_result.get('success'):
+                processed_di_object = mdet_result.get('processed_di')
                 processed_timestamp = mdet_result.get('processed_frame_timestamp')
-                processed_frame_lib_idx = mdet_result.get('frame_index') # Index in MDetector's library
 
-                if processed_timestamp is not None and processed_frame_lib_idx is not None:
+                if processed_di_object and processed_timestamp is not None:
                     original_sweep_for_this_output = fed_sweep_data_by_timestamp.get(processed_timestamp)
                     
-                    # Ensure the DI object exists at that index
-                    if 0 <= processed_frame_lib_idx < len(detector.depth_image_library._images):
-                        di_that_was_processed = detector.depth_image_library._images[processed_frame_lib_idx]
+                    if original_sweep_for_this_output and processed_di_object.timestamp == processed_timestamp:
+                        all_points_global = processed_di_object.get_original_points_global()
+                        all_labels_numeric = processed_di_object.get_all_point_labels()
 
-                        # Sanity check: timestamp of DI should match reported processed_timestamp
-                        if original_sweep_for_this_output and di_that_was_processed.timestamp == processed_timestamp:
-                            points_dict = extract_mdetector_points(di_that_was_processed)
-                            collected_mdetector_outputs.append({
-                                'original_sweep_data': original_sweep_for_this_output, # Contains token, T_mat etc.
-                                'mdet_output_points': points_dict,
-                                'mdet_label_counts': mdet_result.get('label_counts', {}),
-                                'mdet_success_flag': True # From mdet_result itself
-                                # Store other relevant info from mdet_result if needed for NPZ
-                            })
+                        mdet_points_for_npz = {'dynamic': [], 'occluded_by_mdet': [], 'undetermined_by_mdet': []}
+                        actual_label_counts = {label: 0 for label in OcclusionResult}
+
+                        if all_points_global is not None and all_labels_numeric is not None and \
+                           all_points_global.shape[0] == all_labels_numeric.shape[0]:
+                            for i in range(all_points_global.shape[0]):
+                                point_global = all_points_global[i]
+                                label_enum = OcclusionResult(all_labels_numeric[i])
+                                actual_label_counts[label_enum] += 1
+                                if label_enum == OcclusionResult.OCCLUDING_IMAGE:
+                                    mdet_points_for_npz['dynamic'].append(point_global)
+                                elif label_enum == OcclusionResult.OCCLUDED_BY_IMAGE:
+                                    mdet_points_for_npz['occluded_by_mdet'].append(point_global)
+                                elif label_enum == OcclusionResult.UNDETERMINED:
+                                    mdet_points_for_npz['undetermined_by_mdet'].append(point_global)
+                            for key in mdet_points_for_npz:
+                                mdet_points_for_npz[key] = np.array(mdet_points_for_npz[key], dtype=np.float32) if mdet_points_for_npz[key] else np.empty((0,3), dtype=np.float32)
                         else:
-                            tqdm.write(f"Warning: Timestamp/data mismatch for processed frame {processed_timestamp}. Output for this frame skipped.")
+                            tqdm.write(f"Warning (Main Loop): Missing points/labels in DI for TS {processed_timestamp} or mismatched shapes.")
+                            for key in mdet_points_for_npz: mdet_points_for_npz[key] = np.empty((0,3), dtype=np.float32)
+                        
+                        collected_mdetector_outputs.append({
+                            'original_sweep_data': original_sweep_for_this_output,
+                            'mdet_output_points': mdet_points_for_npz,
+                            'mdet_label_counts': actual_label_counts,
+                            'mdet_success_flag': True 
+                        })
                     else:
-                        tqdm.write(f"Warning: MDetector returned invalid library index {processed_frame_lib_idx}. Output for this frame skipped.")
+                        tqdm.write(f"Warning (Main Loop): Timestamp/data mismatch. Processed TS: {processed_timestamp}. Original sweep found: {'Yes' if original_sweep_for_this_output else 'No'}. DI TS: {processed_di_object.timestamp if processed_di_object else 'N/A'}. Output skipped.")
                 else:
-                    tqdm.write(f"Warning: MDetector reported success but missing timestamp/index. Output skipped. Result: {mdet_result}")
-            elif mdet_result: # Not None, but not success (e.g., waiting for buffer)
-                if with_progress: # Avoid flooding console if not using tqdm
-                    tqdm.write(f"MDetector info: {mdet_result.get('reason', 'No specific reason given by MDetector')}")
+                    tqdm.write(f"Warning (Main Loop): MDetector success but missing processed_di or timestamp. Output skipped. Result: {mdet_result}")
+            elif mdet_result:
+                if with_progress: tqdm.write(f"MDetector info: {mdet_result.get('reason', 'No specific reason given by MDetector')}")
         
-        # --- Phase 2: Flush MDetector's buffer (if bidirectional mode might have pending frames) ---
-        if hasattr(detector, 'use_bidirectional') and detector.use_bidirectional: # Check if detector has this attribute
+        # --- Phase 2: Flush MDetector's buffer ---
+        if hasattr(detector, 'use_bidirectional') and detector.use_bidirectional:
             if with_progress: tqdm.write("Flushing MDetector bidirectional buffer...")
             flush_counter = 0
-            max_flush_attempts = len(detector.depth_image_library._images) + 5 # Safety break
+            max_flush_attempts = len(detector.depth_image_library._images) + detector.bidirectional_window_size + 5 # Adjusted safety break
+            
             while flush_counter < max_flush_attempts:
                 flush_counter += 1
                 mdet_result = detector.decide_and_process_frame(is_end_of_sequence=True)
                 
                 if mdet_result and mdet_result.get('success'):
+                    processed_di_object = mdet_result.get('processed_di')
                     processed_timestamp = mdet_result.get('processed_frame_timestamp')
-                    processed_frame_lib_idx = mdet_result.get('frame_index')
 
-                    if processed_timestamp is not None and processed_frame_lib_idx is not None:
+                    if processed_di_object and processed_timestamp is not None:
                         original_sweep_for_this_output = fed_sweep_data_by_timestamp.get(processed_timestamp)
-                        if 0 <= processed_frame_lib_idx < len(detector.depth_image_library._images):
-                            di_that_was_processed = detector.depth_image_library._images[processed_frame_lib_idx]
-                            if original_sweep_for_this_output and di_that_was_processed.timestamp == processed_timestamp:
-                                points_dict = extract_mdetector_points(di_that_was_processed)
-                                collected_mdetector_outputs.append({
-                                    'original_sweep_data': original_sweep_for_this_output,
-                                    'mdet_output_points': points_dict,
-                                    'mdet_label_counts': mdet_result.get('label_counts', {}),
-                                    'mdet_success_flag': True
-                                })
+                        if original_sweep_for_this_output and processed_di_object.timestamp == processed_timestamp:
+                            all_points_global = processed_di_object.get_original_points_global()
+                            all_labels_numeric = processed_di_object.get_all_point_labels()
+
+                            mdet_points_for_npz = {'dynamic': [], 'occluded_by_mdet': [], 'undetermined_by_mdet': []}
+                            actual_label_counts = {label: 0 for label in OcclusionResult}
+
+                            if all_points_global is not None and all_labels_numeric is not None and \
+                               all_points_global.shape[0] == all_labels_numeric.shape[0]:
+                                for i in range(all_points_global.shape[0]):
+                                    point_global = all_points_global[i]
+                                    label_enum = OcclusionResult(all_labels_numeric[i])
+                                    actual_label_counts[label_enum] += 1
+                                    if label_enum == OcclusionResult.OCCLUDING_IMAGE:
+                                        mdet_points_for_npz['dynamic'].append(point_global)
+                                    elif label_enum == OcclusionResult.OCCLUDED_BY_IMAGE:
+                                        mdet_points_for_npz['occluded_by_mdet'].append(point_global)
+                                    elif label_enum == OcclusionResult.UNDETERMINED:
+                                        mdet_points_for_npz['undetermined_by_mdet'].append(point_global)
+                                for key in mdet_points_for_npz:
+                                    mdet_points_for_npz[key] = np.array(mdet_points_for_npz[key], dtype=np.float32) if mdet_points_for_npz[key] else np.empty((0,3), dtype=np.float32)
                             else:
-                                tqdm.write(f"Warning (flush): Timestamp/data mismatch for processed frame {processed_timestamp}. Output skipped.")
+                                tqdm.write(f"Warning (Flush): Missing points/labels in DI for TS {processed_timestamp} or mismatched shapes.")
+                                for key in mdet_points_for_npz: mdet_points_for_npz[key] = np.empty((0,3), dtype=np.float32)
+
+                            collected_mdetector_outputs.append({
+                                'original_sweep_data': original_sweep_for_this_output,
+                                'mdet_output_points': mdet_points_for_npz,
+                                'mdet_label_counts': actual_label_counts,
+                                'mdet_success_flag': True
+                            })
                         else:
-                             tqdm.write(f"Warning (flush): MDetector returned invalid library index {processed_frame_lib_idx}. Output skipped.")
+                            tqdm.write(f"Warning (Flush): Timestamp/data mismatch. Processed TS: {processed_timestamp}. Original sweep found: {'Yes' if original_sweep_for_this_output else 'No'}. DI TS: {processed_di_object.timestamp if processed_di_object else 'N/A'}. Output skipped.")
                     else:
-                        tqdm.write(f"Warning (flush): MDetector success but missing timestamp/index. Output skipped. Result: {mdet_result}")
-                
-                elif mdet_result and not mdet_result.get('success'): # Explicit fail during flush
+                        tqdm.write(f"Warning (Flush): MDetector success but missing processed_di or timestamp. Output skipped. Result: {mdet_result}")
+                elif mdet_result and not mdet_result.get('success'):
                     if with_progress: tqdm.write(f"MDetector info (flush): {mdet_result.get('reason', 'Failed or nothing more to process during flush')}")
-                    break 
-                elif not mdet_result: # MDetector signals nothing more to process by returning None
+                    if mdet_result.get('reason') != 'Bidirectional buffer not full yet': # Break if it's not just waiting for more frames (which it won't get)
+                        break 
+                elif not mdet_result: 
                     if with_progress: tqdm.write("MDetector flush complete (returned None).")
                     break
                 if flush_counter >= max_flush_attempts:
@@ -270,17 +294,16 @@ class NuScenesProcessor:
         # --- Phase 3: Assemble NPZ data from collected outputs ---
         if not collected_mdetector_outputs:
             tqdm.write(f"No successful M-Detector outputs collected for scene {scene_rec['name']} to save to NPZ.")
-            return None
+            return None # This was causing the TypeError
 
-        # Sort collected outputs by their original timestamp to ensure NPZ is chronological
+        # ... (rest of NPZ assembly logic remains the same) ...
         collected_mdetector_outputs.sort(key=lambda x: x['original_sweep_data']['timestamp'])
 
-        # Initialize lists for NPZ arrays
         npz_tokens, npz_timestamps, npz_cs_tokens, npz_T_mats, npz_success_flags = [], [], [], [], []
         npz_counts_dyn, npz_counts_occ, npz_counts_und = [], [], []
         
         npz_all_dyn_pts_list, npz_all_occ_pts_list, npz_all_und_pts_list = [], [], []
-        npz_dyn_indices, npz_occ_indices, npz_und_indices = [0], [0], [0] # Start with 0 for index arrays
+        npz_dyn_indices, npz_occ_indices, npz_und_indices = [0], [0], [0]
 
         for output_item in collected_mdetector_outputs:
             sweep_ref = output_item['original_sweep_data']
@@ -293,7 +316,6 @@ class NuScenesProcessor:
             npz_T_mats.append(sweep_ref['T_global_lidar'])
             npz_success_flags.append(output_item['mdet_success_flag'])
             
-            # Use OcclusionResult enum values as keys if MDetector uses them, otherwise adjust keys.
             npz_counts_dyn.append(counts.get(OcclusionResult.OCCLUDING_IMAGE, 0))
             npz_counts_occ.append(counts.get(OcclusionResult.OCCLUDED_BY_IMAGE, 0))
             npz_counts_und.append(counts.get(OcclusionResult.UNDETERMINED, 0))
@@ -310,23 +332,19 @@ class NuScenesProcessor:
             if und_pts_arr.ndim == 2 and und_pts_arr.shape[0] > 0: npz_all_und_pts_list.append(und_pts_arr)
             npz_und_indices.append(npz_und_indices[-1] + und_pts_arr.shape[0])
 
-        # Convert lists to final numpy arrays for the NPZ file
         output_data_for_npz = {
-            'sweep_lidar_sd_tokens': np.array(npz_tokens, dtype='S36'), # Fixed-size string for numpy
+            'sweep_lidar_sd_tokens': np.array(npz_tokens, dtype='S36'),
             'sweep_timestamps_us': np.array(npz_timestamps, dtype=np.int64),
             'sweep_calibrated_sensor_tokens': np.array(npz_cs_tokens, dtype='S36'),
             'T_global_lidar_matrices': np.array(npz_T_mats, dtype=np.float32),
-            'mdet_success_flags': np.array(npz_success_flags, dtype=np.bool_),
+            'mdet_success_flags': np.array(npz_success_flags, dtype=bool), # bool_ is alias for bool
             'mdet_label_counts_dynamic': np.array(npz_counts_dyn, dtype=np.int32),
             'mdet_label_counts_occluded': np.array(npz_counts_occ, dtype=np.int32),
             'mdet_label_counts_undetermined': np.array(npz_counts_und, dtype=np.int32),
-            
             'all_dynamic_points': np.concatenate(npz_all_dyn_pts_list, axis=0) if npz_all_dyn_pts_list else np.empty((0,3), dtype=np.float32),
             'dynamic_points_indices': np.array(npz_dyn_indices, dtype=np.int64),
-            
             'all_occluded_points': np.concatenate(npz_all_occ_pts_list, axis=0) if npz_all_occ_pts_list else np.empty((0,3), dtype=np.float32),
             'occluded_points_indices': np.array(npz_occ_indices, dtype=np.int64),
-
             'all_undetermined_points': np.concatenate(npz_all_und_pts_list, axis=0) if npz_all_und_pts_list else np.empty((0,3), dtype=np.float32),
             'undetermined_points_indices': np.array(npz_und_indices, dtype=np.int64),
         }

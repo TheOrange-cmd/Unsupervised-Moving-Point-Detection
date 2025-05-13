@@ -9,6 +9,14 @@ nuscenes:
   # this way, we can validate our algorithm with *all* lidar sweeps (20 Hz), not just the keyframes with manual annotations (2 Hz). 
   label_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/nuscenes_labels_interpolated"
 
+processing:
+  skip_frames: 0
+  max_frames: 30 # set to null (without quotes) to process all frames
+
+mdetector_output:
+  save_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output" # Directory where M-Detector outputs will be saved
+  scene_indices_to_run: [1] # List of scene indices to run M-Detector on, or 'all'
+
 # --- M-Detector General Parameters ---
 # Based on the paper (Nature Communications | (2024) 15:345) and Supplementary Info.
 # These will likely require tuning for NuScenes and specific LiDARs.
@@ -85,10 +93,7 @@ temporal_processing:
   # This is a very strong signal for static.
   # Options: "STATIC" (recommended), "USE_EFFECTIVE_STATES_LOGIC" (to disable override)
   both_map_consistent_override: "STATIC" # If "STATIC", this returns OcclusionResult.OCCLUDED_BY_IMAGE
-  
-processing:
-  skip_frames: 0
-  max_frames: 80 # set to null (without quotes) to process all frames
+
 
 video_generation:
   fps: 20
@@ -151,21 +156,20 @@ depth_image:
 
 # Occlusion Check Parameters (Values are examples, need tuning)
 occlusion_check:
-  epsilon_depth_occlusion: 0.5   # (εd) meters. Depth threshold for occlusion.
+  epsilon_depth_occlusion: 0.7   # (εd) meters. Depth threshold for occlusion.
   neighbor_search_pixels_h: 1    # (nh) Number of horizontal neighbor pixels to check (0 for center only, 1 for 3xN_v).
   neighbor_search_pixels_v: 1    # (nv) Number of vertical neighbor pixels to check (0 for center only, 1 for N_h x 3).
   angular_threshold_deg_h: 2.0   # (εh) Horizontal angular threshold for point-based check (degrees).
   angular_threshold_deg_v: 2.0   # (εv) Vertical angular threshold for point-based check (degrees).
 
-mdetector_output:
-  save_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output" # Directory where M-Detector outputs will be saved
-  scene_indices_to_run: [1] # List of scene indices to run M-Detector on, or 'all'
+
 
 map_consistency_check:
-  enabled: true # Overall toggle for this phase
+  enabled: false # Overall toggle for this phase
+  consistency_threshold: 0.7 # Ratio of frames that must be consistent
   # How many of the most recent (but older than current) DIs to check against
-  num_historical_di_for_map_check: 5
-  num_future_di_for_map_check: 5 # New parameter
+  map_consistency_time_window_past_s: 5
+  map_consistency_time_window_future_s: 5 # New parameter
   # Angular thresholds for considering a stored static point "aligned" with the point_to_check
   # These are in the historical DI's frame where both points are projected
   epsilon_phi_map_deg: 1.0  # Azimuthal tolerance in degrees
@@ -197,5 +201,5 @@ initialization:
 # Point Processing
 filtering:
   # Max range for points to be considered for M-detector (meters)
-  max_point_range_meters: 50.0
+  max_point_range_meters: 80.0
   min_point_range_meters: 1.0 # Ignore points too close to the sensor

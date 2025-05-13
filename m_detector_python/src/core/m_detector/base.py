@@ -62,8 +62,8 @@ class MDetector:
     def _load_map_consistency_config(self):
         mc_cfg = self.config.get('map_consistency_check', {})
         self.map_consistency_enabled = mc_cfg.get('enabled', True)
-        self.num_historical_di_for_map_check = mc_cfg.get('num_historical_di_for_map_check', 3)
-        self.num_future_di_for_map_check = mc_cfg.get('num_future_di_for_map_check', 3) # Used by is_map_consistent
+        self.map_consistency_time_window_past_s = mc_cfg.get('map_consistency_time_window_past_s', 3)
+        self.map_consistency_time_window_future_s = mc_cfg.get('map_consistency_time_window_future_s', 3) 
         self.epsilon_phi_map_rad = np.deg2rad(mc_cfg.get('epsilon_phi_map_deg', 1.0))
         self.epsilon_theta_map_rad = np.deg2rad(mc_cfg.get('epsilon_theta_map_deg', 1.0))
         self.epsilon_depth_forward_map = mc_cfg.get('epsilon_depth_forward_map', 0.3)
@@ -149,11 +149,10 @@ class MDetector:
         # The `process_and_label_di` and `process_and_label_di_bidirectional` functions
         # are responsible for setting the final pt_info['label'].
         
-        batch_labels = [initial_label_for_new_di_points] * len(filtered_points_global)
+        # batch_labels = [initial_label_for_new_di_points] * len(filtered_points_global)
         
         current_di.add_points_batch(
-            points_global_batch=filtered_points_global,
-            labels=batch_labels # Pass the initial labels
+            points_global_batch=filtered_points_global
         )
         
         self.depth_image_library.add_image(current_di)
@@ -174,12 +173,6 @@ class MDetector:
     )
     
     # --- Core Processing Logic (from processing.py) ---
-    # `process_and_label_di` is the main causal processing function.
-    # `process_frame` is replaced by `decide_and_process_frame`.
-    # `_process_causal_di` and `_process_bidirectional_di` are new helper wrappers.
-    
-    # This is your original causal processing function.
-    # It will be called by _process_causal_di_wrapper.
     from .processing import process_and_label_di as actual_causal_processing_logic
 
     def _process_causal_di_wrapper(self, di_to_process_idx: int) -> Dict:
@@ -194,11 +187,11 @@ class MDetector:
         # and take (self, current_di, historical_di)
         result = self.actual_causal_processing_logic(current_di, historical_di) 
         
-        # Ensure result dict has standard fields
         result['processed_frame_timestamp'] = current_di.timestamp
         result['frame_index'] = di_to_process_idx
-        result.setdefault('success', True) # Assume success if no explicit failure
-        result.setdefault('label_counts', {}) # Ensure label_counts exists
+        result.setdefault('success', True) 
+        result.setdefault('label_counts', {})
+        result['processed_di'] = current_di # <<< ADD THIS
         return result
 
     # --- Temporal Processing Logic (from temporal.py) ---
@@ -212,22 +205,17 @@ class MDetector:
 
     def _process_bidirectional_di_wrapper(self, di_to_process_idx: int) -> Dict:
         """Wrapper for bidirectional processing of a specific DI."""
-        # Call the imported actual_bidirectional_processing_logic
-        # This function (process_and_label_di_bidirectional) needs to be defined in temporal.py
-        # and take (self, center_index) which is di_to_process_idx here.
-        result = self.actual_bidirectional_processing_logic(di_to_process_idx)
+        center_di = self.depth_image_library._images[di_to_process_idx] # Get the DI
+        result = self.actual_bidirectional_processing_logic(di_to_process_idx) # This call processes center_di
         
-        # Ensure result dict has standard fields
-        if result.get('success'): # Only add these if successful
-            result['processed_frame_timestamp'] = self.depth_image_library._images[di_to_process_idx].timestamp
+        if result.get('success'):
+            result['processed_frame_timestamp'] = center_di.timestamp # Use center_di's timestamp
             # 'frame_index' should already be set by actual_bidirectional_processing_logic
-            result.setdefault('label_counts', {}) # Ensure label_counts exists
+            result.setdefault('label_counts', {})
+            result['processed_di'] = center_di # <<< ADD THIS (it's the DI that was processed)
         return result
 
     # --- The main decision-making method (from processing.py or defined here) ---
-    # This was previously named `decide_and_process_frame`
-    # Let's assume it's defined in processing.py and imported, or defined directly here.
-    # For clarity, defining it here based on the previous logic.
     
     def decide_and_process_frame(self, is_end_of_sequence: bool = False) -> Optional[Dict]:
         library_len = len(self.depth_image_library._images)

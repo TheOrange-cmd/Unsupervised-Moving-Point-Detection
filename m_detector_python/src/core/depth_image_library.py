@@ -1,12 +1,7 @@
-"""
-Manages a collection of DepthImage objects, typically with a fixed maximum size,
-acting as a sliding window of recent depth image data.
-"""
-
 # src/core/depth_image_library.py
 
 import collections
-from typing import List, Optional, Deque
+from typing import List, Optional, Deque, Tuple # Added Tuple
 from .depth_image import DepthImage 
 
 class DepthImageLibrary:
@@ -81,8 +76,6 @@ class DepthImageLibrary:
         closest_image: Optional[DepthImage] = None
         min_time_diff = float('inf')
         
-        # For 'before' and 'after', we might need to find the best candidate
-        # that satisfies the condition, not just the absolute closest.
         candidate_images: List[DepthImage] = []
 
         if mode == 'closest':
@@ -102,12 +95,11 @@ class DepthImageLibrary:
             if time_diff < min_time_diff:
                 min_time_diff = time_diff
                 closest_image = image
-            # Special handling for 'before' and 'after' to get the *closest* that satisfies the boundary
             elif time_diff == min_time_diff:
                 if mode == 'before' and image.timestamp > (closest_image.timestamp if closest_image else -float('inf')):
-                    closest_image = image # Prefer later timestamp if equally close for 'before'
+                    closest_image = image 
                 elif mode == 'after' and image.timestamp < (closest_image.timestamp if closest_image else float('inf')):
-                    closest_image = image # Prefer earlier timestamp if equally close for 'after'
+                    closest_image = image 
                     
         return closest_image
 
@@ -123,6 +115,40 @@ class DepthImageLibrary:
         """
         return len(self._images) >= min_images
 
+    # --- START: New methods for map consistency ---
+    def get_relevant_past_images(self, current_timestamp: float, time_window_s: float) -> List[Tuple[int, DepthImage]]:
+        """
+        Retrieves past images within a specified time window from the current_timestamp.
+        Returns a list of (original_index_in_deque, DepthImage) tuples, sorted by
+        timestamp closest to current_timestamp first (i.e., most recent past images first).
+        """
+        relevant_dis: List[Tuple[int, DepthImage]] = []
+        # Iterate with index, as MDetector might use the original_index_in_deque for context
+        for i, di_candidate in enumerate(self._images):
+            if di_candidate.timestamp < current_timestamp and \
+               (current_timestamp - di_candidate.timestamp) <= time_window_s:
+                relevant_dis.append((i, di_candidate))
+        
+        # Sort by time difference to current_timestamp, ascending (closest first)
+        relevant_dis.sort(key=lambda x: current_timestamp - x[1].timestamp)
+        return relevant_dis
+
+    def get_relevant_future_images(self, current_timestamp: float, time_window_s: float) -> List[Tuple[int, DepthImage]]:
+        """
+        Retrieves future images within a specified time window from the current_timestamp.
+        Returns a list of (original_index_in_deque, DepthImage) tuples, sorted by
+        timestamp closest to current_timestamp first (i.e., nearest future images first).
+        """
+        relevant_dis: List[Tuple[int, DepthImage]] = []
+        for i, di_candidate in enumerate(self._images):
+            if di_candidate.timestamp > current_timestamp and \
+               (di_candidate.timestamp - current_timestamp) <= time_window_s:
+                relevant_dis.append((i, di_candidate))
+        
+        # Sort by time difference to current_timestamp, ascending (closest first)
+        relevant_dis.sort(key=lambda x: x[1].timestamp - current_timestamp)
+        return relevant_dis
+    # --- END: New methods for map consistency ---
 
     def __len__(self) -> int:
         """Return the number of DepthImages currently in the library."""
