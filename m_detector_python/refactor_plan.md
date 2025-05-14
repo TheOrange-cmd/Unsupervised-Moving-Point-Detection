@@ -17,7 +17,7 @@ Phase 0: Setup & Baseline
 
 Phase 1: Core DepthImage Refactoring (Foundation for NPZ Output & Performance)
 
-    Goal: Modify DepthImage to store full, ordered arrays for original points, labels, and scores, and make pixel_points a lightweight structure linking to these arrays.
+    Goal: Modify DepthImage to store full, ordered arrays for original points, labels, iand scores, and make pixel_points a lightweight structure linking to these arrays.
 
     Detailed Steps:
 

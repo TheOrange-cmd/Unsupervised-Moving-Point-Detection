@@ -8,9 +8,9 @@ import sys # For stderr
 
 # --- Configuration ---
 # File extensions to copy
-TARGET_EXTENSIONS = {'.py', }
+TARGET_EXTENSIONS = {'.h', '.hpp', '.cpp'}
 # Source folders within the repo to search for files to copy
-SOURCE_FOLDERS = ['src', ]
+SOURCE_FOLDERS = ['src', 'include']
 # Output filename for the structure summary
 STRUCTURE_FILENAME = 'structure.txt'
 # Character to replace directory separators with during flattening

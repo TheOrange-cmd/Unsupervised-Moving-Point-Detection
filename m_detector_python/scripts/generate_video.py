@@ -1,7 +1,7 @@
 # scripts/generate_video.py
 import yaml
 import os
-import numpy as np
+# import numpy as np # Not directly needed here for loading NPZ anymore
 from nuscenes.nuscenes import NuScenes
 import sys
 from tqdm import tqdm
@@ -11,82 +11,92 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
-# Import the main generator and a specific composer
-from src.visualization.video_generator import generate_video_from_npz_list
-from src.visualization.frame_composers import compose_gt_vs_mdet_frame 
+# Import the HDF5 version of the generator
+from src.visualization.video_generator import generate_video_from_hdf5_list 
+from src.visualization.frame_composers import compose_gt_vs_mdet_frame
 
 def main():
-    config_path = 'config/m_detector_config.yaml' # Ensure this path is correct
+    config_path = 'config/m_detector_config.yaml'
     if not os.path.isabs(config_path) and PROJECT_ROOT:
         config_path = os.path.join(PROJECT_ROOT, config_path)
-        
+
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
-    
+
     nusc = NuScenes(
         version=config['nuscenes']['version'],
         dataroot=config['nuscenes']['dataroot'],
-        verbose=config.get('nuscenes',{}).get('verbose', False) # Less verbose for script
+        verbose=config.get('nuscenes',{}).get('verbose', False)
     )
-    
-    viz_cfg = config.get('visualization', {})
-    video_gen_cfg = viz_cfg.get('video_generation', {})
 
-    scene_index_to_process = video_gen_cfg.get('scene_index_for_video', 0)
+    # viz_cfg = config.get('visualization', {})
+    video_gen_cfg = config.get('video_generation', {})
+
+    # Ensure the GT label path in the config points to the HDF5 GT labels directory
+    # This is used by compose_gt_vs_mdet_frame -> get_gt_dynamic_points_for_sweep
+    gt_label_path_config = config.get('nuscenes', {}).get('label_path', '')
+    if not gt_label_path_config or not os.path.isdir(gt_label_path_config):
+        tqdm.write(f"Warning: `config['nuscenes']['label_path']` ('{gt_label_path_config}') "
+                   f"is not set or not a valid directory. "
+                   f"This path should point to your HDF5 GT label files for video generation.")
+    # Example check for one GT file (optional, but good for user feedback)
+    # scene_for_gt_check = nusc.scene[0]['name'] # Check for first scene as an example
+    # expected_gt_hdf5 = os.path.join(gt_label_path_config, f"gt_point_labels_{scene_for_gt_check}.h5")
+    # if not os.path.exists(expected_gt_hdf5) and gt_label_path_config:
+    #     tqdm.write(f"  Potentially missing GT HDF5 file: {expected_gt_hdf5}")
+
+
+    scene_index_to_process = video_gen_cfg.get('default_scene_index', 0)
+    if scene_index_to_process < 0 or scene_index_to_process >= len(nusc.scene):
+        tqdm.write(f"Error: default_scene_index ({scene_index_to_process}) is out of bounds (0-{len(nusc.scene)-1}).")
+        return
     scene_rec = nusc.scene[scene_index_to_process]
     scene_name = scene_rec['name']
     scene_token = scene_rec['token']
 
-    # --- NPZ File Path(s) ---
-    # For now, expects one NPZ file. Future: could be a list.
-    npz_dir = video_gen_cfg.get('mdetector_results_directory', 'output/mdetector_results')
-    if not os.path.isabs(npz_dir) and PROJECT_ROOT:
-        npz_dir = os.path.join(PROJECT_ROOT, npz_dir)
+    # --- HDF5 File Path(s) for M-Detector Results ---
+    # Update config keys if necessary (e.g., from npz_dir to hdf5_dir)
+    mdet_results_dir = config.get('mdetector_output').get('save_path')
+    if not os.path.isabs(mdet_results_dir) and PROJECT_ROOT:
+        mdet_results_dir = os.path.join(PROJECT_ROOT, mdet_results_dir)
+    hdf5_filename_template = f"mdet_results_{scene_name}.h5"
 
-    npz_filename_template = video_gen_cfg.get('npz_filename_template', "mdetector_results_scene_{scene_name}.npz")
-    npz_filename = npz_filename_template.format(scene_name=scene_name)
-    mdetector_results_npz_filepath = os.path.join(npz_dir, npz_filename)
+    mdet_results_filename = hdf5_filename_template.format(scene_name=scene_name)
+    mdetector_results_hdf5_filepath = os.path.join(mdet_results_dir, mdet_results_filename)
 
-    if not os.path.exists(mdetector_results_npz_filepath):
-        tqdm.write(f"Error: M-Detector results NPZ file not found: {mdetector_results_npz_filepath}")
+    if not os.path.exists(mdetector_results_hdf5_filepath):
+        tqdm.write(f"Error: M-Detector results HDF5 file not found: {mdetector_results_hdf5_filepath}")
+        tqdm.write(f"Please ensure 'mdetector_results_directory' and 'hdf5_filename_template' (or 'npz_filename_template' adapted to .h5) in your config are correct.")
         return
 
-    tqdm.write(f"Loading M-Detector results from: {mdetector_results_npz_filepath}")
-    try:
-        mdetector_npz_data = np.load(mdetector_results_npz_filepath, allow_pickle=True)
-    except Exception as e:
-        tqdm.write(f"Error loading NPZ file: {e}")
-        return
-    
-    list_of_npz_for_video = [mdetector_npz_data] # For now, one NPZ
+    # `generate_video_from_hdf5_list` expects a list of file paths
+    list_of_hdf5_paths_for_video = [mdetector_results_hdf5_filepath]
+    tqdm.write(f"Using M-Detector results from: {mdetector_results_hdf5_filepath}")
 
     # --- Output Video Path ---
-    output_video_filename_template = video_gen_cfg.get('output_video_filename_template', 
-                                           "scene_{scene_name}_comparison_video.mp4")
+    output_video_filename_template = "scene_{scene_name}_comparison_video.mp4"
     output_video_filename = output_video_filename_template.format(scene_name=scene_name)
-    
+
     output_dir = video_gen_cfg.get('output_directory', 'output/videos')
     if not os.path.isabs(output_dir) and PROJECT_ROOT:
         output_dir = os.path.join(PROJECT_ROOT, output_dir)
     os.makedirs(output_dir, exist_ok=True)
     output_video_path = os.path.join(output_dir, output_video_filename)
-    
+
     tqdm.write(f"Starting video generation for scene: {scene_name}")
     tqdm.write(f"Output will be saved to: {output_video_path}")
 
-    # --- Choose Frame Composer ---
-    # For now, we hardcode to GT vs MDet. Future: could be config-driven.
     selected_frame_composer = compose_gt_vs_mdet_frame
 
-    video_results = generate_video_from_npz_list(
+    video_results = generate_video_from_hdf5_list( 
         nusc=nusc,
         scene_token=scene_token,
-        list_of_mdetector_npz_data=list_of_npz_for_video,
+        list_of_mdetector_hdf5_paths=list_of_hdf5_paths_for_video, 
         output_video_path=output_video_path,
         frame_composer_function=selected_frame_composer,
-        config=config 
+        config=config
     )
-    
+
     if video_results and video_results.get('frames_rendered', 0) > 0:
         tqdm.write(f"Video generation successful: {video_results.get('video_path')}")
     else:

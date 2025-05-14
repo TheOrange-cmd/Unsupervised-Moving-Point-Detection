@@ -11,19 +11,19 @@ nuscenes:
 
 processing:
   skip_frames: 0
-  max_frames: 30 # set to null (without quotes) to process all frames
+  max_frames: null # set to null (without quotes) to process all frames
 
 mdetector_output:
   save_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output" # Directory where M-Detector outputs will be saved
-  scene_indices_to_run: [1] # List of scene indices to run M-Detector on, or 'all'
+  scene_indices_to_run: 'all' # List of scene indices to run M-Detector on, or 'all'
 
 # --- M-Detector General Parameters ---
 # Based on the paper (Nature Communications | (2024) 15:345) and Supplementary Info.
 # These will likely require tuning for NuScenes and specific LiDARs.
 
 temporal_processing:
-  bidirectional: true  # Enable/disable bidirectional processing
-  past_window_size: 1  # Number of past frames to use
+  bidirectional: false  # Enable/disable bidirectional processing
+  past_window_size: 5 # Number of past frames to use
   future_window_size: 1  # Number of future frames to use
   past_weight: 1.0  # Weight for past frame results (optional)
   future_weight: 1.0  # Weight for future frame results (optional)
@@ -99,7 +99,6 @@ video_generation:
   fps: 20
   default_scene_index: 0 # Example, choose a scene index from your dataset
   output_directory: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output" # Store comparison videos here
-
   figure_size_side_by_side: [20, 10] # Inches: [width, height] for the whole figure with 2 subplots
   
   bev_range_meters: 50
@@ -138,8 +137,8 @@ depth_image:
   # Velodyne HDL-32E (common in NuScenes):
   # Horizontal: ~0.1° to ~0.4° (density varies).
   # Vertical: 32 beams, ~1.33° between beams. FoV: +10.67° to -30.67°.
-  resolution_h_deg: 0.4   # Azimuthal (phi) resolution
-  resolution_v_deg: 1.4   # Polar/Elevation (theta) resolution
+  resolution_h_deg: 0.2   # Azimuthal (phi) resolution
+  resolution_v_deg: 1.0   # Polar/Elevation (theta) resolution
 
   # Field of View for the depth image.
   # Azimuthal: Full 360 degrees.
@@ -156,8 +155,8 @@ depth_image:
 
 # Occlusion Check Parameters (Values are examples, need tuning)
 occlusion_check:
-  epsilon_depth_occlusion: 0.7   # (εd) meters. Depth threshold for occlusion.
-  neighbor_search_pixels_h: 1    # (nh) Number of horizontal neighbor pixels to check (0 for center only, 1 for 3xN_v).
+  epsilon_depth_occlusion: 0.3   # (εd) meters. Depth threshold for occlusion.
+  neighbor_search_pixels_h: 2    # (nh) Number of horizontal neighbor pixels to check (0 for center only, 1 for 3xN_v).
   neighbor_search_pixels_v: 1    # (nv) Number of vertical neighbor pixels to check (0 for center only, 1 for N_h x 3).
   angular_threshold_deg_h: 2.0   # (εh) Horizontal angular threshold for point-based check (degrees).
   angular_threshold_deg_v: 2.0   # (εv) Vertical angular threshold for point-based check (degrees).
@@ -189,17 +188,17 @@ map_consistency_check:
 # Event Detection Test Parameters (Values are examples, need tuning)
 event_tests:
   test1_N_depth_images: 5     # Test 1: Num recent depth images to check
-  test1_M1_threshold: 2       # Test 1: Min occluded background images
+  test1_M1_threshold: 3       # Test 1: Min occluded background images
   test2_M2_depth_images: 3    # Test 2: Num images for moving away check
   test3_M3_depth_images: 3    # Test 3: Num images for moving towards check
 
 # Initialization Phase
 initialization:
   # number of initial sweeps to build initial depth images before starting event detection.
-  num_initial_sweeps_for_map: 1 
+  num_initial_sweeps_for_map: 3 
 
 # Point Processing
 filtering:
   # Max range for points to be considered for M-detector (meters)
-  max_point_range_meters: 80.0
+  max_point_range_meters: 50.0
   min_point_range_meters: 1.0 # Ignore points too close to the sensor

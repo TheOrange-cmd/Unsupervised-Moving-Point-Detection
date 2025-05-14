@@ -1,0 +1,21 @@
+         3289844 function calls (3254919 primitive calls) in 225.124 seconds
+
+   Ordered by: cumulative time
+   List reduced from 3866 to 15 due to restriction <15>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+   1267/1    0.025    0.000  225.127  225.127 {built-in method builtins.exec}
+        1    1.023    1.023  223.473  223.473 validation_utils.py:957(calculate_metrics_for_experiment_hdf5)
+       10    5.920    0.592  222.383   22.238 validation_utils.py:769(calculate_metrics_for_scene_hdf5)
+       70  202.562    2.894  202.672    2.895 dataset.py:722(__getitem__)
+71004/55094    5.223    0.000   12.741    0.000 {built-in method numpy.core._multiarray_umath.implement_array_function}
+     3915    0.419    0.000    7.852    0.002 validation_utils.py:140(calculate_point_metrics_for_sweep)
+    39230    6.707    0.000    6.707    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+    15660    0.017    0.000    5.372    0.000 <__array_function__ internals>:2(stack)
+    15660    0.075    0.000    5.307    0.000 shape_base.py:357(stack)
+    15821    0.019    0.000    5.171    0.000 <__array_function__ internals>:2(concatenate)
+     7830    0.010    0.000    4.751    0.001 <__array_function__ internals>:2(norm)
+     7830    0.502    0.000    4.730    0.001 linalg.py:2363(norm)
+    27405    0.024    0.000    2.630    0.000 <__array_function__ internals>:2(sum)
+    27405    0.040    0.000    2.578    0.000 fromnumeric.py:2123(sum)
+    31400    0.061    0.000    2.574    0.000 fromnumeric.py:69(_wrapreduction)

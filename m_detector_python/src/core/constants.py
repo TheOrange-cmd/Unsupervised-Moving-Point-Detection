@@ -18,6 +18,15 @@ class OcclusionResult(Enum):
     UNDETERMINED = 3      # Cannot determine the occlusion relationship (e.g., point outside FoV, or within epsilon thresholds).
 
 POINT_LABEL_DTYPE = np.dtype([
+    # Sensor-frame coordinates (for on-the-fly filtering during evaluation)
+    ('x_sensor', np.float32),
+    ('y_sensor', np.float32),
+    ('z_sensor', np.float32),
+
+    # Global-frame coordinates (for verification and direct use in metrics)
+    ('x', np.float32),    
+    ('y', np.float32),  
+    ('z', np.float32),    
     ('instance_token', 'S32'),  # 32-byte string for instance token
     ('category_name', 'S64'),   # 64-byte string for category name (e.g., 'vehicle.car')
     ('velocity_x', np.float32), # Global velocity x of the object the point belongs to
