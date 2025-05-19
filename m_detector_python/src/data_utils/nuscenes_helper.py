@@ -185,7 +185,7 @@ class NuScenesProcessor:
             
             if mdet_result and mdet_result.get('success'):
                 processed_di_object = mdet_result.get('processed_di')
-                processed_timestamp = mdet_result.get('processed_frame_timestamp')
+                processed_timestamp = mdet_result.get('timestamp')
 
                 if processed_di_object and processed_timestamp is not None:
                     original_sweep_for_this_output = fed_sweep_data_by_timestamp.get(processed_timestamp)
@@ -215,7 +215,7 @@ class NuScenesProcessor:
                 
                 if mdet_result and mdet_result.get('success'):
                     processed_di_object = mdet_result.get('processed_di')
-                    processed_timestamp = mdet_result.get('processed_frame_timestamp')
+                    processed_timestamp = mdet_result.get('timestamp')
 
                     if processed_di_object and processed_timestamp is not None:
                         original_sweep_for_this_output = fed_sweep_data_by_timestamp.get(processed_timestamp)
@@ -239,7 +239,7 @@ class NuScenesProcessor:
                 if flush_counter >= max_flush_attempts:
                     tqdm.write("Warning: Max flush attempts reached. Breaking flush loop.")
                     break
-        self.logger.debug(f"--- INSPECTING collected_mdetector_outputs_for_npz_assembly (count: {len(collected_mdetector_outputs)}) ---")
+        self.logger.debug(f"--- INSPECTING collected_mdetector_outputs (count: {len(collected_mdetector_outputs)}) ---")
         for idx, output_item_debug in enumerate(collected_mdetector_outputs):
             original_sweep_ref_debug = output_item_debug['original_sweep_data']
             processed_di_debug = output_item_debug.get('processed_di_object_ref')
@@ -262,15 +262,15 @@ class NuScenesProcessor:
                 self.logger.debug(f"  DI Valid: False (processed_di_object_ref is None)")
         self.logger.debug("--- END INSPECTION ---")
 
-         # --- Phase 3: Assemble NPZ data from collected outputs ---
+         # --- Phase 3: Assemble data from collected outputs ---
         if not collected_mdetector_outputs:
-            tqdm.write(f"No successful M-Detector outputs collected for scene {scene_rec['name']} to save to NPZ.")
+            tqdm.write(f"No successful M-Detector outputs collected for scene {scene_rec['name']} to save to hdf5.")
             return None
 
         collected_mdetector_outputs.sort(key=lambda x: x['original_sweep_data']['timestamp'])
 
-        npz_sweep_lidar_sd_tokens_list: List[str] = []
-        npz_sweep_timestamps_us_list: List[int] = []
+        sweep_lidar_sd_tokens_list: List[str] = []
+        sweep_timestamps_us_list: List[int] = []
         # Add other per-sweep metadata if needed, e.g., calibrated sensor tokens, T_global_lidar
 
         # For the new structured array:
@@ -290,24 +290,24 @@ class NuScenesProcessor:
             original_sweep_ref = output_item['original_sweep_data']
             processed_di = output_item.get('processed_di_object_ref') 
 
-            npz_sweep_lidar_sd_tokens_list.append(original_sweep_ref['lidar_sd_token'])
-            npz_sweep_timestamps_us_list.append(original_sweep_ref['timestamp'])
+            sweep_lidar_sd_tokens_list.append(original_sweep_ref['lidar_sd_token'])
+            sweep_timestamps_us_list.append(original_sweep_ref['timestamp'])
 
             # --- More detailed check and logging ---
-            valid_di_for_npz = False
+            valid_di = False
             if processed_di:
                 if processed_di.original_points_global_coords is not None and \
                    processed_di.mdet_labels_for_points is not None:
                     # Check if shapes match if both exist and are not empty
                     if processed_di.original_points_global_coords.shape[0] == 0 and \
                        processed_di.mdet_labels_for_points.shape[0] == 0:
-                        valid_di_for_npz = True # Empty but consistent DI
+                        valid_di = True # Empty but consistent DI
                     elif processed_di.original_points_global_coords.shape[0] > 0 and \
                          processed_di.mdet_labels_for_points.shape[0] == processed_di.original_points_global_coords.shape[0]:
-                        valid_di_for_npz = True # Non-empty and consistent
+                        valid_di = True # Non-empty and consistent
                     else:
                         self.logger.warning(
-                            f"NPZ Assembly: Shape mismatch for sweep {original_sweep_ref['lidar_sd_token']}. "
+                            f"HDF5 Assembly: Shape mismatch for sweep {original_sweep_ref['lidar_sd_token']}. "
                             f"Points shape: {processed_di.original_points_global_coords.shape}, "
                             f"Labels shape: {processed_di.mdet_labels_for_points.shape}. Treating as invalid."
                         )
@@ -315,14 +315,14 @@ class NuScenesProcessor:
                     points_status = "None" if processed_di.original_points_global_coords is None else f"Shape {processed_di.original_points_global_coords.shape}"
                     labels_status = "None" if processed_di.mdet_labels_for_points is None else f"Shape {processed_di.mdet_labels_for_points.shape}"
                     self.logger.warning(
-                        f"NPZ Assembly: Point or Label array is None for sweep {original_sweep_ref['lidar_sd_token']}. "
+                        f"HDF5 Assembly: Point or Label array is None for sweep {original_sweep_ref['lidar_sd_token']}. "
                         f"Points: {points_status}, Labels: {labels_status}. Treating as invalid."
                     )
             else:
-                self.logger.warning(f"NPZ Assembly: processed_di object itself is None for sweep {original_sweep_ref['lidar_sd_token']}. This should not happen if it's in collected_outputs.")
+                self.logger.warning(f"HDF5 Assembly: processed_di object itself is None for sweep {original_sweep_ref['lidar_sd_token']}. This should not happen if it's in collected_outputs.")
             # --- End detailed check ---
 
-            if valid_di_for_npz:
+            if valid_di:
                 points_xyz_sweep = processed_di.original_points_global_coords
                 labels_sweep_numeric = processed_di.mdet_labels_for_points
                 num_points_in_sweep = points_xyz_sweep.shape[0]
@@ -347,24 +347,24 @@ class NuScenesProcessor:
                 all_points_predictions_list.append(sweep_structured_array)
                 points_predictions_indices.append(points_predictions_indices[-1] + num_points_in_sweep)
             
-            else: # Case where DI is not valid for NPZ point data
+            else: # Case where DI is not valid for HDF5 point data
                 points_predictions_indices.append(points_predictions_indices[-1])
 
         # Concatenate all structured arrays for the scene
         final_all_points_predictions = np.concatenate(all_points_predictions_list) if all_points_predictions_list else \
                                        np.empty(0, dtype=structured_array_dtype)
 
-        # Save config to NPZ
+        # Save config to HDF5
         config_str = json.dumps(self.config, sort_keys=True, indent=4)
 
-        output_data_for_npz = {
+        output_data = {
             'scene_token': np.array([scene_rec['token']], dtype='S36'), # For reference
-            'sweep_lidar_sd_tokens': np.array(npz_sweep_lidar_sd_tokens_list, dtype='S36'),
-            'sweep_timestamps_us': np.array(npz_sweep_timestamps_us_list, dtype=np.int64),
+            'sweep_lidar_sd_tokens': np.array(sweep_lidar_sd_tokens_list, dtype='S36'),
+            'sweep_timestamps_us': np.array(sweep_timestamps_us_list, dtype=np.int64),
             # Add other per-sweep metadata arrays if needed (e.g., T_global_lidar)
             
             'all_points_predictions': final_all_points_predictions, # The main structured array
             'points_predictions_indices': np.array(points_predictions_indices, dtype=np.int64),
             '_config_json_str': np.array(config_str) # Save config as a string
         }
-        return output_data_for_npz
+        return output_data

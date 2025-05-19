@@ -126,7 +126,7 @@ class DepthImageLibrary:
         # Iterate with index, as MDetector might use the original_index_in_deque for context
         for i, di_candidate in enumerate(self._images):
             if di_candidate.timestamp < current_timestamp and \
-               (current_timestamp - di_candidate.timestamp) <= time_window_s:
+               (current_timestamp - di_candidate.timestamp) <= time_window_s * 1e6:
                 relevant_dis.append((i, di_candidate))
         
         # Sort by time difference to current_timestamp, ascending (closest first)
@@ -142,7 +142,7 @@ class DepthImageLibrary:
         relevant_dis: List[Tuple[int, DepthImage]] = []
         for i, di_candidate in enumerate(self._images):
             if di_candidate.timestamp > current_timestamp and \
-               (di_candidate.timestamp - current_timestamp) <= time_window_s:
+               (di_candidate.timestamp - current_timestamp) <= time_window_s * 1e6:
                 relevant_dis.append((i, di_candidate))
         
         # Sort by time difference to current_timestamp, ascending (closest first)

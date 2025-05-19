@@ -13,6 +13,7 @@ import logging
 from ..depth_image import DepthImage
 from ..depth_image_library import DepthImageLibrary
 from ..constants import OcclusionResult
+from ..debug_collector import PointDebugCollector
 
 logger = logging.getLogger(__name__) # Module-level logger
 
@@ -35,13 +36,20 @@ class MDetector:
         # Load configuration sections
         self._load_occlusion_check_config()
         self._load_map_consistency_config()
-        self._load_temporal_processing_config() # This will set self.use_bidirectional
+        self._load_temporal_processing_config()
 
         # State for processing flow
         self.timestamp_of_last_processed_di: Optional[float] = None 
         self.current_lidar_sd_token: Optional[str] = None # Still useful for MDetector's internal reference if needed
+        self.debug_collector: Optional[PointDebugCollector] = None # Add this line
 
         self.logger.info("MDetector initialized successfully.")
+
+    def set_debug_collector(self, collector: Optional[PointDebugCollector]) -> None:
+        """
+        Sets or clears the debug collector for tracing point processing.
+        """
+        self.debug_collector = collector
     
     def reset_scene_state(self):
         """Resets internal state for processing a new scene."""
@@ -62,13 +70,15 @@ class MDetector:
     def _load_map_consistency_config(self):
         mc_cfg = self.config.get('map_consistency_check', {})
         self.map_consistency_enabled = mc_cfg.get('enabled', True)
-        self.map_consistency_time_window_past_s = mc_cfg.get('map_consistency_time_window_past_s', 3)
-        self.map_consistency_time_window_future_s = mc_cfg.get('map_consistency_time_window_future_s', 3) 
+        self.map_consistency_time_window_past_s = mc_cfg.get('map_consistency_time_window_past_s', 0.25)
+        self.map_consistency_time_window_future_s = mc_cfg.get('map_consistency_time_window_future_s', 0.25) 
         self.epsilon_phi_map_rad = np.deg2rad(mc_cfg.get('epsilon_phi_map_deg', 1.0))
         self.epsilon_theta_map_rad = np.deg2rad(mc_cfg.get('epsilon_theta_map_deg', 1.0))
         self.epsilon_depth_forward_map = mc_cfg.get('epsilon_depth_forward_map', 0.3)
         self.epsilon_depth_backward_map = mc_cfg.get('epsilon_depth_backward_map', 0.3)
-        self.map_consistency_threshold = mc_cfg.get('consistency_threshold', 0.5) # Used by is_map_consistent
+        self.mc_threshold_mode = mc_cfg.get('threshold_mode', 'count').lower()
+        self.mc_threshold_value_count = mc_cfg.get('threshold_value_count', 1)
+        self.mc_threshold_value_ratio = mc_cfg.get('threshold_value_ratio', 0.5)
 
         config_label_strings = mc_cfg.get('static_labels_for_map_check', [])
         self.static_labels_for_map_check = []
@@ -140,17 +150,6 @@ class MDetector:
         
         filtered_points_global = points_global[range_mask]
         
-        # Initial label for points in a new DI
-        # This might be "pending_classification" or "non_event" based on readiness
-        # The actual processing functions (causal/bidirectional) will update these.
-        initial_label_for_new_di_points = "pending_classification" 
-        # Or: initial_label_for_new_di_points = OcclusionResult.UNDETERMINED
-        # This initial label is important for map_consistency checks if they run before full processing.
-        # The `process_and_label_di` and `process_and_label_di_bidirectional` functions
-        # are responsible for setting the final pt_info['label'].
-        
-        # batch_labels = [initial_label_for_new_di_points] * len(filtered_points_global)
-        
         current_di.add_points_batch(
             points_global_batch=filtered_points_global
         )
@@ -173,46 +172,21 @@ class MDetector:
     )
     
     # --- Core Processing Logic (from processing.py) ---
-    from .processing import process_and_label_di as actual_causal_processing_logic
+    from .processing import process_and_label_di
 
     def _process_causal_di_wrapper(self, di_to_process_idx: int) -> Dict:
         """Wrapper for causal processing of a specific DI."""
-        current_di = self.depth_image_library._images[di_to_process_idx]
-        historical_di = None
-        if di_to_process_idx > 0:
-            historical_di = self.depth_image_library._images[di_to_process_idx - 1]
-        
-        # Call the imported actual_causal_processing_logic
-        # This function (process_and_label_di) needs to be defined in processing.py
-        # and take (self, current_di, historical_di)
-        result = self.actual_causal_processing_logic(current_di, historical_di) 
-        
-        result['processed_frame_timestamp'] = current_di.timestamp
-        result['frame_index'] = di_to_process_idx
-        result.setdefault('success', True) 
-        result.setdefault('label_counts', {})
-        result['processed_di'] = current_di # <<< ADD THIS
-        return result
+        current_di = self.depth_image_library.get_image_by_index(di_to_process_idx)
+        if not current_di:
+            self.logger.error(f"Causal Wrapper: Could not get DI at index {di_to_process_idx}.")
+            # Return a structure indicating failure but including a processed_di=None
+            return {'success': False, 'reason': 'DI not found at index', 
+                    'processed_frame_timestamp': None, 'processed_di': None}
 
-    # --- Temporal Processing Logic (from temporal.py) ---
-    # `process_and_label_di_bidirectional` is the main bidirectional function.
-    # `_determine_final_label` and `_determine_final_label_bidirectional_simplified` are helpers.
-    from .temporal import (
-        process_and_label_di_bidirectional as actual_bidirectional_processing_logic,
-        _determine_final_label, # If used by a different temporal strategy
-        _determine_final_label_bidirectional_simplified
-    )
-
-    def _process_bidirectional_di_wrapper(self, di_to_process_idx: int) -> Dict:
-        """Wrapper for bidirectional processing of a specific DI."""
-        center_di = self.depth_image_library._images[di_to_process_idx] # Get the DI
-        result = self.actual_bidirectional_processing_logic(di_to_process_idx) # This call processes center_di
+        # Pass current_di and its index in the library
+        result = self.process_and_label_di(current_di, di_to_process_idx)
         
-        if result.get('success'):
-            result['processed_frame_timestamp'] = center_di.timestamp # Use center_di's timestamp
-            # 'frame_index' should already be set by actual_bidirectional_processing_logic
-            result.setdefault('label_counts', {})
-            result['processed_di'] = center_di # <<< ADD THIS (it's the DI that was processed)
+        result.setdefault('frame_index', di_to_process_idx)
         return result
 
     # --- The main decision-making method (from processing.py or defined here) ---
@@ -220,88 +194,24 @@ class MDetector:
     def decide_and_process_frame(self, is_end_of_sequence: bool = False) -> Optional[Dict]:
         library_len = len(self.depth_image_library._images)
 
-        if self.use_bidirectional:
-            # --- Bidirectional Logic ---
-            if is_end_of_sequence:
-                # --- Flushing Logic (Timestamp-based) ---
-                next_di_to_flush: Optional[DepthImage] = None
-                idx_of_next_di_to_flush: Optional[int] = None
-                min_eligible_timestamp = float('inf')
+        if not self.is_ready_for_processing(): # Basic readiness (e.g. min sweeps)
+            return {'success': False, 'reason': 'Causal: MDetector not ready (min sweeps)', 'processed_frame_timestamp': None}
+        if library_len == 0:
+            return {'success': False, 'reason': 'Causal: No images in library', 'processed_frame_timestamp': None}
+        
+        target_idx_in_deque = library_len - 1 # Index of the latest frame in the deque
+        target_di_candidate = self.depth_image_library._images[target_idx_in_deque]
 
-                current_library_snapshot = list(self.depth_image_library._images) # Iterate a snapshot
-
-                for i, di_candidate in enumerate(current_library_snapshot):
-                    # Check if this DI is newer than the last one processed
-                    is_newer = (self.timestamp_of_last_processed_di is None or 
-                                di_candidate.timestamp > self.timestamp_of_last_processed_di)
-                    
-                    if is_newer and di_candidate.timestamp < min_eligible_timestamp:
-                        min_eligible_timestamp = di_candidate.timestamp
-                        # Find the actual current index in the deque, as snapshot indices might not match if deque changed
-                        try:
-                            # This index is relative to the current state of the deque
-                            current_idx_in_deque = self.depth_image_library._images.index(di_candidate)
-                            next_di_to_flush = di_candidate
-                            idx_of_next_di_to_flush = current_idx_in_deque
-                        except ValueError:
-                            self.logger.warning(f"Flush: DI (TS {di_candidate.timestamp}) from snapshot not found in current deque. Skipping.")
-                            continue
-                
-                if next_di_to_flush is not None and idx_of_next_di_to_flush is not None:
-                    self.logger.debug(f"Flushing BI   DI lib_idx: {idx_of_next_di_to_flush} (TS: {next_di_to_flush.timestamp}), lib_len: {library_len}, last_proc_TS: {self.timestamp_of_last_processed_di}")
-                    self.timestamp_of_last_processed_di = next_di_to_flush.timestamp # Update with current DI's timestamp
-                    return self._process_bidirectional_di_wrapper(idx_of_next_di_to_flush)
-                else:
-                    self.logger.info("Bidirectional flush: No more DIs to process or library empty.")
-                    return None # Fully flushed or nothing to flush initially
-
-            else: # --- Normal Bidirectional Operation (Not end_of_sequence) ---
-                if library_len < self.bidirectional_window_size:
-                    return {'success': False, 'reason': 'Bidirectional buffer not full yet', 'processed_frame_timestamp': None}
-                
-                # This index is into the current state of the deque
-                potential_target_idx_in_deque = library_len - 1 - self.bidirectional_center_offset_from_latest
-                
-                # Safety check for the calculated index (should always be valid if lib_len >= window_size)
-                if not (0 <= potential_target_idx_in_deque < library_len):
-                    self.logger.error(f"Logic error: potential_target_idx {potential_target_idx_in_deque} out of bounds for lib_len {library_len}. Window: {self.bidirectional_window_size}, Offset: {self.bidirectional_center_offset_from_latest}")
-                    return {'success': False, 'reason': 'Internal logic error calculating target index', 'processed_frame_timestamp': None}
-
-                target_di_candidate = self.depth_image_library._images[potential_target_idx_in_deque]
-                
-                # Check if the DI at the target slot is newer than the last one processed
-                if self.timestamp_of_last_processed_di is None or \
-                target_di_candidate.timestamp > self.timestamp_of_last_processed_di:
-                    
-                    self.logger.debug(f"Processing BI   DI lib_idx: {potential_target_idx_in_deque} (TS: {target_di_candidate.timestamp}), lib_len: {library_len}, last_proc_TS: {self.timestamp_of_last_processed_di}")
-                    self.timestamp_of_last_processed_di = target_di_candidate.timestamp # Update with current DI's timestamp
-                    return self._process_bidirectional_di_wrapper(potential_target_idx_in_deque)
-                else:
-                    # The DI at the target slot is not newer. This means the window hasn't "slid" enough
-                    # to present a new frame for processing at that slot, or timestamps are equal.
-                    self.logger.info(f"MDetector info: Bidirectional target DI (idx {potential_target_idx_in_deque}, TS: {target_di_candidate.timestamp}) "
-                                    f"is not newer than last processed TS ({self.timestamp_of_last_processed_di}).")
-                    return {'success': False, 'reason': 'Bidirectional target DI not newer than last processed', 'processed_frame_timestamp': None}
-
-        else: # --- Causal Logic (Process latest frame) ---
-            if not self.is_ready_for_processing(): # Basic readiness (e.g. min sweeps)
-                return {'success': False, 'reason': 'Causal: MDetector not ready (min sweeps)', 'processed_frame_timestamp': None}
-            if library_len == 0:
-                return {'success': False, 'reason': 'Causal: No images in library', 'processed_frame_timestamp': None}
+        # Check if this latest DI is newer than the last processed one
+        if self.timestamp_of_last_processed_di is None or \
+        target_di_candidate.timestamp > self.timestamp_of_last_processed_di:
             
-            target_idx_in_deque = library_len - 1 # Index of the latest frame in the deque
-            target_di_candidate = self.depth_image_library._images[target_idx_in_deque]
-
-            # Check if this latest DI is newer than the last processed one
-            if self.timestamp_of_last_processed_di is None or \
-            target_di_candidate.timestamp > self.timestamp_of_last_processed_di:
-                
-                self.logger.debug(f"Processing CAUSAL DI lib_idx: {target_idx_in_deque} (TS: {target_di_candidate.timestamp}), lib_len: {library_len}, last_proc_TS: {self.timestamp_of_last_processed_di}")
-                self.timestamp_of_last_processed_di = target_di_candidate.timestamp # Update with current DI's timestamp
-                return self._process_causal_di_wrapper(target_idx_in_deque)
-            else:
-                # This implies the "latest" frame added was already processed or has same timestamp.
-                # Should be rare in normal operation if timestamps are strictly increasing.
-                self.logger.info(f"MDetector info: Causal target DI (idx {target_idx_in_deque}, TS: {target_di_candidate.timestamp}) "
-                                f"is not newer than last processed TS ({self.timestamp_of_last_processed_di}).")
-                return {'success': False, 'reason': 'Causal target DI not newer than last processed', 'processed_frame_timestamp': None}
+            self.logger.debug(f"Processing CAUSAL DI lib_idx: {target_idx_in_deque} (TS: {target_di_candidate.timestamp}), lib_len: {library_len}, last_proc_TS: {self.timestamp_of_last_processed_di}")
+            self.timestamp_of_last_processed_di = target_di_candidate.timestamp # Update with current DI's timestamp
+            return self._process_causal_di_wrapper(target_idx_in_deque)
+        else:
+            # This implies the "latest" frame added was already processed or has same timestamp.
+            # Should be rare in normal operation if timestamps are strictly increasing.
+            self.logger.info(f"MDetector info: Causal target DI (idx {target_idx_in_deque}, TS: {target_di_candidate.timestamp}) "
+                            f"is not newer than last processed TS ({self.timestamp_of_last_processed_di}).")
+            return {'success': False, 'reason': 'Causal target DI not newer than last processed', 'processed_frame_timestamp': None}

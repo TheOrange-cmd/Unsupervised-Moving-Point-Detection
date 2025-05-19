@@ -1,0 +1,1196 @@
+############################
+FILE: src/__init__.py
+############################
+
+
+############################
+FILE: src/main_runner.py
+############################
+
+# src/main_runner.py
+import yaml
+import numpy as np
+from nuscenes.nuscenes import NuScenes
+
+from core.depth_image import DepthImage
+from data_utils.nuscenes_helper import get_lidar_sweep_data
+from utils.visualization import plot_lidar_sweep_with_depth_image_pixels # Updated import
+
+def run_single_sweep_test(config_path: str):
+    # Load configuration
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+
+    # Initialize NuScenes
+    nusc = NuScenes(version=config['nuscenes']['version'], dataroot=config['nuscenes']['dataroot'], verbose=True)
+
+    # --- Select a sample LiDAR sweep ---
+    # Option 1: Use a predefined token from config (if set)
+    lidar_token = config['nuscenes'].get('lidar_token_to_load')
+    
+    # Option 2: Or get the first LiDAR sweep from a specific scene or the first scene
+    if not lidar_token:
+        scene_name_to_load = config['nuscenes'].get('scene_name_to_load')
+        if scene_name_to_load:
+            scenes_by_name = {s['name']: s for s in nusc.scene}
+            if scene_name_to_load not in scenes_by_name:
+                print(f"Error: Scene '{scene_name_to_load}' not found. Available scenes: {list(scenes_by_name.keys())[:5]}")
+                return
+            scene_token = scenes_by_name[scene_name_to_load]['token']
+        else: # Default to the first scene in the dataset
+            scene_token = nusc.scene[0]['token']
+        
+        scene_info = nusc.get('scene', scene_token)
+        first_sample_token = scene_info['first_sample_token']
+        sample = nusc.get('sample', first_sample_token)
+        lidar_token = sample['data']['LIDAR_TOP']
+        print(f"Using LiDAR token: {lidar_token} from scene: {nusc.get('scene', scene_token)['name']}")
+
+    # Load LiDAR data and pose for the selected sweep
+    points_lidar_frame, T_global_lidar, lidar_timestamp = get_lidar_sweep_data(nusc, lidar_token)
+    print(f"Loaded {points_lidar_frame.shape[0]} points for sweep at {lidar_timestamp:.2f}s.")
+    print(f"LiDAR global pose (T_global_lidar):\n{T_global_lidar}")
+
+    # Create a DepthImage instance
+    # The pose for the DepthImage is the LiDAR's global pose at the time of the sweep
+    di = DepthImage(image_pose_global=T_global_lidar, config=config, timestamp=lidar_timestamp)
+    print(str(di))
+
+    # Add points to the DepthImage
+    # Points are in LiDAR frame, but DepthImage.add_point expects global points.
+    # So, transform points_lidar_frame to global frame first.
+    points_lidar_frame_h = np.hstack((points_lidar_frame, np.ones((points_lidar_frame.shape[0], 1)))) # Nx4
+    points_global_h = (T_global_lidar @ points_lidar_frame_h.T).T # Nx4
+    points_global = points_global_h[:, :3] # Nx3
+
+    # Filter points by range before adding to depth image
+    max_range = config['filtering']['max_point_range_meters']
+    min_range = config['filtering']['min_point_range_meters']
+    
+    for pt_idx, pt_g in enumerate(points_global):
+        # Calculate range from LiDAR origin (which is T_global_lidar[:3,3])
+        # Or, more simply, use range from original points_lidar_frame
+        range_val = np.linalg.norm(points_lidar_frame[pt_idx])
+        if min_range <= range_val <= max_range:
+            di.add_point(pt_g, label="non_event") # Initially all points are non_event
+
+    print(f"After adding points to DepthImage: {str(di)}")
+
+    # Visualize (optional)
+    # For visualization, we can pass points in the LiDAR frame as that's often
+    # the natural frame for the k3d camera setup.
+    plot_lidar_sweep_with_depth_image_pixels(
+        points_lidar_frame, # Pass original points in LiDAR frame for plotting
+        di,
+        point_size=0.05,
+        max_range=max_range
+    )
+
+if __name__ == "__main__":
+    # Make sure to create the config file and update 'dataroot'
+    config_file_path = 'config/m_detector_config.yaml' 
+    run_single_sweep_test(config_file_path)
+
+############################
+FILE: src/core/m_detector.py
+############################
+
+# src/core/m_detector.py
+from enum import Enum
+import numpy as np
+from typing import Tuple, List, Optional, Dict, Any
+
+from .depth_image import DepthImage
+from .depth_image_library import DepthImageLibrary
+
+class OcclusionResult(Enum):
+    """
+    Enumerates the possible outcomes of a pixel-level occlusion check.
+    """
+    UNDETERMINED = 0
+    OCCLUDED_BY_IMAGE = 1  # current_point is further than max_depth in historical DI pixel region
+    OCCLUDING_IMAGE = 2    # current_point is nearer than min_depth in historical DI pixel region
+    EMPTY_IN_IMAGE = 3     # The corresponding region in the historical DI was empty (no points)
+
+class MDetector:
+    """
+    Implements the core logic of the M-Detector algorithm.
+    Manages a library of DepthImages and performs occlusion checks,
+    map consistency, and event detection.
+    """
+    def __init__(self, config: Dict):
+        """
+        Initializes the MDetector.
+
+        Args:
+            config (Dict): The configuration dictionary.
+        """
+        self.config = config
+        self.depth_image_library = DepthImageLibrary(
+            max_size=config['depth_image']['library_size']
+        )
+        self.min_sweeps_for_processing = config['initialization']['num_initial_sweeps_for_map']
+
+        # Occlusion check parameters from config
+        oc_cfg = config['occlusion_check']
+        self.epsilon_depth_occlusion: float = oc_cfg['epsilon_depth_occlusion']
+        self.neighbor_search_pixels_h: int = oc_cfg['neighbor_search_pixels_h']
+        self.neighbor_search_pixels_v: int = oc_cfg['neighbor_search_pixels_v']
+        self.angular_threshold_rad_h: float = np.deg2rad(oc_cfg['angular_threshold_deg_h'])
+        self.angular_threshold_rad_v: float = np.deg2rad(oc_cfg['angular_threshold_deg_v'])
+
+    def add_sweep_and_create_depth_image(self, 
+                                         points_lidar_frame: np.ndarray, 
+                                         T_global_lidar: np.ndarray, 
+                                         lidar_timestamp: float) -> DepthImage:
+        """
+        Creates a DepthImage from a new LiDAR sweep and adds it to the library.
+
+        Args:
+            points_lidar_frame (np.ndarray): Points in the LiDAR sensor's coordinate frame.
+            T_global_lidar (np.ndarray): Global pose of the LiDAR sensor for this sweep.
+            lidar_timestamp (float): Timestamp of the LiDAR sweep.
+
+        Returns:
+            DepthImage: The newly created and populated DepthImage.
+        """
+        current_di = DepthImage(
+            image_pose_global=T_global_lidar,
+            config=self.config,
+            timestamp=lidar_timestamp
+        )
+
+        # Transform points to global frame for DI storage
+        points_lidar_frame_h = np.hstack((points_lidar_frame, np.ones((points_lidar_frame.shape[0], 1))))
+        points_global_h = (T_global_lidar @ points_lidar_frame_h.T).T
+        points_global = points_global_h[:, :3]
+
+        max_range = self.config['filtering']['max_point_range_meters']
+        min_range = self.config['filtering']['min_point_range_meters']
+
+        for pt_idx, pt_g in enumerate(points_global):
+            range_val = np.linalg.norm(points_lidar_frame[pt_idx]) # Range check in sensor frame
+            if min_range <= range_val <= max_range:
+                # During initialization, all points are provisionally non-event.
+                # Otherwise, label will be determined by full M-detector logic later.
+                label = "non_event" if not self.is_ready_for_processing() else "pending_classification"
+                current_di.add_point(pt_g, label=label)
+        
+        self.depth_image_library.add_image(current_di)
+        # print(f"Created DI: {str(current_di)}. Library size: {len(self.depth_image_library)}")
+        return current_di
+
+    def is_ready_for_processing(self) -> bool:
+        """Checks if enough DepthImages have been collected to start full processing."""
+        return self.depth_image_library.is_ready_for_processing(self.min_sweeps_for_processing)
+
+    def check_occlusion_pixel_level(self,
+                                    current_point_global: np.ndarray,
+                                    historical_depth_image: DepthImage
+                                    ) -> Tuple[OcclusionResult, Optional[Tuple[int, int]], Optional[np.ndarray]]:
+        """
+        Performs pixel-level occlusion check for current_point_global against a historical_depth_image.
+        (Corresponds to Test 1 - Fig. 10 in M-Detector paper, using min/max depths in pixel regions).
+
+        Args:
+            current_point_global (np.ndarray): The 3D point (in global frame) from the current scan.
+            historical_depth_image (DepthImage): A historical depth image to compare against.
+
+        Returns:
+            Tuple[OcclusionResult, Optional[Tuple[int, int]], Optional[np.ndarray]]:
+                - The occlusion result enum.
+                - Pixel indices (v_idx, h_idx) in historical_depth_image if projected, else None.
+                - Spherical coordinates (phi, theta, d_curr) of current_point_global in historical_depth_image's frame.
+        """
+        # 1. Project current_point_global into historical_depth_image's frame
+        point_in_hist_di_frame, sph_coords_curr, pixel_indices_in_hist_di = \
+            historical_depth_image.project_point_to_pixel_indices(current_point_global)
+
+        if pixel_indices_in_hist_di is None or sph_coords_curr is None:
+            return OcclusionResult.UNDETERMINED, None, None # Point projects outside historical DI's FoV
+
+        v_idx_curr_proj, h_idx_curr_proj = pixel_indices_in_hist_di
+        d_curr = sph_coords_curr[2] # Depth of current_point w.r.t. historical_depth_image's origin
+
+        # 2. Gather min/max depths from the projected pixel and its neighbors in historical_depth_image
+        min_depth_in_region = float('inf')
+        max_depth_in_region = float('-inf')
+        found_data_in_region = False
+
+        for dv in range(-self.neighbor_search_pixels_v, self.neighbor_search_pixels_v + 1):
+            for dh in range(-self.neighbor_search_pixels_h, self.neighbor_search_pixels_h + 1):
+                check_v_idx = v_idx_curr_proj + dv
+                check_h_idx = h_idx_curr_proj + dh
+
+                if not (0 <= check_v_idx < historical_depth_image.num_pixels_v and
+                        0 <= check_h_idx < historical_depth_image.num_pixels_h):
+                    continue # Neighbor is out of bounds
+
+                pixel_data = historical_depth_image.pixels[check_v_idx, check_h_idx]
+                if pixel_data and pixel_data['points']: # If pixel has data
+                    min_depth_in_region = min(min_depth_in_region, pixel_data['min_depth'])
+                    max_depth_in_region = max(max_depth_in_region, pixel_data['max_depth'])
+                    found_data_in_region = True
+        
+        if not found_data_in_region:
+            return OcclusionResult.EMPTY_IN_IMAGE, pixel_indices_in_hist_di, sph_coords_curr
+
+        # 3. Check occlusion conditions (Eq. 7 and 8 in M-Detector paper, adapted)
+        if d_curr > max_depth_in_region + self.epsilon_depth_occlusion:
+            return OcclusionResult.OCCLUDED_BY_IMAGE, pixel_indices_in_hist_di, sph_coords_curr
+        
+        if d_curr < min_depth_in_region - self.epsilon_depth_occlusion:
+            return OcclusionResult.OCCLUDING_IMAGE, pixel_indices_in_hist_di, sph_coords_curr
+
+        return OcclusionResult.UNDETERMINED, pixel_indices_in_hist_di, sph_coords_curr
+    
+    def process_and_label_di(self,
+                             current_di: DepthImage,
+                             historical_di: Optional[DepthImage]) -> int:
+        """
+        Processes points in current_di against historical_di to determine and store
+        occlusion labels within current_di's point_info structures.
+
+        Args:
+            current_di (DepthImage): The DepthImage whose points are to be labeled.
+            historical_di (Optional[DepthImage]): The historical DepthImage to compare against.
+                                                 If None, points will be labeled as UNDETERMINED.
+
+        Returns:
+            int: The number of points for which labels were updated/assigned.
+        """
+        if not isinstance(current_di, DepthImage):
+            raise TypeError("current_di must be a DepthImage object.")
+
+        points_labeled_count = 0
+        if not historical_di or historical_di.timestamp >= current_di.timestamp:
+            print(f"Warning: No valid (older) historical DI provided for DI @ {current_di.timestamp/1e6:.2f}s. "
+                  f"Points will be labeled as UNDETERMINED.")
+            # Label all points in current_di as UNDETERMINED
+            for v_idx in range(current_di.num_pixels_v):
+                for h_idx in range(current_di.num_pixels_h):
+                    pixel_content = current_di.pixels[v_idx, h_idx]
+                    if pixel_content and pixel_content['points']:
+                        for pt_info in pixel_content['points']:
+                            pt_info['label'] = OcclusionResult.UNDETERMINED
+                            points_labeled_count += 1
+            return points_labeled_count
+
+        # print(f"Labeling points in DI @ {current_di.timestamp/1e6:.2f}s using Hist. DI @ {historical_di.timestamp/1e6:.2f}s")
+        for v_idx in range(current_di.num_pixels_v):
+            for h_idx in range(current_di.num_pixels_h):
+                pixel_content = current_di.pixels[v_idx, h_idx]
+                if pixel_content and pixel_content['points']:
+                    for pt_info in pixel_content['points']:
+                        global_pt = pt_info['global_pt']
+                        
+                        # Perform the pixel-level occlusion check
+                        # This uses the MDetector's own configuration for the check
+                        result, _, _ = self.check_occlusion_pixel_level(global_pt, historical_di)
+                        
+                        # Update the label in the point_info dictionary within current_di
+                        pt_info['label'] = result 
+                        points_labeled_count += 1
+        
+        # print(f"Assigned labels to {points_labeled_count} points in DI @ {current_di.timestamp/1e6:.2f}s.")
+        return points_labeled_count
+
+############################
+FILE: src/core/depth_image_library.py
+############################
+
+# src/core/depth_image_library.py
+
+import collections
+from typing import List, Optional, Deque
+from .depth_image import DepthImage # Assuming DepthImage is in src/core/depth_image.py
+
+class DepthImageLibrary:
+    """
+    Manages a library of DepthImage objects, typically with a fixed maximum size.
+    New images are added, and if the library exceeds its maximum size, the oldest
+    image is discarded.
+    """
+    def __init__(self, max_size: int):
+        """
+        Initializes the DepthImageLibrary.
+
+        Args:
+            max_size (int): The maximum number of DepthImage objects to store.
+                            Must be a positive integer.
+        """
+        if not isinstance(max_size, int) or max_size <= 0:
+            raise ValueError("max_size must be a positive integer.")
+        self.max_size: int = max_size
+        self._images: Deque[DepthImage] = collections.deque(maxlen=max_size)
+
+    def add_image(self, depth_image: DepthImage) -> None:
+        """
+        Adds a new DepthImage to the library.
+        If the library is already at max_size, the oldest image is automatically
+        removed due to the deque's maxlen property.
+
+        Args:
+            depth_image (DepthImage): The DepthImage object to add.
+        """
+        if not isinstance(depth_image, DepthImage):
+            raise TypeError("Only DepthImage objects can be added to the library.")
+        self._images.append(depth_image)
+
+    def get_latest_image(self) -> Optional[DepthImage]:
+        """
+        Retrieves the most recently added DepthImage.
+
+        Returns:
+            Optional[DepthImage]: The latest DepthImage, or None if the library is empty.
+        """
+        if not self._images:
+            return None
+        return self._images[-1] # The rightmost element is the newest
+
+    def get_all_images(self) -> List[DepthImage]:
+        """
+        Retrieves all DepthImage objects currently in the library,
+        ordered from oldest to newest.
+
+        Returns:
+            List[DepthImage]: A list of all DepthImage objects.
+        """
+        return list(self._images)
+
+    def get_image_by_index(self, index: int) -> Optional[DepthImage]:
+        """
+        Retrieves an image by its index.
+        Index 0 is the oldest, -1 is the newest (if library is not empty).
+        Supports standard list-like indexing.
+
+        Args:
+            index (int): The index of the image to retrieve.
+
+        Returns:
+            Optional[DepthImage]: The DepthImage at the given index, or None if
+                                 the index is out of bounds or library is empty.
+        """
+        try:
+            return self._images[index]
+        except IndexError:
+            return None
+
+    def __len__(self) -> int:
+        """
+        Returns the current number of images in the library.
+        """
+        return len(self._images)
+
+    def is_full(self) -> bool:
+        """
+        Checks if the library has reached its maximum capacity.
+        """
+        return len(self._images) == self.max_size
+
+    def is_ready_for_processing(self, min_images_required: int) -> bool:
+        """
+        Checks if the library has collected enough images to start a certain process
+        (e.g., the M-detector's main loop after an initialization phase).
+
+        Args:
+            min_images_required (int): The minimum number of images needed.
+
+        Returns:
+            bool: True if the library has at least min_images_required images, False otherwise.
+        """
+        if min_images_required <= 0:
+            return True # No minimum requirement means it's always ready
+        return len(self._images) >= min_images_required
+
+    def clear(self) -> None:
+        """
+        Removes all images from the library.
+        """
+        self._images.clear()
+
+    def __str__(self) -> str:
+        return f"DepthImageLibrary(size={len(self._images)}, max_size={self.max_size})"
+
+############################
+FILE: src/core/__init__.py
+############################
+
+# src/core/__init__.py
+from .depth_image import DepthImage
+from .depth_image_library import DepthImageLibrary
+from .m_detector import MDetector, OcclusionResult 
+
+__all__ = ['DepthImage', 'DepthImageLibrary', 'MDetector', 'OcclusionResult']
+
+############################
+FILE: src/core/depth_image.py
+############################
+
+# src/core/depth_image.py
+import numpy as np
+# import time # Not used in the provided snippet, can be removed if not needed elsewhere
+from typing import Tuple, Optional, Dict, List, Any
+
+class DepthImage:
+    def __init__(self, image_pose_global: np.ndarray, config: dict, timestamp: float):
+        """
+        Initializes a DepthImage.
+
+        Args:
+            image_pose_global (np.ndarray): 4x4 homogeneous transformation matrix representing the
+                                            LiDAR sensor's pose in the global frame (global_T_lidar)
+                                            at the moment this depth image is notionally created.
+            config (dict): Configuration dictionary, expected to have a 'depth_image' sub-dictionary.
+            timestamp (float): Timestamp associated with this depth image (e.g., start of sweep).
+        """
+        self.image_pose_global: np.ndarray = image_pose_global # Global pose of this DepthImage's sensor
+        self.timestamp: float = timestamp
+        
+        # Store only the 'depth_image' sub-configuration for convenience
+        di_config = config['depth_image']
+        self.config_params: Dict[str, Any] = di_config 
+
+        self.res_h_rad: float = np.deg2rad(di_config['resolution_h_deg'])
+        self.res_v_rad: float = np.deg2rad(di_config['resolution_v_deg'])
+
+        self.phi_min_rad: float = di_config['phi_min_rad']
+        self.phi_max_rad: float = di_config['phi_max_rad']
+        self.theta_min_rad: float = di_config['theta_min_rad']
+        self.theta_max_rad: float = di_config['theta_max_rad']
+        
+        self.max_points_per_pixel: int = di_config['max_points_per_pixel']
+        
+        # Calculate number of pixels
+        self.num_pixels_h: int = int(np.ceil((self.phi_max_rad - self.phi_min_rad) / self.res_h_rad))
+        self.num_pixels_v: int = int(np.ceil((self.theta_max_rad - self.theta_min_rad) / self.res_v_rad))
+
+        # Initialize pixels array
+        self.pixels: np.ndarray = np.empty((self.num_pixels_v, self.num_pixels_h), dtype=object)
+        for r in range(self.num_pixels_v):
+            for c in range(self.num_pixels_h):
+                self.pixels[r, c] = {
+                    'min_depth': float('inf'),
+                    'max_depth': float('-inf'),
+                    'points': [], # Stores point_info dictionaries
+                    'count': 0 # Explicit count, can also use len(points)
+                }
+        
+        # This matrix transforms points from the GLOBAL frame TO this DepthImage's LOCAL sensor frame.
+        # Renamed from your 'transform_global_to_lidar' attribute to avoid conflict with the method.
+        self.matrix_local_from_global: np.ndarray = np.linalg.inv(self.image_pose_global)
+
+        self.total_points_added: int = 0 # Initialize counter for total points in DI
+
+    def _apply_transformation_to_point(self, point_global: np.ndarray) -> np.ndarray:
+        """
+        Transforms a single 3D or 4D homogeneous point from the global coordinate frame
+        to this DepthImage's local sensor coordinate frame using self.matrix_local_from_global.
+
+        Args:
+            point_global (np.ndarray): 3D point (x,y,z) or 4D homogeneous point (x,y,z,1) in global frame.
+
+        Returns:
+            np.ndarray: 3D point (x,y,z) in the local sensor frame of this DepthImage.
+        """
+        if point_global.shape == (3,):
+            point_global_h = np.append(point_global, 1.0) # Convert to homogeneous
+        elif point_global.shape == (4,):
+            point_global_h = point_global
+            if abs(point_global_h[3] - 1.0) > 1e-6: # Check if w is approximately 1.0
+                if abs(point_global_h[3]) < 1e-9: # w is zero or very close to zero
+                    raise ValueError("Homogeneous global point has w component near zero, cannot transform as a point.")
+                # Normalize if w is not 1 but also not zero (e.g. from a projection)
+                # print(f"Warning: Normalizing homogeneous global point with w={point_global_h[3]}.")
+                point_global_h = point_global_h / point_global_h[3]
+        else:
+            raise ValueError("Input point_global must be a 3D or 4D homogeneous vector.")
+        
+        # Apply the stored transformation matrix
+        point_local_frame_h = self.matrix_local_from_global @ point_global_h
+        return point_local_frame_h[:3] # Return as 3D Cartesian coordinates
+
+    def project_point_to_pixel_indices(self, point_global: np.ndarray) -> \
+            Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[Tuple[int, int]]]:
+        """
+        Projects a global 3D point into this DepthImage, determining its local coordinates,
+        spherical coordinates, and pixel indices.
+
+        Args:
+            point_global (np.ndarray): The 3D point in global coordinates.
+
+        Returns:
+            Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[Tuple[int, int]]]:
+                - point_in_di_frame (np.ndarray): The 3D point transformed into the DI's local frame.
+                - sph_coords (np.ndarray): Spherical coordinates (phi, theta, depth) of the point
+                                           in the DI's local frame.
+                - pixel_indices (Tuple[int, int]): (v_idx, h_idx) of the pixel.
+                Any of these can be None if the point cannot be projected or is out of FoV.
+        """
+        # 1. Transform Gp to Lp (point in DI's local frame) using the renamed method
+        point_in_di_frame = self._apply_transformation_to_point(point_global)
+
+        # 2. Convert point in DI's local frame to spherical coordinates (phi, theta, d)
+        x, y, z = point_in_di_frame[0], point_in_di_frame[1], point_in_di_frame[2]
+        d = np.linalg.norm(point_in_di_frame) # More robust way to get depth
+
+        if d < 1e-6: # Avoid division by zero or issues with points at/near sensor origin
+            return point_in_di_frame, None, None 
+
+        phi = np.arctan2(y, x)    # Azimuth: from -pi to pi
+        theta = np.arcsin(z / d)  # Elevation: from -pi/2 to pi/2
+
+        sph_coords = np.array([phi, theta, d])
+
+        # 3. Check if point is within the DI's configured Field of View (FoV)
+        if not (self.phi_min_rad <= phi <= self.phi_max_rad and
+                self.theta_min_rad <= theta <= self.theta_max_rad):
+            return point_in_di_frame, sph_coords, None # Point is outside FoV
+
+        # 4. Determine pixel indices (v_idx, h_idx)
+        phi_normalized = phi - self.phi_min_rad
+        theta_normalized = theta - self.theta_min_rad # Assuming theta_min is "lower" visually
+
+        # Calculate raw indices
+        h_idx_raw = phi_normalized / self.res_h_rad
+        v_idx_raw = theta_normalized / self.res_v_rad
+        
+        # Convert to integer and clamp to be within valid pixel range
+        # Clamping is crucial due to floating point inaccuracies, especially at FoV boundaries.
+        h_idx = max(0, min(int(h_idx_raw), self.num_pixels_h - 1))
+        v_idx = max(0, min(int(v_idx_raw), self.num_pixels_v - 1))
+        
+        pixel_indices = (v_idx, h_idx)
+        
+        return point_in_di_frame, sph_coords, pixel_indices
+
+    def add_point(self, point_global: np.ndarray, label: str = "unknown", original_timestamp: Optional[float] = None):
+        """
+        Adds a global 3D point to the correct pixel in the depth image.
+        Updates pixel statistics (min/max depth, point list, count).
+        """
+        point_in_di_frame, sph_coords, pixel_indices = self.project_point_to_pixel_indices(point_global)
+
+        if pixel_indices is None or sph_coords is None:
+            # Point is outside FoV, too close to origin, or other projection issue
+            return 
+
+        v_idx, h_idx = pixel_indices
+        depth = sph_coords[2] # Depth of the point in the DI's local frame
+
+        # The pixel initialization in __init__ ensures self.pixels[v_idx, h_idx] is always a dict.
+        pixel_data = self.pixels[v_idx, h_idx]
+
+        # Store detailed information about the point
+        point_info = {
+            'global_pt': point_global,          # Original global coordinates
+            'di_frame_pt': point_in_di_frame,   # Coordinates in this DI's local sensor frame
+            'sph_coords': sph_coords,           # Spherical coords (phi,theta,d) in local frame
+            'label': label,
+            'timestamp': original_timestamp if original_timestamp is not None else self.timestamp
+        }
+        
+        # Add point to list, respecting max_points_per_pixel
+        if len(pixel_data['points']) < self.max_points_per_pixel:
+            pixel_data['points'].append(point_info)
+        # else:
+            # Optional: Implement a strategy if max_points_per_pixel is reached
+            # (e.g., replace oldest, random replacement, or simply don't add).
+            # Currently, it just stops adding more raw point details to this pixel.
+
+        # Update pixel statistics
+        pixel_data['min_depth'] = min(pixel_data['min_depth'], depth)
+        pixel_data['max_depth'] = max(pixel_data['max_depth'], depth)
+        pixel_data['count'] = len(pixel_data['points']) # Update count based on actual stored points
+
+        self.total_points_added += 1 # Increment total points in the entire DepthImage
+
+    def get_pixel_info(self, v_idx: int, h_idx: int) -> Optional[Dict[str, Any]]:
+        """ 
+        Returns the data stored in a specific pixel.
+        Uses (v_idx, h_idx) consistent with array indexing (row, column).
+        """
+        if 0 <= v_idx < self.num_pixels_v and 0 <= h_idx < self.num_pixels_h:
+            return self.pixels[v_idx, h_idx]
+        print(f"Warning: Pixel indices ({v_idx}, {h_idx}) out of bounds ({self.num_pixels_v}x{self.num_pixels_h}).")
+        return None
+
+    def __str__(self) -> str:
+        pose_translation = self.image_pose_global[:3,3] # Extract translation for brevity
+        return (f"DepthImage @ {self.timestamp:.2f}s, "
+                f"Pose_xyz: [{pose_translation[0]:.2f}, {pose_translation[1]:.2f}, {pose_translation[2]:.2f}], "
+                f"Dims: {self.num_pixels_v}x{self.num_pixels_h} pixels, "
+                f"Total Points Added: {self.total_points_added}")
+
+############################
+FILE: src/utils/visualization.py
+############################
+
+# src/utils/visualization.py
+import k3d
+import numpy as np
+import torch # Your original code uses torch, keeping it for k3d compatibility if needed
+from nuscenes.nuscenes import NuScenes
+from nuscenes.utils.data_classes import Box
+from pyquaternion import Quaternion
+from typing import List, Dict, Optional, Tuple, Any
+from enum import Enum
+
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon as MatplotlibPolygon
+import cv2 # For mpl_fig_to_opencv_bgr
+
+# Assuming get_lidar_sweep_data is in data_utils.nuscenes_helper
+from src.data_utils.nuscenes_helper import get_lidar_sweep_data
+from src.core.depth_image import DepthImage # For type hinting
+from src.core.m_detector import MDetector, OcclusionResult
+
+
+def plot_axes_k3d(T_plotorigin_target:np.ndarray=np.eye(4), length=1.0, name='axes'):
+    """
+    Creates k3d axes representation.
+    Args:
+        T_plotorigin_target (np.ndarray) : Homogeneous transformation matrix.
+    Return:
+        pose_axes (k3d.vectors) : Object representing axes.
+    """
+    origins = np.stack([T_plotorigin_target[:3,3]]*3)
+    vectors = T_plotorigin_target[:3,:3] @ (np.eye(3) * length)
+    colors_k3d = [0xFF0000, 0xFF0000, 0x00FF00, 0x00FF00, 0x0000FF, 0x0000FF] # Red X, Green Y, Blue Z
+    
+    # k3d.vectors expects (N,3) origins and (N,3) vectors, where each pair defines a line segment
+    # For axes, we draw from origin to end of each axis vector
+    plot_origins = np.tile(T_plotorigin_target[:3,3], (3,1))
+    plot_vectors = vectors.T # Each row is an axis vector from origin
+    
+    return k3d.vectors(
+        origins=plot_origins,
+        vectors=plot_vectors, # These are interpreted as (end_point - origin_point)
+        colors=colors_k3d,
+        name=name
+    )
+
+
+def plot_lidar_sweep_with_depth_image_pixels(
+    points_lidar_frame: np.ndarray,
+    depth_image: DepthImage,
+    point_size=0.1,
+    max_range=50.0):
+    """
+    Visualizes a LiDAR sweep and the center points of the DepthImage pixels.
+    """
+    plot = k3d.plot(camera_auto_fit=False, grid_visible=True, menu_visibility=True)
+
+    # Plot LiDAR points (transformed to global for consistent visualization if needed,
+    # or plot in LiDAR frame if camera is set accordingly)
+    # For simplicity, plotting in LiDAR frame, assuming camera is at origin looking along X.
+    bool_range = np.linalg.norm(points_lidar_frame[:, :2], axis=1) <= max_range
+    plot += k3d.points(
+        positions=points_lidar_frame[bool_range, :3].astype(np.float32),
+        point_size=point_size,
+        color=0xa3a4ad,
+        name="LiDAR Points"
+    )
+
+    # Plot axes for LiDAR frame
+    plot += plot_axes_k3d(np.eye(4), length=1.0, name="LiDAR Frame Axes")
+
+    # Visualize DepthImage pixels (e.g., by plotting a point at the center of each pixel cell)
+    # This is a simplified representation.
+    pixel_centers_lidar_frame = []
+    pixel_colors = []
+
+    phi_mid_offset = depth_image.res_h_rad / 2.0
+    theta_mid_offset = depth_image.res_v_rad / 2.0
+    
+    # Use a representative depth for visualization, e.g., 5 meters
+    viz_depth = 5.0
+
+    for j in range(depth_image.num_pixels_v): # Elevation index
+        for i in range(depth_image.num_pixels_h): # Azimuth index
+            pixel_content = depth_image.pixels[j, i]
+            if pixel_content['points']: # Only draw if pixel has points
+                # Calculate angular center of the pixel
+                phi_center = depth_image.phi_min_rad + i * depth_image.res_h_rad + phi_mid_offset
+                theta_center = depth_image.theta_min_rad + j * depth_image.res_v_rad + theta_mid_offset
+                
+                # Convert spherical (center of pixel at a fixed depth) to Cartesian in LiDAR frame
+                x = viz_depth * np.cos(theta_center) * np.cos(phi_center)
+                y = viz_depth * np.cos(theta_center) * np.sin(phi_center)
+                z = viz_depth * np.sin(theta_center)
+                pixel_centers_lidar_frame.append([x, y, z])
+                
+                # Color based on number of points or min/max depth for more info
+                # Simple coloring: red if it has points
+                pixel_colors.append(0xff0000) # Red
+
+    if pixel_centers_lidar_frame:
+        plot += k3d.points(
+            positions=np.array(pixel_centers_lidar_frame).astype(np.float32),
+            point_size=0.05, # Smaller points for pixel centers
+            colors=pixel_colors, # k3d expects a flat list of colors if not single color
+            color=0xff0000, # Or a single color for all
+            name="DepthImage Pixel Activity"
+        )
+    
+    # Set camera (example, adjust as needed)
+    plot.camera = [10, -10, 5, 0, 0, 0, 0, 0, 1] # Eye, LookAt, Up
+    plot.display()
+    return plot
+
+# --- Matplotlib BEV Plotting Helpers (from the video script in the notebook) ---
+def draw_bev_box_on_ax(ax, box: Box, color='red', linewidth=1):
+    corners_3d = box.corners()
+    points_for_polygon = np.transpose(corners_3d[:2, [0, 1, 2, 3]])
+    ax.add_patch(MatplotlibPolygon(points_for_polygon, closed=True, fill=False, edgecolor=color, linewidth=linewidth))
+    center_bottom_face = np.mean(corners_3d[:, [0,1,2,3]], axis=1)
+    orientation_vec = box.orientation.rotate(np.array([box.wlh[0] / 2.0, 0, 0]))
+    arrow_start = center_bottom_face[:2]
+    arrow_end = center_bottom_face[:2] + orientation_vec[:2]
+    ax.arrow(arrow_start[0], arrow_start[1],
+             arrow_end[0] - arrow_start[0], arrow_end[1] - arrow_start[0],
+             head_width=0.5, head_length=0.7, fc=color, ec=color, linewidth=linewidth*0.5)
+
+def mpl_fig_to_opencv_bgr(fig):
+    """Converts a Matplotlib figure to an OpenCV BGR image."""
+    fig.canvas.draw()
+    img_np_rgb = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    img_np_rgb = img_np_rgb.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    img_np_bgr = cv2.cvtColor(img_np_rgb, cv2.COLOR_RGB2BGR)
+    return img_np_bgr
+
+# --- K3D Plotting Helpers ---
+def plot_axes_k3d(T_plotorigin_target:np.ndarray=np.eye(4), length=1.0, name='axes'):
+    # ... (your existing plot_axes_k3d implementation)
+    plot_origins = np.tile(T_plotorigin_target[:3,3], (3,1))
+    plot_vectors = (T_plotorigin_target[:3,:3] @ (np.eye(3) * length)).T
+    colors_k3d = [0xFF0000, 0xFF0000, 0x00FF00, 0x00FF00, 0x0000FF, 0x0000FF] # Red X, Green Y, Blue Z
+    return k3d.vectors(
+        origins=plot_origins,
+        vectors=plot_vectors,
+        colors=colors_k3d,
+        name=name
+    )
+
+def plot_predictions_k3d(
+    depth_image_with_labels: DepthImage,
+    plot_title: Optional[str] = None,
+    point_size: float = 0.07,
+    color_map_override: Optional[Dict[Any, int]] = None
+) -> Optional[k3d.Plot]:
+    """
+    Visualizes a single DepthImage's points, colored by their pre-computed labels
+    stored within the DepthImage's point_info structures.
+
+    Args:
+        depth_image_with_labels (DepthImage): The DepthImage object to plot,
+                                              assumed to have its point labels already processed
+                                              and stored in pt_info['label'].
+        plot_title (Optional[str]): Title for the K3D plot. If None, a default is generated.
+        point_size (float): Size of the points in the K3D plot.
+        color_map_override (Optional[Dict[Any, int]]): Optional custom color map.
+                                                       Keys can be OcclusionResult enums or string labels.
+                                                       Values are K3D color integers (e.g., 0xRRGGBB).
+
+    Returns:
+        Optional[k3d.Plot]: The K3D plot object, or None if DI is invalid.
+    """
+    if not isinstance(depth_image_with_labels, DepthImage):
+        print("Error: Invalid DepthImage object provided.")
+        return None
+
+    di_to_plot = depth_image_with_labels
+
+    if plot_title is None:
+        plot_title = f"M-Detector Labeled Points for DI @ {di_to_plot.timestamp/1e6:.2f}s"
+
+    plot = k3d.plot(name=plot_title, grid_visible=True, camera_auto_fit=False, menu_visibility=True)
+    
+    # Add axes for the plotted DI's sensor pose
+    plot += plot_axes_k3d(di_to_plot.image_pose_global, length=1.5, name="Sensor Pose (DI to Plot)")
+
+    all_points_global_coords = []
+    point_colors_int = [] # K3D expects uint32 for colors array
+
+    # Default color map
+    default_color_map = {
+        OcclusionResult.OCCLUDING_IMAGE: 0x00FF00,   # Green
+        OcclusionResult.OCCLUDED_BY_IMAGE: 0xFF0000, # Red
+        OcclusionResult.EMPTY_IN_IMAGE: 0xFFFF00,    # Yellow
+        OcclusionResult.UNDETERMINED: 0x808080,      # Grey
+        "PENDING_CLASSIFICATION": 0xFF00FF,          # Magenta (initial label before processing)
+        "NON_EVENT": 0xCCCCCC,                       # Light Grey (initial label for non-event points)
+        # Add more default labels as your M-Detector evolves
+    }
+    current_color_map = default_color_map.copy()
+    if color_map_override:
+        current_color_map.update(color_map_override)
+    
+    fallback_color = 0x000000 # Black for labels not in map
+
+    label_summary = {}
+
+    for v_idx in range(di_to_plot.num_pixels_v):
+        for h_idx in range(di_to_plot.num_pixels_h):
+            pixel_content = di_to_plot.pixels[v_idx, h_idx]
+            if pixel_content and pixel_content['points']:
+                for pt_info in pixel_content['points']:
+                    all_points_global_coords.append(pt_info['global_pt'])
+                    
+                    # Retrieve the pre-computed label
+                    # The label could be an OcclusionResult enum or a string
+                    label = pt_info.get('label', OcclusionResult.UNDETERMINED) # Default if 'label' key is missing
+                    
+                    point_colors_int.append(current_color_map.get(label, fallback_color))
+                    
+                    # For summary
+                    label_name = label.name if isinstance(label, Enum) else str(label)
+                    label_summary[label_name] = label_summary.get(label_name, 0) + 1
+
+    print(f"Plotting {len(all_points_global_coords)} points from DI (Timestamp: {di_to_plot.timestamp/1e6:.2f}s).")
+    if label_summary:
+        print("Label Summary:")
+        for name, count in sorted(label_summary.items()):
+            print(f"  - {name}: {count}")
+    else:
+        print("No point labels found in the DepthImage.")
+
+
+    if all_points_global_coords:
+        positions_np = np.array(all_points_global_coords).astype(np.float32)
+        colors_np = np.array(point_colors_int).astype(np.uint32)
+        
+        plot += k3d.points(
+            positions=positions_np,
+            colors=colors_np, 
+            point_size=point_size,
+            shader='simple', 
+            name="Labeled Points"
+        )
+    
+    # Set camera to view from the sensor's perspective (same as before)
+    cam_eye = di_to_plot.image_pose_global[:3, 3]
+    look_at_offset_local = np.array([10.0, 0.0, 0.0, 1.0]) 
+    cam_look_at = (di_to_plot.image_pose_global @ look_at_offset_local)[:3]
+    cam_up = di_to_plot.image_pose_global[:3, 2] 
+    offset_backward_local = np.array([-3.0, 0.0, 1.5, 1.0]) 
+    cam_eye_adjusted = (di_to_plot.image_pose_global @ offset_backward_local)[:3]
+
+    plot.camera = [
+        cam_eye_adjusted[0], cam_eye_adjusted[1], cam_eye_adjusted[2],
+        cam_look_at[0], cam_look_at[1], cam_look_at[2],
+        cam_up[0], cam_up[1], cam_up[2]
+    ]
+    
+    return plot
+
+############################
+FILE: src/utils/__init__.py
+############################
+
+
+############################
+FILE: src/utils/transformations.py
+############################
+
+# src/utils/transformations.py
+import numpy as np
+
+def transform_points_numpy(points_n3: np.ndarray, transf_matrix_4x4: np.ndarray) -> np.ndarray:
+    """
+    Transforms (N,3) points using a 4x4 transformation matrix.
+
+    Args:
+        points_n3 (np.ndarray): Array of N points, each with 3 coordinates.
+        transf_matrix_4x4 (np.ndarray): 4x4 transformation matrix.
+
+    Returns:
+        np.ndarray: Transformed points as an (N,3) array.
+    """
+    if points_n3.ndim == 1: # Single point
+        points_n3 = points_n3.reshape(1, -1)
+    if points_n3.shape[1] != 3:
+        raise ValueError("Input points must be of shape (N,3) or (3,)")
+        
+    points_n4_homogeneous = np.hstack((points_n3, np.ones((points_n3.shape[0], 1)))) 
+    points_transformed_n4 = points_n4_homogeneous @ transf_matrix_4x4.T # (N,4)
+    return points_transformed_n4[:, :3] # Back to (N,3)
+
+############################
+FILE: src/data_utils/__init__.py
+############################
+
+
+############################
+FILE: src/data_utils/nuscenes_helper.py
+############################
+
+# src/data_utils/nuscenes_helper.py
+import numpy as np
+from nuscenes.nuscenes import NuScenes
+from nuscenes.utils.data_classes import LidarPointCloud, Box
+from pyquaternion import Quaternion
+
+def get_lidar_sweep_data(nusc: NuScenes, lidar_token: str):
+    """
+    Loads LiDAR point cloud data and its pose information for a given token.
+
+    Args:
+        nusc (NuScenes): NuScenes SDK object.
+        lidar_token (str): LiDAR sample_data token.
+
+    Returns:
+        tuple: (points, T_global_lidar, lidar_timestamp)
+               points (np.ndarray): Nx3 array of LiDAR points (x,y,z) in LiDAR frame.
+               T_global_lidar (np.ndarray): 4x4 transformation matrix from LiDAR to global frame.
+               lidar_timestamp (float): Timestamp of the LiDAR sweep.
+    """
+    lidar_sample_data = nusc.get('sample_data', lidar_token)
+    lidar_timestamp = lidar_sample_data['timestamp'] / 1e6 # Convert microseconds to seconds
+
+    # Load point cloud
+    pcl_path = nusc.get_sample_data_path(lidar_token)
+    if lidar_sample_data['sensor_modality'] == 'lidar':
+        pc = LidarPointCloud.from_file(pcl_path)
+        points = pc.points[:3, :].T  # Get X, Y, Z coordinates, transpose to Nx3
+    else:
+        raise ValueError(f"Token {lidar_token} is not a LiDAR sample.")
+
+    # Get LiDAR sensor pose in global frame
+    calibrated_sensor = nusc.get('calibrated_sensor', lidar_sample_data['calibrated_sensor_token'])
+    ego_pose = nusc.get('ego_pose', lidar_sample_data['ego_pose_token'])
+
+    # Transformation from sensor (LiDAR) to ego vehicle
+    T_vehicle_lidar = np.eye(4)
+    T_vehicle_lidar[:3, :3] = Quaternion(calibrated_sensor['rotation']).rotation_matrix
+    T_vehicle_lidar[:3, 3] = np.array(calibrated_sensor['translation'])
+
+    # Transformation from ego vehicle to global
+    T_global_vehicle = np.eye(4)
+    T_global_vehicle[:3, :3] = Quaternion(ego_pose['rotation']).rotation_matrix
+    T_global_vehicle[:3, 3] = np.array(ego_pose['translation'])
+
+    # Transformation from LiDAR to global
+    T_global_lidar = T_global_vehicle @ T_vehicle_lidar
+    
+    return points, T_global_lidar, lidar_timestamp
+
+# You can add the get_scene_information function from your utils here if needed
+# For now, we'll focus on single sweep loading.
+
+############################
+FILE: scripts/generate_mdetector_bev_video.py
+############################
+
+# scripts/generate_mdetector_bev_video.py
+import os
+import sys
+import yaml
+import numpy as np
+import matplotlib.pyplot as plt
+import cv2
+from nuscenes.nuscenes import NuScenes
+from nuscenes.utils.data_classes import Box # For type hinting
+from pyquaternion import Quaternion
+from tqdm import tqdm
+
+# Add project root to sys.path to allow importing from src
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+    # Use tqdm.write instead of print to avoid interfering with progress bar
+    tqdm.write(f"Added project root to sys.path: {PROJECT_ROOT}")
+
+from src.core.m_detector import MDetector, OcclusionResult
+from src.data_utils.nuscenes_helper import get_lidar_sweep_data
+from src.utils.visualization import draw_bev_box_on_ax, mpl_fig_to_opencv_bgr
+from src.utils.transformations import transform_points_numpy
+
+def generate_video(config_path: str, scene_index: int, output_filename: str, start_sweep_num: int = 0):
+    """
+    Generates a BEV video showing M-Detector's dynamic point detections for a NuScenes scene.
+    """
+    with open(config_path, 'r') as f:
+        config_yaml = yaml.safe_load(f)
+
+    tqdm.write(f"Loading NuScenes {config_yaml['nuscenes']['version']} from {config_yaml['nuscenes']['dataroot']}...")
+    nusc = NuScenes(version=config_yaml['nuscenes']['version'],
+                    dataroot=config_yaml['nuscenes']['dataroot'],
+                    verbose=False)
+
+    tqdm.write("Initializing MDetector...")
+    m_detector = MDetector(config=config_yaml)
+
+    my_scene = nusc.scene[scene_index]
+    tqdm.write(f"Targeting scene: {my_scene['name']} (Token: {my_scene['token']})")
+
+    first_sample_token = my_scene['first_sample_token']
+    first_sample = nusc.get('sample', first_sample_token)
+    current_lidar_data_token = first_sample['data'][config_yaml['nuscenes']['lidar_sensor_name']]
+    
+    # Count total number of frames for the progress bar
+    total_frames = 0
+    frame_count_token = current_lidar_data_token
+    while frame_count_token:
+        lidar_data_rec = nusc.get('sample_data', frame_count_token)
+        frame_count_token = lidar_data_rec['next']
+        total_frames += 1
+    
+    # Skip to start_sweep_num if specified
+    sweep_counter_for_start = 0
+    if start_sweep_num > 0:
+        tqdm.write(f"Skipping to LiDAR sweep approx #{start_sweep_num}...")
+        skip_pbar = tqdm(total=start_sweep_num, desc="Skipping frames")
+        while current_lidar_data_token and sweep_counter_for_start < start_sweep_num:
+            lidar_data_rec = nusc.get('sample_data', current_lidar_data_token)
+            current_lidar_data_token = lidar_data_rec['next']
+            sweep_counter_for_start += 1
+            skip_pbar.update(1)
+            if not current_lidar_data_token:
+                tqdm.write(f"Error: Reached end of scene before reaching start sweep {start_sweep_num}")
+                skip_pbar.close()
+                return # Exit if start sweep is beyond scene length
+        skip_pbar.close()
+        tqdm.write(f"Starting video generation from LiDAR sweep approx #{start_sweep_num}")
+
+    # Video settings from config or defaults
+    video_cfg = config_yaml.get('video_generation', {})
+    video_fps = video_cfg.get('fps', 20)
+    bev_range_meters = video_cfg.get('bev_range_meters', 50)
+    point_size_all_lidar = video_cfg.get('point_size_all_lidar', 0.2)
+    point_size_dynamic = video_cfg.get('point_size_dynamic', 2.0)
+    historical_di_lag_seconds = video_cfg.get('historical_di_lag_seconds', 0.5)
+    plot_gt_boxes = video_cfg.get('plot_ground_truth_boxes', True) # Option to turn off GT boxes
+
+    # Initialize VideoWriter
+    fig_init, ax_init = plt.subplots(figsize=(10, 10))
+    frame_bgr = mpl_fig_to_opencv_bgr(fig_init)
+    frame_height, frame_width, _ = frame_bgr.shape
+    plt.close(fig_init)
+
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video_writer = cv2.VideoWriter(output_filename, fourcc, video_fps, (frame_width, frame_height))
+    tqdm.write(f"Output video: {output_filename} ({frame_width}x{frame_height} @ {video_fps} FPS)")
+
+    fig_main, ax_main = plt.subplots(figsize=(10, 10))
+    processed_video_frames = 0
+    current_dynamic_points_global_to_plot = []
+
+    # Initialize progress bar for video generation
+    remaining_frames = total_frames - sweep_counter_for_start
+    video_pbar = tqdm(total=remaining_frames, desc="Generating video frames")
+
+    while current_lidar_data_token:
+        lidar_data = nusc.get('sample_data', current_lidar_data_token)
+        ego_pose_data = nusc.get('ego_pose', lidar_data['ego_pose_token'])
+        sample_for_annotations = nusc.get('sample', lidar_data['sample_token'])
+
+        # Update progress bar description with frame info
+        video_pbar.set_postfix({
+            "Frame": processed_video_frames + 1,
+            "TS": f"{lidar_data['timestamp']/1e6:.2f}s"
+        })
+
+        points_lidar_sensor_frame, T_global_lidar, lidar_timestamp_sec = \
+            get_lidar_sweep_data(nusc, current_lidar_data_token)
+
+        current_di = m_detector.add_sweep_and_create_depth_image(
+            points_lidar_sensor_frame, T_global_lidar, lidar_data['timestamp'] # MDetector uses microsec ts
+        )
+        
+        newly_detected_dynamic_points_global = []
+        if m_detector.is_ready_for_processing() and current_di:
+            historical_di = None
+            if len(m_detector.depth_image_library) >= 2:
+                # Attempt to find a DI around historical_di_lag_seconds ago
+                # This is a simple heuristic, could be improved by searching timestamps
+                target_hist_ts = current_di.timestamp - (historical_di_lag_seconds * 1e6)
+                best_match_di = None
+                min_ts_diff = float('inf')
+                for i in range(len(m_detector.depth_image_library) -1): # Exclude current_di
+                    img = m_detector.depth_image_library.get_image_by_index(i)
+                    if img and img.timestamp < current_di.timestamp :
+                        ts_diff = abs(img.timestamp - target_hist_ts)
+                        if ts_diff < min_ts_diff:
+                            min_ts_diff = ts_diff
+                            best_match_di = img
+                historical_di = best_match_di if best_match_di else m_detector.depth_image_library.get_image_by_index(-2)
+
+
+            if historical_di and historical_di.timestamp < current_di.timestamp:
+                for v_idx in range(current_di.num_pixels_v):
+                    for h_idx in range(current_di.num_pixels_h):
+                        pixel_content = current_di.pixels[v_idx, h_idx]
+                        if pixel_content and pixel_content['points']:
+                            for pt_info in pixel_content['points']:
+                                global_pt_curr = pt_info['global_pt']
+                                pixel_res, _, _ = m_detector.check_occlusion_pixel_level(global_pt_curr, historical_di)
+                                if pixel_res == OcclusionResult.OCCLUDING_IMAGE:
+                                    newly_detected_dynamic_points_global.append(global_pt_curr)
+                current_dynamic_points_global_to_plot = newly_detected_dynamic_points_global
+        
+        ax_main.clear()
+        points_global_plot = transform_points_numpy(points_lidar_sensor_frame, T_global_lidar)
+        ax_main.scatter(points_global_plot[:, 0], points_global_plot[:, 1], s=point_size_all_lidar, color='lightgrey', alpha=0.6)
+
+        ego_translation_global = np.array(ego_pose_data['translation'])
+        ego_rotation_global = Quaternion(ego_pose_data['rotation'])
+        ax_main.plot(ego_translation_global[0], ego_translation_global[1], 'o', markersize=8, color='blue', label='Ego Vehicle')
+        ego_front_direction = ego_rotation_global.rotate(np.array([2.0, 0, 0]))
+        ax_main.arrow(ego_translation_global[0], ego_translation_global[1],
+                       ego_front_direction[0], ego_front_direction[1],
+                       head_width=0.8, head_length=1.0, fc='blue', ec='blue')
+
+        if plot_gt_boxes:
+            for ann_token in sample_for_annotations['anns']:
+                ann_record = nusc.get('sample_annotation', ann_token)
+                if 'vehicle' in ann_record['category_name'] or 'human' in ann_record['category_name']:
+                    box = Box(center=ann_record['translation'], size=ann_record['size'], orientation=Quaternion(ann_record['rotation']))
+                    draw_bev_box_on_ax(ax_main, box, color='red', linewidth=1)
+        
+        if current_dynamic_points_global_to_plot:
+            dynamic_pts_np = np.array(current_dynamic_points_global_to_plot)
+            ax_main.scatter(dynamic_pts_np[:, 0], dynamic_pts_np[:, 1], s=point_size_dynamic, color='green', label='MDet: OCCLUDING', zorder=5)
+
+        ax_main.set_xlim(ego_translation_global[0] - bev_range_meters, ego_translation_global[0] + bev_range_meters)
+        ax_main.set_ylim(ego_translation_global[1] - bev_range_meters, ego_translation_global[1] + bev_range_meters)
+        ax_main.set_aspect('equal', adjustable='box')
+        ax_main.set_xlabel("Global X (meters)")
+        ax_main.set_ylabel("Global Y (meters)")
+        title_str = (f"Scene: {my_scene['name']} - LiDAR Frame: {sweep_counter_for_start + processed_video_frames}\n"
+                     f"TS: {lidar_data['timestamp']/1e6:.2f}s - MDet Ready: {m_detector.is_ready_for_processing()} "
+                     f"DI Lib: {len(m_detector.depth_image_library)}")
+        if current_dynamic_points_global_to_plot: title_str += f" DynPts: {len(current_dynamic_points_global_to_plot)}"
+        ax_main.set_title(title_str, fontsize=9)
+        ax_main.grid(True, linestyle='--', alpha=0.5)
+        if processed_video_frames == 0: ax_main.legend(loc='upper right', fontsize='small')
+
+        video_frame_bgr = mpl_fig_to_opencv_bgr(fig_main)
+        video_writer.write(video_frame_bgr)
+
+        processed_video_frames += 1
+        current_lidar_data_token = lidar_data['next']
+        video_pbar.update(1)
+
+    video_pbar.close()
+    plt.close(fig_main)
+    video_writer.release()
+    tqdm.write(f"\nVideo generation complete. Saved {processed_video_frames} frames to {output_filename}")
+
+if __name__ == '__main__':
+    # --- Configuration for running the script ---
+    # It's better to use argparse for command-line arguments for flexibility
+    # For now, hardcoding for simplicity:
+    CONFIG_FILE = '../config/m_detector_config.yaml' # Relative to this script's location
+    SCENE_TO_PROCESS = 1 # Index of the scene in nusc.scene
+    OUTPUT_VIDEO_FILE = f'mdetector_scene_{SCENE_TO_PROCESS}_dynamic_pts_scripted.mp4'
+    START_LIDAR_SWEEP = 0 # Start from the beginning of the scene
+
+    # Ensure config path is correct relative to the script
+    abs_config_path = os.path.join(SCRIPT_DIR, CONFIG_FILE)
+    
+    generate_video(config_path=abs_config_path,
+                   scene_index=SCENE_TO_PROCESS,
+                   output_filename=OUTPUT_VIDEO_FILE,
+                   start_sweep_num=START_LIDAR_SWEEP)

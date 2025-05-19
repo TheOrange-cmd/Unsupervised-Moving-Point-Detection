@@ -1,0 +1,88 @@
+# src/config_loader.py
+import yaml
+from typing import Dict, Any, List, Optional
+
+class MDetectorConfigAccessor:
+    def __init__(self, config_path: str):
+        try:
+            with open(config_path, 'r') as f:
+                self._config_data: Dict[str, Any] = yaml.safe_load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file not found at: {config_path}")
+        except yaml.YAMLError as e:
+            raise ValueError(f"Error parsing YAML configuration file {config_path}: {e}")
+        
+        if not isinstance(self._config_data, dict):
+            raise ValueError(f"Configuration file {config_path} did not load as a dictionary.")
+
+    # --- Top-Level Sections ---
+    def get_nuscenes_params(self) -> Dict[str, Any]:
+        return self._config_data.get('nuscenes', {})
+
+    def get_processing_settings(self) -> Dict[str, Any]:
+        return self._config_data.get('processing_settings', {})
+        
+    def get_mdetector_output_paths(self) -> Dict[str, Any]:
+        return self._config_data.get('mdetector_output_paths', {})
+
+    def get_validation_params(self) -> Dict[str, Any]:
+        return self._config_data.get('validation_params', {})
+
+    # --- M-Detector Core Algorithm Parameters ---
+    def _get_m_detector_base(self) -> Dict[str, Any]:
+        return self._config_data.get('m_detector', {})
+
+    def get_point_pre_filtering_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base().get('point_pre_filtering', {})
+
+    def get_depth_image_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base().get('depth_image', {})
+
+    def get_occlusion_determination_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base().get('occlusion_determination', {})
+
+    def get_event_detection_logic_params(self) -> Dict[str, Any]:
+        # Returns the whole block: {'test1_perpendicular': ..., 'test2_parallel_away': ...}
+        return self._get_m_detector_base().get('event_detection_logic', {})
+    
+    def get_test1_params(self) -> Dict[str, Any]:
+        return self.get_event_detection_logic_params().get('test1_perpendicular', {})
+        
+    def get_test2_params(self) -> Dict[str, Any]:
+        return self.get_event_detection_logic_params().get('test2_parallel_away', {})
+
+    def get_test3_params(self) -> Dict[str, Any]:
+        return self.get_event_detection_logic_params().get('test3_parallel_towards', {})
+
+    def get_map_consistency_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base().get('map_consistency', {})
+
+    def get_frame_refinement_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base().get('frame_refinement', {})
+        
+    def get_clustering_params(self) -> Dict[str, Any]: # Helper for refinement
+        return self.get_frame_refinement_params().get('clustering', {})
+
+    def get_region_growth_params(self) -> Dict[str, Any]: # Helper for refinement
+        return self.get_frame_refinement_params().get('region_growth', {})
+
+    def get_initialization_phase_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base().get('initialization_phase', {})
+        
+    def get_bidirectional_aggregation_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base().get('bidirectional_aggregation', {})
+
+    # --- Visualization ---
+    def get_visualization_params(self) -> Dict[str, Any]:
+        return self._config_data.get('visualization', {})
+
+    def get_video_generation_params(self) -> Dict[str, Any]:
+        return self.get_visualization_params().get('video_generation', {})
+        
+    def get_k3d_plot_params(self) -> Dict[str, Any]:
+        return self.get_visualization_params().get('k3d_plot', {})
+
+    # --- Example of a direct value accessor with default ---
+    def get_library_size(self, default: int = 20) -> int:
+        di_params = self.get_depth_image_params()
+        return di_params.get('library_size', default)

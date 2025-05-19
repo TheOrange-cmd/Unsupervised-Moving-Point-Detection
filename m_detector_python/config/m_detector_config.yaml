@@ -15,8 +15,12 @@ processing:
 
 mdetector_output:
   save_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output" # Directory where M-Detector outputs will be saved
-  scene_indices_to_run: 'all' # List of scene indices to run M-Detector on, or 'all'
+  scene_indices_to_run: [1,] # List of scene indices to run M-Detector on, or 'all'
+  # scene_indices_to_run: 'all'
 
+
+validation:
+  vel_threshold: 1.0
 # --- M-Detector General Parameters ---
 # Based on the paper (Nature Communications | (2024) 15:345) and Supplementary Info.
 # These will likely require tuning for NuScenes and specific LiDARs.
@@ -97,7 +101,7 @@ temporal_processing:
 
 video_generation:
   fps: 20
-  default_scene_index: 0 # Example, choose a scene index from your dataset
+  default_scene_index: 1 # Example, choose a scene index from your dataset
   output_directory: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output" # Store comparison videos here
   figure_size_side_by_side: [20, 10] # Inches: [width, height] for the whole figure with 2 subplots
   
@@ -137,8 +141,8 @@ depth_image:
   # Velodyne HDL-32E (common in NuScenes):
   # Horizontal: ~0.1° to ~0.4° (density varies).
   # Vertical: 32 beams, ~1.33° between beams. FoV: +10.67° to -30.67°.
-  resolution_h_deg: 0.2   # Azimuthal (phi) resolution
-  resolution_v_deg: 1.0   # Polar/Elevation (theta) resolution
+  resolution_h_deg: 0.4   # Azimuthal (phi) resolution
+  resolution_v_deg: 1.4   # Polar/Elevation (theta) resolution
 
   # Field of View for the depth image.
   # Azimuthal: Full 360 degrees.
@@ -151,51 +155,51 @@ depth_image:
 
   # Maximum number of depth images to keep in the library (sliding window).
   library_size: 20        # e.g., keep history for 1 second if T=0.05s (20Hz)
-  max_points_per_pixel: 50
 
 # Occlusion Check Parameters (Values are examples, need tuning)
 occlusion_check:
-  epsilon_depth_occlusion: 0.3   # (εd) meters. Depth threshold for occlusion.
+  epsilon_depth_occlusion: 0.5   # (εd) meters. Depth threshold for occlusion.
   neighbor_search_pixels_h: 2    # (nh) Number of horizontal neighbor pixels to check (0 for center only, 1 for 3xN_v).
   neighbor_search_pixels_v: 1    # (nv) Number of vertical neighbor pixels to check (0 for center only, 1 for N_h x 3).
-  angular_threshold_deg_h: 2.0   # (εh) Horizontal angular threshold for point-based check (degrees).
+  angular_threshold_deg_h: 4.0   # (εh) Horizontal angular threshold for point-based check (degrees).
   angular_threshold_deg_v: 2.0   # (εv) Vertical angular threshold for point-based check (degrees).
 
 
 
 map_consistency_check:
-  enabled: false # Overall toggle for this phase
-  consistency_threshold: 0.7 # Ratio of frames that must be consistent
+  enabled: true # Overall toggle for this phase
+  threshold_value_count: 1
   # How many of the most recent (but older than current) DIs to check against
-  map_consistency_time_window_past_s: 5
-  map_consistency_time_window_future_s: 5 # New parameter
+  map_consistency_time_window_past_s: 0.3
+  map_consistency_time_window_future_s: 0.25 # New parameter
   # Angular thresholds for considering a stored static point "aligned" with the point_to_check
   # These are in the historical DI's frame where both points are projected
-  epsilon_phi_map_deg: 1.0  # Azimuthal tolerance in degrees
-  epsilon_theta_map_deg: 1.0 # Polar tolerance in degrees
+  epsilon_phi_map_deg: 2.0      # Degrees
+  epsilon_theta_map_deg: 2.0    # Degrees
   # Depth thresholds (in meters) for considering a stored static point "at the same depth"
   # d_static - epsilon_depth_backward_map <= d_current_projected <= d_static + epsilon_depth_forward_map
-  epsilon_depth_forward_map: 0.3  # Meters
-  epsilon_depth_backward_map: 0.3 # Meters
+  epsilon_depth_forward_map: 1.0  # Meters (Increased from 0.3)
+  epsilon_depth_backward_map: 1.0 # Meters (Increased from 0.3)
   # Labels in historical DIs that are considered "static" or "non-event" for map consistency
   static_labels_for_map_check:
     - "NON_EVENT" # From initialization phase
     - "UNDETERMINED" # If an occlusion check was inconclusive, it's likely static
     - "STATIC_CONFIRMED_BY_MAP" # If previously confirmed as static by this check
     - "PENDING_CLASSIFICATION" # Default label for future points - necessary if comparing current points with future ones
+    - "OCCLUDED_BY_IMAGE"
     # Add any other labels that signify a point is part of the static map
 
 # Event Detection Test Parameters (Values are examples, need tuning)
 event_tests:
-  test1_N_depth_images: 5     # Test 1: Num recent depth images to check
-  test1_M1_threshold: 3       # Test 1: Min occluded background images
+  test1_N_depth_images: 3     # Test 1: Num recent depth images to check
+  test1_M1_threshold: 2       # Test 1: Min occluded background images
   test2_M2_depth_images: 3    # Test 2: Num images for moving away check
   test3_M3_depth_images: 3    # Test 3: Num images for moving towards check
 
 # Initialization Phase
 initialization:
   # number of initial sweeps to build initial depth images before starting event detection.
-  num_initial_sweeps_for_map: 3 
+  num_initial_sweeps_for_map: 5 
 
 # Point Processing
 filtering:

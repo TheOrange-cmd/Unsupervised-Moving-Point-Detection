@@ -1,123 +1,169 @@
 #!/usr/bin/env python3
 import sys
 import os
+import yaml # For reading YAML configuration files
 
-def create_repo_summary(folder_path, output_file_path, file_extension):
+def create_repo_summary(root_path_for_walk, output_file_path, file_extension, 
+                        excluded_abs_path=None, display_root_prefix=None):
     """
-    Recursively finds all files with a specified extension in a given folder
-    and copies their contents into a single output text file. Each file's
-    content in the output is preceded by a header indicating its source path.
+    Recursively finds all files with a specified extension in a given folder,
+    excluding a specified subfolder, and copies their contents into a single
+    output text file. Each file's content in the output is preceded by a
+    header indicating its source path.
 
     Args:
-        folder_path (str): The path to the folder to search (e.g., './src').
-        output_file_path (str): The path to the text file to create/overwrite 
-                                (e.g., './repo_summary.txt').
+        root_path_for_walk (str): The absolute path to the folder to search.
+        output_file_path (str): The path to the text file to create/overwrite.
         file_extension (str): The file extension to look for (e.g., '.py').
+        excluded_abs_path (str, optional): The absolute path of the subfolder to exclude.
+                                           Defaults to None (no exclusion).
+        display_root_prefix (str, optional): The original 'folder_to_scan' string from config,
+                                             used for creating user-friendly display paths.
+                                             Defaults to '.', meaning paths are relative to root_path_for_walk.
     """
-    # Validate that the folder_path exists and is a directory
-    if not os.path.isdir(folder_path):
-        print(f"Error: Folder '{folder_path}' not found or is not a directory.")
-        sys.exit(1) # Exit if the source folder is invalid
+    if not os.path.isdir(root_path_for_walk):
+        print(f"Error: Folder '{root_path_for_walk}' (resolved from '{display_root_prefix or root_path_for_walk}') not found or is not a directory.")
+        sys.exit(1)
 
     found_files_count = 0
+    # Ensure display_root_prefix has a default for path joining if None
+    effective_display_root = display_root_prefix if display_root_prefix is not None else '.'
+
     try:
-        # Open the output file in write mode ('w'). This will overwrite the file if it exists.
-        # UTF-8 encoding is used for broad compatibility.
         with open(output_file_path, 'w', encoding='utf-8') as outfile:
-            # os.walk generates the file names in a directory tree by walking the tree 
-            # either top-down or bottom-up.
-            for dirpath, _, filenames in os.walk(folder_path):
+            for dirpath, dirnames, filenames in os.walk(root_path_for_walk):
+                current_dir_abs_path = os.path.abspath(os.path.normpath(dirpath))
+
+                # Exclusion logic
+                if excluded_abs_path:
+                    # Check if the current directory is the excluded one or a subdirectory of it.
+                    if current_dir_abs_path == excluded_abs_path or \
+                       current_dir_abs_path.startswith(excluded_abs_path + os.sep):
+                        dirnames[:] = []  # Don't descend into subdirectories of the excluded folder
+                        # print(f"Debug: Skipping excluded directory: {current_dir_abs_path}") # Uncomment for debugging
+                        continue          # Skip processing files in this excluded directory
+
                 for filename in filenames:
-                    # Check if the current file ends with the specified extension
                     if filename.endswith(file_extension):
                         found_files_count += 1
-                        # Construct the full path to the source file
-                        source_file_path = os.path.join(dirpath, filename)
+                        source_file_abs_path = os.path.join(current_dir_abs_path, filename)
                         
-                        # Normalize the path for display (e.g., remove './', use forward slashes)
-                        # os.path.normpath cleans the path (e.g., 'A/./B' becomes 'A/B').
-                        normalized_path = os.path.normpath(source_file_path)
-                        # Replace OS-specific separators with forward slashes for consistent display
-                        display_path = normalized_path.replace(os.sep, '/')
+                        # Calculate display path to be consistent with original script's behavior
+                        # (relative to the originally specified scan folder)
+                        path_relative_to_walk_root = os.path.relpath(source_file_abs_path, root_path_for_walk)
+                        
+                        # Construct display path using the original display_root_prefix
+                        # os.path.join handles cases like display_root_prefix = '.' correctly
+                        raw_display_path = os.path.join(effective_display_root, path_relative_to_walk_root)
+                        
+                        # Normalize the path (e.g., remove './', use forward slashes for display)
+                        normalized_display_path = os.path.normpath(raw_display_path)
+                        display_path = normalized_display_path.replace(os.sep, '/')
 
-                        # Define the header format as per the example
                         header_top = "############################\n"
                         file_line = f"FILE: {display_path}\n"
                         header_bottom = "############################\n"
                         
-                        # Write the header to the output file
                         outfile.write(header_top)
                         outfile.write(file_line)
                         outfile.write(header_bottom)
-                        outfile.write("\n")  # Add a blank line between the header and the file content
+                        outfile.write("\n")
 
                         try:
-                            # Open the source file in read mode ('r')
-                            # 'errors="ignore"' will skip characters that can't be decoded,
-                            # which can be useful for potentially mixed-encoding files.
-                            with open(source_file_path, 'r', encoding='utf-8', errors='ignore') as infile:
+                            with open(source_file_abs_path, 'r', encoding='utf-8', errors='ignore') as infile:
                                 content = infile.read()
-                                outfile.write(content) # Write the file's content
+                                outfile.write(content)
                             
-                            # Ensure proper separation before the next file's header.
-                            # If the content did not end with a newline, add one.
                             if content and not content.endswith('\n'):
                                 outfile.write("\n")
-                            # Add one more newline to create a blank line before the next header.
                             outfile.write("\n")
 
                         except Exception as e:
-                            # If a specific file can't be read, write an error message in its place
-                            # and print a warning to the console.
                             error_message = f"\nError reading file {display_path}: {e}\n"
                             outfile.write(error_message)
-                            outfile.write("\n\n") # Maintain separation
+                            outfile.write("\n\n")
                             print(f"Warning: Could not read file {display_path}: {e}")
         
         if found_files_count > 0:
             print(f"Successfully summarized {found_files_count} file(s) into '{output_file_path}'.")
         else:
-            # If no files matched the extension, inform the user.
-            print(f"No files with extension '{file_extension}' found in '{folder_path}'. "
+            print(f"No files with extension '{file_extension}' found in '{display_root_prefix or root_path_for_walk}' "
+                  f"(or matching files were all in excluded folders). "
                   f"Output file '{output_file_path}' was created but may be empty or "
                   f"contain only headers of unreadable files if any errors occurred.")
 
     except IOError as e:
-        # Handle errors related to writing the output file itself
         print(f"Error writing to output file '{output_file_path}': {e}")
         sys.exit(1)
     except Exception as e:
-        # Handle any other unexpected errors during the process
         print(f"An unexpected error occurred: {e}")
         sys.exit(1)
 
 def main():
     """
-    Parses command-line arguments and calls the create_repo_summary function.
+    Reads configuration from a YAML file and calls the create_repo_summary function.
     """
-    # sys.argv contains the command-line arguments passed to the script.
-    # sys.argv[0] is the script name.
-    if len(sys.argv) != 4:
-        script_name = os.path.basename(sys.argv[0]) # Get the script name for usage instructions
-        print(f"Usage: python {script_name} <folder_to_scan> <output_summary_file> <file_extension>")
-        print(f"Example: python {script_name} ./src ./repo_summary.txt '.py'")
-        sys.exit(1) # Exit if arguments are incorrect
+    script_name = os.path.basename(sys.argv[0])
+    config_file_name = "summarizer_config.yaml"
+    # Assume config file is in the same directory as the script
+    script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    config_file_path = os.path.join(script_dir, config_file_name)
 
-    # Assign arguments to variables
-    folder_path = sys.argv[1]
-    output_file_path = sys.argv[2]
-    file_extension = sys.argv[3]
-
-    # Validate the file extension format (e.g., must start with '.' and have some length)
-    if not file_extension.startswith('.'):
-        print(f"Error: File extension '{file_extension}' must start with a '.' (e.g., '.py').")
+    try:
+        with open(config_file_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        if config is None: # Handles empty config file
+            config = {}
+    except FileNotFoundError:
+        print(f"Error: Config file '{config_file_path}' not found.")
+        print(f"Please create '{config_file_name}' in the script's directory with necessary parameters.")
         sys.exit(1)
-    if len(file_extension) < 2: # e.g., '.' is invalid, needs at least one char after dot like '.c'
-        print(f"Error: File extension '{file_extension}' is too short (e.g., use '.py', not just '.').")
+    except yaml.YAMLError as e:
+        print(f"Error parsing YAML config file '{config_file_path}': {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error reading config file '{config_file_path}': {e}")
         sys.exit(1)
 
-    # Call the main function to perform the summarization
-    create_repo_summary(folder_path, output_file_path, file_extension)
+    # Load parameters from config
+    folder_to_scan_str = config.get('folder_to_scan')
+    output_file_path_str = config.get('output_summary_file')
+    file_extension_str = config.get('file_extension')
+    excluded_subfolder_str = config.get('excluded_subfolder') # Can be None or empty
+
+    # Validate required parameters
+    if not all([folder_to_scan_str, output_file_path_str, file_extension_str]):
+        print(f"Error: 'folder_to_scan', 'output_summary_file', and 'file_extension' "
+              f"must be set in '{config_file_name}'.")
+        sys.exit(1)
+
+    # Validate file extension format
+    if not file_extension_str.startswith('.'):
+        print(f"Error: File extension '{file_extension_str}' in config must start with a '.' (e.g., '.py').")
+        sys.exit(1)
+    if len(file_extension_str) < 2:
+        print(f"Error: File extension '{file_extension_str}' in config is too short (e.g., use '.py', not just '.').")
+        sys.exit(1)
+
+    # Prepare paths for the main function
+    # root_path_for_walk: Absolute path for os.walk and internal logic
+    root_path_for_walk = os.path.abspath(os.path.normpath(folder_to_scan_str))
+    
+    # display_root_prefix: The original string from config, used for display path generation
+    display_root_prefix = folder_to_scan_str 
+
+    # excluded_abs_path: Absolute path for the folder to be excluded, if specified
+    excluded_abs_path = None
+    if excluded_subfolder_str: # Checks for None and empty string implicitly
+        # excluded_subfolder_str is resolved relative to the Current Working Directory if relative,
+        # or used as is if absolute. Then, it's normalized.
+        excluded_abs_path = os.path.abspath(os.path.normpath(excluded_subfolder_str))
+
+    create_repo_summary(root_path_for_walk, 
+                        output_file_path_str, 
+                        file_extension_str, 
+                        excluded_abs_path,
+                        display_root_prefix)
 
 if __name__ == "__main__":
     main()
