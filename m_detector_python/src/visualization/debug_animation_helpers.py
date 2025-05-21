@@ -255,8 +255,9 @@ def _prepare_debug_animation_data(
                 max_dev_y = np.max(np.abs(combined_points_xy[:, 1] - center_y)) if combined_points_xy.shape[0] > 0 else 0
                 max_extent = max(max_dev_x, max_dev_y, 10.0) 
                 
-                vis_config = mdetector.config.get('visualization', {})
-                padding = vis_config.get('debug_anim_bev_padding', 15.0)
+                vis_params_from_accessor = mdetector.config_accessor.get_visualization_params()
+                debug_anim_style_cfg = vis_params_from_accessor.get('debug_animation_bev_style', {})
+                padding = debug_anim_style_cfg.get('padding', 15.0)
                 half_range = max(max_extent + padding, padding) 
 
                 prepared_data['plot_lims'] = {
@@ -265,16 +266,18 @@ def _prepare_debug_animation_data(
                 }
             else: # Fallback if combined_points_xy is empty after vstack (should not happen if debug_point_xy is always there)
                 ego_x, ego_y = ego_trans_target_for_lim[0], ego_trans_target_for_lim[1]
-                vis_config = mdetector.config.get('visualization', {})
-                default_range = vis_config.get('debug_anim_bev_default_range', 30.0)
+                vis_params_from_accessor = mdetector.config_accessor.get_visualization_params()
+                debug_anim_style_cfg = vis_params_from_accessor.get('debug_animation_bev_style', {})
+                default_range = debug_anim_style_cfg.get('padding', 15.0)
                 prepared_data['plot_lims'] = {
                     'xlim': (ego_x - default_range, ego_x + default_range),
                     'ylim': (ego_y - default_range, ego_y + default_range)
                 }
         else: # Fallback if all_relevant_points_for_lims_xy is empty
             ego_x, ego_y = ego_trans_target_for_lim[0], ego_trans_target_for_lim[1]
-            vis_config = mdetector.config.get('visualization', {})
-            default_range = vis_config.get('debug_anim_bev_default_range', 30.0)
+            vis_params_from_accessor = mdetector.config_accessor.get_visualization_params()
+            debug_anim_style_cfg = vis_params_from_accessor.get('debug_animation_bev_style', {})
+            default_range = debug_anim_style_cfg.get('padding', 15.0)
             prepared_data['plot_lims'] = {
                 'xlim': (ego_x - default_range, ego_x + default_range),
                 'ylim': (ego_y - default_range, ego_y + default_range)

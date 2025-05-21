@@ -236,8 +236,8 @@ def debug_point_m_detector_logic(
 
     # --- Step 2: Map Consistency Check (MCC) ---
     print("\n  Step 2: Map Consistency Check (MCC)")
-    mcc_config = detector_instance.config.get('map_consistency_check', {})
-    mcc_enabled = mcc_config.get('enabled', False)
+    mcc_params = detector_instance.config_accessor.get_map_consistency_params()
+    mcc_enabled = mcc_params.get('enabled', False)
     
     # Use recheck_result_step1_final_enum for this logic
     should_mcc_run_calculated = mcc_enabled and (recheck_result_step1_final_enum == OcclusionResult.OCCLUDING_IMAGE)
@@ -278,9 +278,9 @@ def debug_point_m_detector_logic(
     
     # --- Step 4: Event Test ---
     print("\n  Step 4: Event Test (Perpendicular Test)")
-    event_cfg = detector_instance.config.get('event_tests', {})
-    n_hist_for_event_test = event_cfg.get('test1_N_depth_images', 3) 
-    m1_threshold = event_cfg.get('test1_M1_threshold', 2)
+    test1_params = detector_instance.config_accessor.get_test1_perpendicular_params()
+    n_hist_for_event_test = test1_params.get('num_historical_DIs_N', 3)
+    m1_threshold = test1_params.get('min_occluding_DIs_M1', 2)
     
     occluding_count_recalculated = 0
     passed_event_test_recalculated = False

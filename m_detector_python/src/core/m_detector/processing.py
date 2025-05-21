@@ -42,152 +42,158 @@ def extract_mdetector_points(depth_image_output_from_mdetector: Optional[Any]) -
 
 def process_and_label_di(self, # self is MDetector instance
                         current_di: DepthImage,
-                        current_di_idx_in_lib: int # Index of current_di in MDetector's library
+                        current_di_idx_in_lib: int
                         ) -> Dict:
-    """
-    Process points in current_di using causal logic (Tests 1, 2, 3 from paper).
-    Populates current_di.raw_occlusion_results_vs_history.
-    Updates current_di.mdet_labels_for_points with the final point-out label.
-    """
     if not isinstance(current_di, DepthImage):
         raise TypeError("current_di must be a DepthImage object.")
 
-    label_counts = {label: 0 for label in OcclusionResult}
+    # Initialize label_counts with OcclusionResult enum members as keys for clarity, convert to value for storage if needed
+    label_counts_enum_keys = {label: 0 for label in OcclusionResult}
     points_labeled_count = 0
 
     if current_di.original_points_global_coords is None or \
        current_di.original_points_global_coords.shape[0] == 0:
-        self.logger.debug(f"Causal Process: current_di (TS: {current_di.timestamp}) has no points. Skipping.")
-        return {'points_labeled': 0, 'label_counts': label_counts, 'success': True,
+        self.logger.debug(f"ProcessDI: current_di (TS: {current_di.timestamp}) has no points.")
+        # Convert enum keys to values for the return dict if that's the expected format
+        label_counts_val_keys = {k.value: v for k,v in label_counts_enum_keys.items()}
+        return {'points_labeled': 0, 'label_counts': label_counts_val_keys, 'success': True,
                 'timestamp': current_di.timestamp, 'reason': 'current_di has no points',
-                'processed_di': current_di} # Return current_di even if no points
+                'processed_di': current_di}
 
     num_points_in_current_di = current_di.original_points_global_coords.shape[0]
     points_global_batch_current = current_di.original_points_global_coords
 
-    # Initialize final labels for current_di points to UNDETERMINED
     if current_di.mdet_labels_for_points is None or \
        current_di.mdet_labels_for_points.shape[0] != num_points_in_current_di:
         current_di.mdet_labels_for_points = np.full(num_points_in_current_di,
                                                     OcclusionResult.UNDETERMINED.value,
                                                     dtype=np.int8)
 
-    # --- Parameters for Test 3 (Event Test) from config ---
-    event_test_cfg = self.config.get('event_tests', {})
-    test1_N_historical_DIs = event_test_cfg.get('test1_N_depth_images', 5) # N for Test 3
-    test1_M1_threshold = event_test_cfg.get('test1_M1_threshold', 2)   # M1 for Test 3
-
-    # --- 1. Populate current_di.raw_occlusion_results_vs_history ---
-    # Initialize the history array for current_di
+    # Populate raw_occlusion_results_vs_history (for Test 1/4)
     current_di.raw_occlusion_results_vs_history = np.full(
-        (num_points_in_current_di, test1_N_historical_DIs),
-        OcclusionResult.UNDETERMINED.value, # Default if no historical DI or error
-        dtype=np.int8
+        (num_points_in_current_di, self.test1_N_historical_DIs), # Uses self.test1_N_historical_DIs
+        OcclusionResult.UNDETERMINED.value, dtype=np.int8
     )
-
-    for k_hist_idx in range(test1_N_historical_DIs):
-        # Get the (k_hist_idx)-th older DI (0 is immediate predecessor, 1 is before that, etc.)
+    for k_hist_idx in range(self.test1_N_historical_DIs):
         actual_historical_di_index_in_lib = current_di_idx_in_lib - 1 - k_hist_idx
-        if actual_historical_di_index_in_lib < 0:
-            break # No more historical DIs available
-
+        if actual_historical_di_index_in_lib < 0: break
         historical_di_k = self.depth_image_library.get_image_by_index(actual_historical_di_index_in_lib)
-
-        if historical_di_k and \
-           historical_di_k.original_points_global_coords is not None and \
-           historical_di_k.original_points_global_coords.shape[0] > 0:
-            # Perform batch occlusion check of all points in current_di against historical_di_k
+        if historical_di_k and historical_di_k.is_prepared_for_projection():
             raw_occlusion_enums_vs_hist_k = self.check_occlusion_batch(
-                points_global_batch_current,
-                historical_di_k
+                points_global_batch_current, historical_di_k
             )
             current_di.raw_occlusion_results_vs_history[:, k_hist_idx] = [
                 res.value for res in raw_occlusion_enums_vs_hist_k
             ]
-        # Else: leave as UNDETERMINED in current_di.raw_occlusion_results_vs_history[:, k_hist_idx]
 
-    # --- Iterate through each point in the current_di to apply full causal logic ---
-    for pt_idx in range(num_points_in_current_di):
+    # Iterate through each point for final labeling
+    # Use disable=not self.config_accessor.get_processing_settings().get('show_progress_bar_per_di', False)
+    # For now, disable it to keep logs cleaner during this complex addition.
+    for pt_idx in tqdm(range(num_points_in_current_di), 
+                       desc=f"Processing DI {current_di.timestamp:.2f}", 
+                       leave=False, 
+                       disable=True): # Temporarily disable for cleaner logs
         point_global_P = points_global_batch_current[pt_idx]
-        # final_label_for_P = OcclusionResult.UNDETERMINED # Default
 
-        # --- Test 1 (Occlusion vs. Immediate Predecessor) & Test 2 (Map Consistency) ---
-        occlusion_result_after_MC = OcclusionResult.UNDETERMINED
-        map_consistency_check_performed = False
-        map_consistent_result_bool = None # To store boolean result of MCC if performed
-
-        if test1_N_historical_DIs > 0:
-            raw_occlusion_P_vs_immediate_hist_val = current_di.raw_occlusion_results_vs_history[pt_idx, 0]
-            raw_occlusion_P_vs_immediate_hist = OcclusionResult(raw_occlusion_P_vs_immediate_hist_val)
-        else:
-            raw_occlusion_P_vs_immediate_hist = OcclusionResult.UNDETERMINED
-
-        occlusion_result_after_MC = raw_occlusion_P_vs_immediate_hist
-
-        if raw_occlusion_P_vs_immediate_hist == OcclusionResult.OCCLUDING_IMAGE and self.map_consistency_enabled:
-            map_consistency_check_performed = True
-            is_consistent_bool = self.is_map_consistent(point_global_P, current_di.timestamp, check_direction='past')
-            map_consistent_result_bool = is_consistent_bool # Store for tracing
-            if is_consistent_bool: # True means map consistent
-                occlusion_result_after_MC = OcclusionResult.OCCLUDED_BY_IMAGE
-            # Else (map inconsistent), occlusion_result_after_MC remains OCCLUDING_IMAGE
-
-        # --- Test 3 (Event Test) using the populated history ---
-        passed_event_test = False
-        occluding_count_for_P = 0 # Initialize
-        if test1_N_historical_DIs > 0 and test1_M1_threshold > 0:
-            occluding_count_for_P = np.sum(
-                current_di.raw_occlusion_results_vs_history[pt_idx, :] == OcclusionResult.OCCLUDING_IMAGE.value
+        # --- Check if point was pre-labeled ---
+        current_label_val = current_di.mdet_labels_for_points[pt_idx]
+        if current_label_val == OcclusionResult.PRELABELED_STATIC_GROUND.value:
+            # This point is already confidently static ground.
+            # Do not run Test 1/2/3/4 to re-label it.
+            # It will still be used by other points for their occlusion checks (as part of historical DIs).
+            final_label_for_P = OcclusionResult.PRELABELED_STATIC_GROUND # Keep its pre-label
+            
+            # Optionally log or trace this skip
+            if self.debug_collector and self.debug_collector.is_tracing(pt_idx):
+                self.debug_collector.trace(pt_idx, final_label="PRELABELED_STATIC_GROUND (skipped M-Det tests)")
+            
+            label_counts_enum_keys[final_label_for_P] += 1
+            points_labeled_count +=1 # Still counts as "processed" by the DI labeling stage
+            continue # Move to the next point
+        
+        # Test 1 (Occlusion vs. Imm. Past) & MCC (Implicitly part of Test 4 logic)
+        outcome_test1_mcc = OcclusionResult.UNDETERMINED # Result after immediate occlusion and MCC
+        raw_occ_P_vs_imm_hist = OcclusionResult.UNDETERMINED
+        if self.test1_N_historical_DIs > 0: # Ensure there's history to check against
+            raw_occ_P_vs_imm_hist = OcclusionResult(current_di.raw_occlusion_results_vs_history[pt_idx, 0])
+        
+        outcome_test1_mcc = raw_occ_P_vs_imm_hist
+        mcc1_performed = False
+        mcc1_result_bool = None
+        if raw_occ_P_vs_imm_hist == OcclusionResult.OCCLUDING_IMAGE and self.map_consistency_enabled:
+            mcc1_performed = True
+            mcc1_result_bool = self.is_map_consistent(point_global_P, current_di.timestamp, check_direction='past')
+            if mcc1_result_bool: 
+                outcome_test1_mcc = OcclusionResult.OCCLUDED_BY_IMAGE 
+        
+        # Test 4 (Perpendicular Event Test based on history counts)
+        passed_perpendicular_event_test = False
+        occluding_count_for_test1_N = 0
+        if self.test1_N_historical_DIs > 0 and self.test1_M1_threshold > 0:
+            occluding_count_for_test1_N = np.sum(
+                current_di.raw_occlusion_results_vs_history[pt_idx, :self.test1_N_historical_DIs] == OcclusionResult.OCCLUDING_IMAGE.value
             )
-            if occluding_count_for_P >= test1_M1_threshold:
-                passed_event_test = True
+            if occluding_count_for_test1_N >= self.test1_M1_threshold:
+                passed_perpendicular_event_test = True
 
-        # --- Trace intermediate data if collector is active for this point ---
-        if self.debug_collector and self.debug_collector.is_tracing(pt_idx):
-            trace_info = {
-                "1_raw_occ_vs_imm": raw_occlusion_P_vs_immediate_hist.name,
-                "2_mcc_performed": map_consistency_check_performed,
-                "2a_mcc_is_consistent_result": map_consistent_result_bool if map_consistency_check_performed else "N/A",
-                "3_occ_after_mcc": occlusion_result_after_MC.name,
-                "4_event_test_occluding_count": occluding_count_for_P,
-                "5_event_test_passed": passed_event_test,
-            }
-            self.debug_collector.trace(pt_idx, **trace_info)
+        # Combined outcome of Test 1 (immediate + MCC) and Test 4 (perpendicular event)
+        # This represents the "dynamic" signal from the original paper's simpler tests.
+        final_outcome_tests1_and_4 = OcclusionResult.UNDETERMINED
+        if passed_perpendicular_event_test: # If the longer history perpendicular test says dynamic
+            # Even if MCC on immediate past said static, the longer history might be more robust
+            final_outcome_tests1_and_4 = OcclusionResult.OCCLUDING_IMAGE
+        else: # Perpendicular event test did not pass, rely on immediate past + MCC
+            final_outcome_tests1_and_4 = outcome_test1_mcc
+        
+        # --- Test 2 (Parallel Motion - Event by Disappearance) ---
+        outcome_test2 = OcclusionResult.UNDETERMINED
+        if self.execute_test2_parallel_motion(point_global_P, current_di.timestamp, current_di_idx_in_lib):
+            outcome_test2 = OcclusionResult.OCCLUDING_IMAGE 
 
-        # --- Final Labeling Decision for Point P (Causal) ---
-        final_label_for_P = OcclusionResult.UNDETERMINED # Default
-        decision_path_trace = "Fallback_to_UNDETERMINED"
+        # --- Test 3 (Perpendicular Motion - Event by Appearance/Revealing) ---
+        outcome_test3 = OcclusionResult.UNDETERMINED
+        if self.execute_test3_perpendicular_motion(point_global_P, current_di.timestamp, current_di_idx_in_lib):
+            outcome_test3 = OcclusionResult.OCCLUDING_IMAGE
 
-        if passed_event_test: # Primary condition for dynamic based on longer history
-            # Further check if MCC contradicts this for the immediate past
-            if occlusion_result_after_MC == OcclusionResult.OCCLUDED_BY_IMAGE: # MCC said it's static
-                final_label_for_P = OcclusionResult.UNDETERMINED 
-                # Or maybe even UNDETERMINED if event test and MCC conflict strongly
-            else:
-                final_label_for_P = OcclusionResult.OCCLUDING_IMAGE # Event test implies dynamic
-        elif occlusion_result_after_MC == OcclusionResult.OCCLUDED_BY_IMAGE:
+        # --- Final Label Aggregation ---
+        final_label_for_P = OcclusionResult.UNDETERMINED
+        
+        if final_outcome_tests1_and_4 == OcclusionResult.OCCLUDING_IMAGE or \
+           outcome_test2 == OcclusionResult.OCCLUDING_IMAGE or \
+           outcome_test3 == OcclusionResult.OCCLUDING_IMAGE:
+            final_label_for_P = OcclusionResult.OCCLUDING_IMAGE
+        elif final_outcome_tests1_and_4 == OcclusionResult.OCCLUDED_BY_IMAGE:
             final_label_for_P = OcclusionResult.OCCLUDED_BY_IMAGE
-            decision_path_trace = "Static: OccAfterMCC_is_OCCLUDED_BY_IMAGE (map_consistent or raw_occluded)"
-        elif occlusion_result_after_MC == OcclusionResult.EMPTY_IN_IMAGE:
+        elif final_outcome_tests1_and_4 == OcclusionResult.EMPTY_IN_IMAGE:
             final_label_for_P = OcclusionResult.EMPTY_IN_IMAGE
-            decision_path_trace = "Static: OccAfterMCC_is_EMPTY_IN_IMAGE"
-        # else: final_label_for_P remains UNDETERMINED (already set as default)
-
+        
         current_di.mdet_labels_for_points[pt_idx] = final_label_for_P.value
-        label_counts[final_label_for_P] += 1
+        label_counts_enum_keys[final_label_for_P] += 1 # Use enum member as key
         points_labeled_count += 1
 
         if self.debug_collector and self.debug_collector.is_tracing(pt_idx):
-            self.debug_collector.trace(pt_idx, 
-                                        final_label=final_label_for_P.name,
-                                        decision_logic=decision_path_trace)
-
-    self.logger.debug(f"Causal Processed DI (TS: {current_di.timestamp}, Idx: {current_di_idx_in_lib}): "
+            trace_info = {
+                "T1_raw_occ_vs_imm": raw_occ_P_vs_imm_hist.name,
+                "T1_mcc_performed": mcc1_performed,
+                "T1_mcc_result": mcc1_result_bool if mcc1_performed else "N/A",
+                "T1_outcome_after_mcc": outcome_test1_mcc.name,
+                "T4_perp_event_test_count": occluding_count_for_test1_N,
+                "T4_perp_event_test_passed": passed_perpendicular_event_test,
+                "OUTCOME_Tests1_and_4": final_outcome_tests1_and_4.name,
+                "OUTCOME_Test2_parallel": outcome_test2.name,
+                "OUTCOME_Test3_perpendicular": outcome_test3.name,
+                "final_label": final_label_for_P.name,
+            }
+            self.debug_collector.trace(pt_idx, **trace_info)
+            
+    # Convert enum keys to values for the return dict
+    label_counts_val_keys = {k.value: v for k,v in label_counts_enum_keys.items()}
+    self.logger.info(f"Processed DI (TS: {current_di.timestamp}, Idx: {current_di_idx_in_lib}): "
                       f"Labeled {points_labeled_count}/{num_points_in_current_di} points. "
-                      f"Counts: { {k.name:v for k,v in label_counts.items() if v > 0} }")
+                      f"Counts: { {OcclusionResult(k).name:v for k,v in label_counts_val_keys.items() if v > 0} }")
 
     return {
-        'points_labeled': points_labeled_count, 'label_counts': label_counts,
+        'points_labeled': points_labeled_count, 'label_counts': label_counts_val_keys,
         'success': True, 'timestamp': current_di.timestamp,
         'processed_di': current_di
     }

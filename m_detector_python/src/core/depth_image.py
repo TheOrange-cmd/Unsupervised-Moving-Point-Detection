@@ -3,73 +3,75 @@ Represents a depth image generated from a single LiDAR sweep, storing points
 in a 2D pixel grid based on their spherical coordinates relative to the sensor.
 """
 
-# # src/core/depth_image.py
-
+# src/core/depth_image.py
 
 import numpy as np
-from typing import Tuple, Optional, Dict, List, Any # Keep Any for now, might refine
-from .constants import OcclusionResult # Assuming OcclusionResult is still relevant for default labels
+from typing import Tuple, Optional, Dict, List, Any 
+from .constants import OcclusionResult 
 import logging 
 import collections 
 
 logger = logging.getLogger(__name__)
 
-
 class DepthImage:
-    def __init__(self, image_pose_global: np.ndarray, config: dict, timestamp: float):
+    def __init__(self, 
+                 image_pose_global: np.ndarray, 
+                 # MODIFIED: Accept specific depth image parameters
+                 depth_image_params: Dict[str, Any], 
+                 timestamp: float):
         """
         Initializes a DepthImage.
 
         Args:
-            image_pose_global (np.ndarray): 4x4 homogeneous transformation matrix representing the
-                                            LiDAR sensor's pose in the global frame (global_T_lidar)
-                                            at the moment this depth image is notionally created.
-            config (dict): Configuration dictionary, expected to have a 'depth_image' sub-dictionary.
-            timestamp (float): Timestamp associated with this depth image (e.g., start of sweep).
+            image_pose_global (np.ndarray): 4x4 homogeneous transformation matrix.
+            depth_image_params (Dict[str, Any]): Configuration dictionary specifically for depth_image parameters.
+                                                 Expected keys: 'resolution_h_deg', 'resolution_v_deg',
+                                                                'phi_min_rad', 'phi_max_rad',
+                                                                'theta_min_rad', 'theta_max_rad'.
+            timestamp (float): Timestamp associated with this depth image.
         """
         self.image_pose_global: np.ndarray = image_pose_global
         self.timestamp: float = timestamp
         
-        di_config = config['depth_image']
+        # Use the passed-in specific config for depth image parameters
+        self.res_h_rad: float = np.deg2rad(depth_image_params['resolution_h_deg'])
+        self.res_v_rad: float = np.deg2rad(depth_image_params['resolution_v_deg'])
 
-        self.res_h_rad: float = np.deg2rad(di_config['resolution_h_deg'])
-        self.res_v_rad: float = np.deg2rad(di_config['resolution_v_deg'])
-
-        self.phi_min_rad: float = di_config['phi_min_rad']
-        self.phi_max_rad: float = di_config['phi_max_rad']
-        self.theta_min_rad: float = di_config['theta_min_rad']
-        self.theta_max_rad: float = di_config['theta_max_rad']
+        self.phi_min_rad: float = depth_image_params['phi_min_rad']
+        self.phi_max_rad: float = depth_image_params['phi_max_rad']
+        self.theta_min_rad: float = depth_image_params['theta_min_rad']
+        self.theta_max_rad: float = depth_image_params['theta_max_rad']
 
         self.num_pixels_h: int = int(np.ceil((self.phi_max_rad - self.phi_min_rad) / self.res_h_rad))
         self.num_pixels_v: int = int(np.ceil((self.theta_max_rad - self.theta_min_rad) / self.res_v_rad))
 
-        # Pixel-level statistics (still useful for M-Detector's internal checks)
+        # Pixel-level statistics
         self.pixel_min_depth = np.full((self.num_pixels_v, self.num_pixels_h), np.inf, dtype=np.float32)
         self.pixel_max_depth = np.full((self.num_pixels_v, self.num_pixels_h), -np.inf, dtype=np.float32)
         self.pixel_count = np.zeros((self.num_pixels_v, self.num_pixels_h), dtype=np.int32)
         
-        # Stores original_index of points projecting to this pixel.
         self.pixel_original_indices: Dict[Tuple[int, int], List[int]] = collections.defaultdict(list)
 
-        # Main storage for point data (initialized in add_points_batch)
-        self.original_points_global_coords: Optional[np.ndarray] = None # (N, 3) float32
-        self.mdet_labels_for_points: Optional[np.ndarray] = None      # (N,) int8/int16 (OcclusionResult.value)
-        self.mdet_scores_for_points: Optional[np.ndarray] = None      # (N,) float32 (optional)
+        self.original_points_global_coords: Optional[np.ndarray] = None
+        self.mdet_labels_for_points: Optional[np.ndarray] = None
+        self.mdet_scores_for_points: Optional[np.ndarray] = None
+        self.local_sph_coords_for_points: Optional[np.ndarray] = None
         
-        # Performance Enhancement: Pre-calculated local spherical coordinates for all N points
-        # These are (phi, theta, depth) of each original point in *this DI's own sensor frame*.
-        self.local_sph_coords_for_points: Optional[np.ndarray] = None # (N, 3) float32
-        # --- END: Phase 1 Refactor Changes ---
-        
-        # For storing raw occlusion results against N historical DIs ---
-        # This array will store OcclusionResult.value for each point in this DI,
-        # against each of the N historical DIs used for Test 3.
-        # Shape: (num_points_in_this_DI, N_historical_DIs_for_test3)
-        # It will be populated by MDetector.process_and_label_di
         self.raw_occlusion_results_vs_history: Optional[np.ndarray] = None
         
         self.matrix_local_from_global: np.ndarray = np.linalg.inv(self.image_pose_global)
-        self.total_points_added_to_di_arrays: int = 0 # Renamed to reflect main array storage
+        self.total_points_added_to_di_arrays: int = 0
+
+    def is_prepared_for_projection(self) -> bool:
+        """
+        Checks if the DepthImage has the necessary data populated for projection operations
+        and accessing pixel-level information.
+        Primarily, this means points have been added.
+        """
+        # If original_points_global_coords is not None, it implies add_points_batch was called,
+        # and other essential arrays like local_sph_coords_for_points and pixel stats
+        # would have been initialized or populated.
+        return self.original_points_global_coords is not None
 
     def _apply_transformation_to_point(self, point_global: np.ndarray) -> np.ndarray:
         if point_global.shape == (3,):
@@ -118,18 +120,17 @@ class DepthImage:
 
     def project_points_batch(self, points_global_batch: np.ndarray) -> \
             Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        # (This function remains largely the same, ensure output dtypes are consistent, e.g., float32)
         batch_size = points_global_batch.shape[0]
         
         points_local_all = np.zeros((batch_size, 3), dtype=np.float32) 
         sph_coords_all = np.zeros((batch_size, 3), dtype=np.float32) 
-        pixel_indices_all = np.zeros((batch_size, 2), dtype=np.int32) # v_idx, h_idx
+        pixel_indices_all = np.zeros((batch_size, 2), dtype=np.int32) 
         valid_mask = np.zeros(batch_size, dtype=bool)
         
         if points_global_batch.shape[1] == 3:
             points_global_h = np.hstack([points_global_batch, np.ones((batch_size, 1), dtype=np.float32)])
         elif points_global_batch.shape[1] == 4:
-            points_global_h = points_global_batch.astype(np.float32) # Ensure consistent dtype
+            points_global_h = points_global_batch.astype(np.float32)
         else:
             raise ValueError("points_global_batch must be Nx3 or Nx4.")
 
@@ -180,8 +181,10 @@ class DepthImage:
         
         return points_local_all, sph_coords_all, pixel_indices_all, valid_mask
 
-    # --- START: Phase 1 Refactor Changes for add_points_batch ---
-    def add_points_batch(self, points_global_batch: np.ndarray) -> int:
+    def add_points_batch(self, 
+                         points_global_batch: np.ndarray,
+                         initial_labels_for_points: Optional[np.ndarray] = None
+                        ) -> int:
         """
         Adds multiple global 3D points to the depth image using batch projection.
         Initializes main point data arrays and populates pixel-level statistics
@@ -204,9 +207,17 @@ class DepthImage:
             return 0
 
         # 1. Store Original Data & Initialize Label/Score Arrays
-        self.original_points_global_coords = points_global_batch.astype(np.float32).copy() # Ensure float32
-        self.mdet_labels_for_points = np.full(batch_size, OcclusionResult.UNDETERMINED.value, dtype=np.int8)
-        self.mdet_scores_for_points = np.zeros(batch_size, dtype=np.float32) # Default score
+        self.original_points_global_coords = points_global_batch.astype(np.float32).copy()
+        
+        if initial_labels_for_points is not None and \
+           initial_labels_for_points.shape[0] == batch_size:
+            self.mdet_labels_for_points = initial_labels_for_points.copy()
+        else:
+            self.mdet_labels_for_points = np.full(batch_size, OcclusionResult.UNDETERMINED.value, dtype=np.int8)
+            if initial_labels_for_points is not None: # Log warning if shape mismatch
+                logger.warning("Shape mismatch for initial_labels_for_points or not provided. Defaulting all to UNDETERMINED.")
+
+        self.mdet_scores_for_points = np.zeros(batch_size, dtype=np.float32)
         self.total_points_added_to_di_arrays = batch_size
 
         # 2. Project all points and get their local spherical coordinates in this DI's frame
@@ -228,7 +239,7 @@ class DepthImage:
         valid_h_coords = pixel_indices_for_all[valid_original_indices, 1]
         depths_of_valid_points = self.local_sph_coords_for_points[valid_original_indices, 2]
 
-        # Update pixel_count (can be optimized with np.add.at later in P3)
+        # Update pixel_count (can be optimized with np.add.at later)
         for i in range(len(valid_original_indices)):
             original_idx = valid_original_indices[i]
             v_idx = valid_v_coords[i]
@@ -246,9 +257,7 @@ class DepthImage:
             self.pixel_count[v_idx, h_idx] += 1
             
         return batch_size # Returns total points added to the main arrays
-    # --- END: Phase 1 Refactor Changes for add_points_batch ---
 
-    # --- START: Phase 1 Refactor for get_pixel_info ---
     def get_pixel_info(self, v_idx: int, h_idx: int) -> Dict[str, Any]:
         """ 
         Returns aggregated data and original indices for points in a specific pixel.
@@ -267,18 +276,16 @@ class DepthImage:
             'min_depth': self.pixel_min_depth[v_idx, h_idx],
             'max_depth': self.pixel_max_depth[v_idx, h_idx],
             'count': self.pixel_count[v_idx, h_idx],
-            'original_indices_in_pixel': self.pixel_original_indices.get(pixel_key, []) # Return empty list if key not found
+            'original_indices_in_pixel': self.pixel_original_indices.get(pixel_key, []) 
         }
-    # --- END: Phase 1 Refactor for get_pixel_info ---
 
     def __str__(self) -> str:
         pose_translation = self.image_pose_global[:3,3]
         return (f"DepthImage @ {self.timestamp:.2f}s, "
                 f"Pose_xyz: [{pose_translation[0]:.2f}, {pose_translation[1]:.2f}, {pose_translation[2]:.2f}], "
                 f"Dims: {self.num_pixels_v}x{self.num_pixels_h} pixels, "
-                f"Total Points Stored: {self.total_points_added_to_di_arrays}") # Updated attribute name
+                f"Total Points Stored: {self.total_points_added_to_di_arrays}") 
     
-    # --- START: Phase 1 New Getter Methods ---
     def get_original_points_global(self) -> Optional[np.ndarray]:
         """Returns the (N,3) array of original global point coordinates."""
         return self.original_points_global_coords
@@ -294,7 +301,6 @@ class DepthImage:
     def get_local_sph_coords_for_all_points(self) -> Optional[np.ndarray]:
         """Returns the (N,3) array of (phi,theta,depth) in this DI's local frame for each original point."""
         return self.local_sph_coords_for_points
-    # --- END: Phase 1 New Getter Methods ---
 
     # Old get_all_points method - to be deprecated or removed as assembly will use new getters
     def get_all_points_DEPRECATED(self, with_labels: bool = False) -> Dict[str, np.ndarray]:
@@ -353,9 +359,6 @@ class DepthImage:
         ], dtype=np.float32)
 
         # Spherical to Cartesian conversion (sensor frame coordinates)
-        # x = d * cos(theta) * cos(phi)
-        # y = d * cos(theta) * sin(phi)
-        # z = d * sin(theta)
         
         d_vals = sph_corners_local[:, 2]
         phi_vals = sph_corners_local[:, 0]

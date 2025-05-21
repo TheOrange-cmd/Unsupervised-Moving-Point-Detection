@@ -15,6 +15,7 @@ from ..data_utils.nuscenes_helper import get_scene_sweep_data_sequence # To get 
 from ..utils.transformations import transform_points_numpy
 from ..data_utils.label_generation import get_interpolated_extrapolated_boxes_for_instance, find_instances_in_scene 
 from ..core.constants import OcclusionResult
+from ..config_loader import MDetectorConfigAccessor
 
 # Define default colors (can be moved to a constants file)
 K3D_COLOR_BACKGROUND = 0xAAAAAA  # Light grey
@@ -28,8 +29,8 @@ K3D_COLOR_FP = 0xFF0000 # Red
 K3D_COLOR_FN_POINTS = 0xFFC0CB # Pink (for GT points missed by detector)
 
 
-def _get_data_from_hdf5_for_sweep( # <--- RENAMED AND MODIFIED
-    h5_file_handle: h5py.File, # Pass the open HDF5 file handle
+def _get_data_from_hdf5_for_sweep(
+    h5_file_handle: h5py.File,
     target_sweep_token: str,
     token_key: str,
     data_array_key: str,
@@ -76,20 +77,21 @@ def visualize_sweep_k3d(
     nusc: NuScenes,
     scene_token: str,
     target_sweep_lidar_sd_token: str,
-    gt_labels_hdf5_path: Optional[str] = None,      # <--- CHANGED from NPZ
-    mdet_results_hdf5_path: Optional[str] = None, # <--- CHANGED from NPZ
-    config: Optional[Dict] = None,
+    gt_labels_hdf5_path: Optional[str] = None,
+    mdet_results_hdf5_path: Optional[str] = None,
+    # --- MODIFIED: Accept config_accessor ---
+    config_accessor: Optional[MDetectorConfigAccessor] = None,
     show_gt_boxes: bool = True,
     show_gt_points: bool = True,
     show_mdet_points: bool = True,
-    point_size: float = 0.05,
+    point_size: float = 0.05, # This can also be moved to config
     downsample_factor: int = 1
 ):
-    """
-    Visualizes a single LiDAR sweep in 3D using K3D, optionally showing
-    GT labels (points and boxes) and M-Detector classified points from HDF5 files.
-    """
-    viz_cfg = config.get('visualization', {}).get('k3d_plot', {}) if config else {}
+    # --- Use config_accessor to get k3d_plot parameters ---
+    k3d_plot_cfg = {}
+    if config_accessor:
+        k3d_plot_cfg = config_accessor.get_k3d_plot_params()
+    # --- End config access changes ---
 
     original_sweep_data = None
     for sweep_d in get_scene_sweep_data_sequence(nusc, scene_token):
@@ -109,61 +111,68 @@ def visualize_sweep_k3d(
         return None
 
     plot = k3d.plot(name=f"Scene: {nusc.get('scene', scene_token)['name']} - Sweep: {target_sweep_lidar_sd_token[:8]}",
-                    grid_visible=viz_cfg.get('grid_visible', True),
-                    camera_auto_fit=viz_cfg.get('camera_auto_fit', True))
+                    grid_visible=k3d_plot_cfg.get('grid_visible', True),
+                    camera_auto_fit=k3d_plot_cfg.get('camera_auto_fit', True),
+                    background_color=k3d_plot_cfg.get('plot_background_color_hex', K3D_COLOR_BACKGROUND))
+
 
     bg_points_to_plot = raw_points_global[::downsample_factor]
     plot += k3d.points(positions=bg_points_to_plot.astype(np.float32),
-                       color=viz_cfg.get('background_color', K3D_COLOR_BACKGROUND),
-                       point_size=point_size * viz_cfg.get('background_point_scale', 0.7),
+                       color=k3d_plot_cfg.get('background_points_color_hex', K3D_COLOR_BACKGROUND),
+                       point_size=point_size * k3d_plot_cfg.get('background_points_scale_factor', 0.7),
                        shader='3d', name='Background_LiDAR')
 
-    # --- Load and Process GT Labels from HDF5 ---
     if gt_labels_hdf5_path and show_gt_points:
         try:
-            with h5py.File(gt_labels_hdf5_path, 'r') as gt_h5: # Open HDF5 file
-                gt_point_labels_for_sweep = _get_data_from_hdf5_for_sweep( # Use HDF5 helper
+            with h5py.File(gt_labels_hdf5_path, 'r') as gt_h5:
+                gt_point_labels_for_sweep = _get_data_from_hdf5_for_sweep(
                     gt_h5, target_sweep_lidar_sd_token,
                     'sweep_lidar_sd_tokens', 'all_gt_point_labels', 'gt_point_labels_indices'
                 )
-                if gt_point_labels_for_sweep is not None and gt_point_labels_for_sweep.shape[0] == raw_points_global.shape[0]:
-                    # print(f"Loaded {gt_point_labels_for_sweep.shape[0]} GT point labels for the sweep from HDF5.")
+                if gt_point_labels_for_sweep is not None and \
+                   gt_point_labels_for_sweep.shape[0] == raw_points_global.shape[0]:
+                    
+                    # Use velocity threshold from validation_params via config_accessor if available
+                    # Fallback to a default or a k3d_plot_cfg specific one
+                    vel_thresh_for_gt_dynamic = 0.1 # Default
+                    if config_accessor:
+                        validation_p = config_accessor.get_validation_params()
+                        vel_thresh_for_gt_dynamic = validation_p.get('gt_velocity_threshold', 0.1)
+                    
                     gt_dynamic_mask = (gt_point_labels_for_sweep['velocity_x']**2 +
                                        gt_point_labels_for_sweep['velocity_y']**2 >
-                                       viz_cfg.get('gt_dynamic_vel_threshold_sq', 0.1**2))
+                                       vel_thresh_for_gt_dynamic**2) # Use fetched threshold
+                    
                     gt_dynamic_pts = raw_points_global[gt_dynamic_mask]
                     if gt_dynamic_pts.shape[0] > 0:
                         plot += k3d.points(positions=gt_dynamic_pts.astype(np.float32),
-                                           color=viz_cfg.get('gt_dynamic_color', K3D_COLOR_GT_DYNAMIC),
-                                           point_size=point_size, shader='3d', name='GT_Dynamic_Points')
+                                           color=k3d_plot_cfg.get('gt_dynamic_points_color_hex', K3D_COLOR_GT_DYNAMIC),
+                                           point_size=point_size * k3d_plot_cfg.get('gt_dynamic_points_scale_factor', 1.0), 
+                                           shader='3d', name='GT_Dynamic_Points')
 
                     gt_instance_labeled_mask = (gt_point_labels_for_sweep['instance_token'] != b'')
                     gt_static_labeled_mask = gt_instance_labeled_mask & ~gt_dynamic_mask
                     gt_static_pts = raw_points_global[gt_static_labeled_mask]
                     if gt_static_pts.shape[0] > 0:
                          plot += k3d.points(positions=gt_static_pts.astype(np.float32),
-                                           color=viz_cfg.get('gt_static_color', K3D_COLOR_GT_STATIC),
-                                           point_size=point_size * viz_cfg.get('gt_static_point_scale', 0.8),
+                                           color=k3d_plot_cfg.get('gt_static_points_color_hex', K3D_COLOR_GT_STATIC),
+                                           point_size=point_size * k3d_plot_cfg.get('gt_static_points_scale_factor', 0.8),
                                            shader='3d', name='GT_Static_Points')
-                # else:
-                    # print(f"Warning: GT point labels for sweep {target_sweep_lidar_sd_token} not found or mismatch count in HDF5.")
         except Exception as e:
             print(f"Error loading GT labels HDF5 {gt_labels_hdf5_path}: {e}")
 
-    # --- Load and Process M-Detector Results from HDF5 ---
     if mdet_results_hdf5_path and show_mdet_points:
         try:
             with h5py.File(mdet_results_hdf5_path, 'r') as mdet_h5:
-                mdet_all_preds_for_sweep = _get_data_from_hdf5_for_sweep( # Ensure this helper is adapted if needed
+                mdet_all_preds_for_sweep = _get_data_from_hdf5_for_sweep(
                     mdet_h5, target_sweep_lidar_sd_token,
                     'sweep_lidar_sd_tokens', 'all_points_predictions', 'points_predictions_indices'
                 )
-
                 if mdet_all_preds_for_sweep is not None:
-                    # Use OcclusionResult enum values
-                    mdet_dynamic_val = viz_cfg.get('mdet_dynamic_label_value', OcclusionResult.OCCLUDING_IMAGE.value)
-                    mdet_occluded_val = viz_cfg.get('mdet_occluded_label_value', OcclusionResult.OCCLUDED_BY_IMAGE.value)
-                    # Add other categories if you visualize them (e.g., EMPTY_IN_IMAGE, UNDETERMINED)
+                    mdet_dynamic_val = k3d_plot_cfg.get('mdet_dynamic_label_value', OcclusionResult.OCCLUDING_IMAGE.value)
+                    mdet_occluded_val = k3d_plot_cfg.get('mdet_occluded_label_value', OcclusionResult.OCCLUDED_BY_IMAGE.value)
+                    mdet_undetermined_val = k3d_plot_cfg.get('mdet_undetermined_label_value', OcclusionResult.UNDETERMINED.value)
+
 
                     mdet_dynamic_mask = (mdet_all_preds_for_sweep['mdet_label'] == mdet_dynamic_val)
                     mdet_dyn_pts_global = np.stack((mdet_all_preds_for_sweep['x'][mdet_dynamic_mask],
@@ -171,8 +180,9 @@ def visualize_sweep_k3d(
                                                     mdet_all_preds_for_sweep['z'][mdet_dynamic_mask]), axis=-1)
                     if mdet_dyn_pts_global.shape[0] > 0:
                         plot += k3d.points(positions=mdet_dyn_pts_global.astype(np.float32),
-                                           color=viz_cfg.get('mdet_dynamic_color', K3D_COLOR_MDET_DYNAMIC),
-                                           point_size=point_size, shader='3d', name='MDet_Dynamic_Points')
+                                           color=k3d_plot_cfg.get('mdet_dynamic_points_color_hex', K3D_COLOR_MDET_DYNAMIC),
+                                           point_size=point_size * k3d_plot_cfg.get('mdet_dynamic_points_scale_factor', 1.0), 
+                                           shader='3d', name='MDet_Dynamic_Points')
 
                     mdet_occluded_mask = (mdet_all_preds_for_sweep['mdet_label'] == mdet_occluded_val)
                     mdet_occ_pts_global = np.stack((mdet_all_preds_for_sweep['x'][mdet_occluded_mask],
@@ -180,25 +190,34 @@ def visualize_sweep_k3d(
                                                     mdet_all_preds_for_sweep['z'][mdet_occluded_mask]), axis=-1)
                     if mdet_occ_pts_global.shape[0] > 0:
                         plot += k3d.points(positions=mdet_occ_pts_global.astype(np.float32),
-                                           color=viz_cfg.get('mdet_occluded_color', K3D_COLOR_MDET_OCCLUDED),
-                                           point_size=point_size, shader='3d', name='MDet_Occluded_Points')
-                # else:
-                    # print(f"Warning: MDet predictions for sweep {target_sweep_lidar_sd_token} not found in HDF5.")
+                                           color=k3d_plot_cfg.get('mdet_occluded_points_color_hex', K3D_COLOR_MDET_OCCLUDED),
+                                           point_size=point_size * k3d_plot_cfg.get('mdet_occluded_points_scale_factor', 0.9), 
+                                           shader='3d', name='MDet_Occluded_Points')
+                    
+                    mdet_undetermined_mask = (mdet_all_preds_for_sweep['mdet_label'] == mdet_undetermined_val)
+                    mdet_und_pts_global = np.stack((mdet_all_preds_for_sweep['x'][mdet_undetermined_mask],
+                                                    mdet_all_preds_for_sweep['y'][mdet_undetermined_mask],
+                                                    mdet_all_preds_for_sweep['z'][mdet_undetermined_mask]), axis=-1)
+                    if mdet_und_pts_global.shape[0] > 0 and k3d_plot_cfg.get('show_mdet_undetermined_points', False):
+                        plot += k3d.points(positions=mdet_und_pts_global.astype(np.float32),
+                                           color=k3d_plot_cfg.get('mdet_undetermined_points_color_hex', K3D_COLOR_MDET_UNDETERMINED),
+                                           point_size=point_size * k3d_plot_cfg.get('mdet_undetermined_points_scale_factor', 0.7),
+                                           shader='3d', name='MDet_Undetermined_Points')
         except Exception as e:
             print(f"Error loading M-Detector results HDF5 {mdet_results_hdf5_path}: {e}")
 
-    # --- Show GT Boxes (logic remains the same as it uses NuScenes API) ---
     if show_gt_boxes:
-        # ... (your existing GT box rendering logic using nusc API - no changes needed here) ...
         instance_tokens_in_scene = find_instances_in_scene(nusc, scene_token, min_annotations=1)
-        all_scene_sweeps_list = list(get_scene_sweep_data_sequence(nusc, scene_token))
+        all_scene_sweeps_list = list(get_scene_sweep_data_sequence(nusc, scene_token)) # Expensive if called repeatedly
         current_sweep_idx_in_list = -1
-        for idx, sdd_box in enumerate(all_scene_sweeps_list): # Renamed sdd to sdd_box to avoid conflict
+        for idx, sdd_box in enumerate(all_scene_sweeps_list):
             if sdd_box['lidar_sd_token'] == target_sweep_lidar_sd_token:
                 current_sweep_idx_in_list = idx
                 break
         if current_sweep_idx_in_list != -1:
-            color_map_instances = plt.cm.get_cmap(viz_cfg.get('instance_colormap', 'tab20'), 20)
+            num_instance_colors = k3d_plot_cfg.get('num_instance_box_colors', 20)
+            instance_colormap_name = k3d_plot_cfg.get('instance_box_colormap', 'tab20')
+            color_map_instances = plt.cm.get_cmap(instance_colormap_name, num_instance_colors)
             inst_color_idx = 0
             for inst_token in instance_tokens_in_scene:
                 boxes_for_inst, _, _, _ = get_interpolated_extrapolated_boxes_for_instance(
@@ -206,7 +225,7 @@ def visualize_sweep_k3d(
                 )
                 gt_box_at_sweep: Optional[NuScenesDataClassesBox] = boxes_for_inst[current_sweep_idx_in_list]
                 if gt_box_at_sweep:
-                    instance_color_rgb = color_map_instances(inst_color_idx % 20)[:3]
+                    instance_color_rgb = color_map_instances(inst_color_idx % num_instance_colors)[:3]
                     instance_color_hex = int(instance_color_rgb[0]*255)<<16 | int(instance_color_rgb[1]*255)<<8 | int(instance_color_rgb[2]*255)
                     inst_color_idx += 1
                     corners = gt_box_at_sweep.corners()
@@ -216,7 +235,8 @@ def visualize_sweep_k3d(
                     ]
                     for start_idx, end_idx in box_edges:
                         segment_vertices = corners[:, [start_idx, end_idx]].T.astype(np.float32)
-                        plot += k3d.line(segment_vertices, shader='simple', color=instance_color_hex,
-                                         width=viz_cfg.get('gt_box_line_width', 0.03),
+                        plot += k3d.line(segment_vertices, shader='simple', 
+                                         color=instance_color_hex,
+                                         width=k3d_plot_cfg.get('gt_box_line_width', 0.03),
                                          name=f'GTBox_{inst_token[:6]}')
     return plot

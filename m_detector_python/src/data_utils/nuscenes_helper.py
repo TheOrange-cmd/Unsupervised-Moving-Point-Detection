@@ -13,6 +13,7 @@ from nuscenes.utils.geometry_utils import transform_matrix
 from ..core.m_detector.base import MDetector
 from ..core.m_detector.processing import extract_mdetector_points
 from ..core.constants import OcclusionResult
+from ..config_loader import MDetectorConfigAccessor
 
 import logging 
 
@@ -122,28 +123,33 @@ def get_scene_sweep_data_sequence(nusc: NuScenes, scene_token: str, lidar_name: 
 
 
 class NuScenesProcessor:
-    def __init__(self, nusc: NuScenes, config: Dict):
+    def __init__(self, nusc: NuScenes, config_accessor: MDetectorConfigAccessor):
         self.nusc = nusc
-        self.config = config
-        self.logger = logging.getLogger(__name__) 
+        self.config_accessor = config_accessor 
+        self.logger = logging.getLogger(__name__)
 
-    def process_scene(self,
-                      scene_index: int,
-                      detector: MDetector, 
-                      with_progress: bool = True) -> Optional[Dict[str, np.ndarray]]:
+    def process_scene(self, scene_index: int, detector: MDetector, with_progress: bool = True) -> Optional[Dict[str, np.ndarray]]:
+        scene_rec = self.nusc.scene[scene_index]
+        self.logger.critical(f"@@@@@@ NuScenesProcessor.process_scene ENTERED for scene_idx: {scene_index}, scene_token: {scene_rec['token']} @@@@@@")
         
         scene_rec = self.nusc.scene[scene_index]
-        processing_cfg = self.config.get('processing', {})
-        skip_frames_config = processing_cfg.get('skip_frames', 0)
-        max_frames_config = processing_cfg.get('max_frames', None) 
-        logger.info(f"Skipping first {skip_frames_config} frames. Processing max: {max_frames_config} frames.")
 
-        all_scene_sweep_data_dicts = list(get_scene_sweep_data_sequence(self.nusc, scene_rec['token']))
+        # Get config params
+        processing_settings = self.config_accessor.get_processing_settings()
+        skip_frames_config = processing_settings.get('skip_frames', 0)
+        max_frames_config = processing_settings.get('max_frames', None)
+        nuscenes_params = self.config_accessor.get_nuscenes_params()
+        lidar_name_to_use = nuscenes_params.get('lidar_sensor_name', 'LIDAR_TOP')
+        logger.info(f"Skipping first {skip_frames_config} frames. Processing max: {max_frames_config} frames for LiDAR: {lidar_name_to_use}.")
+
+        #  Get all sweeps
+        all_scene_sweep_data_dicts = list(get_scene_sweep_data_sequence(self.nusc, scene_rec['token'], lidar_name=lidar_name_to_use))
         
         if not all_scene_sweep_data_dicts:
             tqdm.write(f"No sweeps found for scene {scene_rec['name']}. Skipping M-Detector processing.")
             return None
 
+        # Limit sequences as configured
         start_idx = min(skip_frames_config, len(all_scene_sweep_data_dicts))
         end_idx = len(all_scene_sweep_data_dicts)
         if max_frames_config is not None:
@@ -203,64 +209,64 @@ class NuScenesProcessor:
             elif mdet_result:
                 if with_progress: tqdm.write(f"MDetector info: {mdet_result.get('reason', 'No specific reason given by MDetector')}")
         
-        # --- Phase 2: Flush MDetector's buffer ---
-        if hasattr(detector, 'use_bidirectional') and detector.use_bidirectional:
-            if with_progress: tqdm.write("Flushing MDetector bidirectional buffer...")
-            flush_counter = 0
-            max_flush_attempts = len(detector.depth_image_library._images) + detector.bidirectional_window_size + 5 # Adjusted safety break
+        # # --- Phase 2: Flush MDetector's buffer --- bidirectional only!
+        # if hasattr(detector, 'use_bidirectional') and detector.use_bidirectional:
+        #     if with_progress: tqdm.write("Flushing MDetector bidirectional buffer...")
+        #     flush_counter = 0
+        #     max_flush_attempts = len(detector.depth_image_library._images) + detector.bidirectional_window_size + 5 # Adjusted safety break
             
-            while flush_counter < max_flush_attempts:
-                flush_counter += 1
-                mdet_result = detector.decide_and_process_frame(is_end_of_sequence=True)
+        #     while flush_counter < max_flush_attempts:
+        #         flush_counter += 1
+        #         mdet_result = detector.decide_and_process_frame(is_end_of_sequence=True)
                 
-                if mdet_result and mdet_result.get('success'):
-                    processed_di_object = mdet_result.get('processed_di')
-                    processed_timestamp = mdet_result.get('timestamp')
+        #         if mdet_result and mdet_result.get('success'):
+        #             processed_di_object = mdet_result.get('processed_di')
+        #             processed_timestamp = mdet_result.get('timestamp')
 
-                    if processed_di_object and processed_timestamp is not None:
-                        original_sweep_for_this_output = fed_sweep_data_by_timestamp.get(processed_timestamp)
-                        if original_sweep_for_this_output and processed_di_object.timestamp == processed_timestamp:
-                            collected_mdetector_outputs.append({
-                                'original_sweep_data': original_sweep_for_this_output,
-                                'mdet_success_flag': True,
-                                'processed_di_object_ref': processed_di_object
-                            })
-                        else:
-                            tqdm.write(f"Warning (Flush): Timestamp/data mismatch. Processed TS: {processed_timestamp}. Original sweep found: {'Yes' if original_sweep_for_this_output else 'No'}. DI TS: {processed_di_object.timestamp if processed_di_object else 'N/A'}. Output skipped.")
-                    else:
-                        tqdm.write(f"Warning (Flush): MDetector success but missing processed_di or timestamp. Output skipped. Result: {mdet_result}")
-                elif mdet_result and not mdet_result.get('success'):
-                    if with_progress: tqdm.write(f"MDetector info (flush): {mdet_result.get('reason', 'Failed or nothing more to process during flush')}")
-                    if mdet_result.get('reason') != 'Bidirectional buffer not full yet': # Break if it's not just waiting for more frames (which it won't get)
-                        break 
-                elif not mdet_result: 
-                    if with_progress: tqdm.write("MDetector flush complete (returned None).")
-                    break
-                if flush_counter >= max_flush_attempts:
-                    tqdm.write("Warning: Max flush attempts reached. Breaking flush loop.")
-                    break
-        self.logger.debug(f"--- INSPECTING collected_mdetector_outputs (count: {len(collected_mdetector_outputs)}) ---")
-        for idx, output_item_debug in enumerate(collected_mdetector_outputs):
-            original_sweep_ref_debug = output_item_debug['original_sweep_data']
-            processed_di_debug = output_item_debug.get('processed_di_object_ref')
-            self.logger.debug(f"Item {idx}, Sweep Token: {original_sweep_ref_debug['lidar_sd_token']}, Timestamp: {original_sweep_ref_debug['timestamp']}")
-            if processed_di_debug:
-                points_arr = processed_di_debug.original_points_global_coords
-                labels_arr = processed_di_debug.mdet_labels_for_points
-                scores_arr = processed_di_debug.mdet_scores_for_points if hasattr(processed_di_debug, 'mdet_scores_for_points') else None
+        #             if processed_di_object and processed_timestamp is not None:
+        #                 original_sweep_for_this_output = fed_sweep_data_by_timestamp.get(processed_timestamp)
+        #                 if original_sweep_for_this_output and processed_di_object.timestamp == processed_timestamp:
+        #                     collected_mdetector_outputs.append({
+        #                         'original_sweep_data': original_sweep_for_this_output,
+        #                         'mdet_success_flag': True,
+        #                         'processed_di_object_ref': processed_di_object
+        #                     })
+        #                 else:
+        #                     tqdm.write(f"Warning (Flush): Timestamp/data mismatch. Processed TS: {processed_timestamp}. Original sweep found: {'Yes' if original_sweep_for_this_output else 'No'}. DI TS: {processed_di_object.timestamp if processed_di_object else 'N/A'}. Output skipped.")
+        #             else:
+        #                 tqdm.write(f"Warning (Flush): MDetector success but missing processed_di or timestamp. Output skipped. Result: {mdet_result}")
+        #         elif mdet_result and not mdet_result.get('success'):
+        #             if with_progress: tqdm.write(f"MDetector info (flush): {mdet_result.get('reason', 'Failed or nothing more to process during flush')}")
+        #             if mdet_result.get('reason') != 'Bidirectional buffer not full yet': # Break if it's not just waiting for more frames (which it won't get)
+        #                 break 
+        #         elif not mdet_result: 
+        #             if with_progress: tqdm.write("MDetector flush complete (returned None).")
+        #             break
+        #         if flush_counter >= max_flush_attempts:
+        #             tqdm.write("Warning: Max flush attempts reached. Breaking flush loop.")
+        #             break
+        # self.logger.debug(f"--- INSPECTING collected_mdetector_outputs (count: {len(collected_mdetector_outputs)}) ---")
+        # for idx, output_item_debug in enumerate(collected_mdetector_outputs):
+        #     original_sweep_ref_debug = output_item_debug['original_sweep_data']
+        #     processed_di_debug = output_item_debug.get('processed_di_object_ref')
+        #     self.logger.debug(f"Item {idx}, Sweep Token: {original_sweep_ref_debug['lidar_sd_token']}, Timestamp: {original_sweep_ref_debug['timestamp']}")
+        #     if processed_di_debug:
+        #         points_arr = processed_di_debug.original_points_global_coords
+        #         labels_arr = processed_di_debug.mdet_labels_for_points
+        #         scores_arr = processed_di_debug.mdet_scores_for_points if hasattr(processed_di_debug, 'mdet_scores_for_points') else None
 
-                points_info = "None" if points_arr is None else f"Shape {points_arr.shape}"
-                labels_info = "None" if labels_arr is None else f"Shape {labels_arr.shape}"
-                scores_info = "None" if scores_arr is None else f"Shape {scores_arr.shape}"
-                self.logger.debug(f"  DI Valid: True. Points: {points_info}, Labels: {labels_info}, Scores: {scores_info}")
-                if points_arr is not None and labels_arr is not None and points_arr.shape[0] != labels_arr.shape[0] and points_arr.shape[0] > 0 : # Only warn if points exist but shapes mismatch
-                     self.logger.error(f"  CRITICAL SHAPE MISMATCH for sweep {original_sweep_ref_debug['lidar_sd_token']}")
-                if points_arr is not None and points_arr.shape[0] > 0 and labels_arr is None:
-                    self.logger.error(f"  CRITICAL LABELS ARE NONE for sweep {original_sweep_ref_debug['lidar_sd_token']} but points exist.")
+        #         points_info = "None" if points_arr is None else f"Shape {points_arr.shape}"
+        #         labels_info = "None" if labels_arr is None else f"Shape {labels_arr.shape}"
+        #         scores_info = "None" if scores_arr is None else f"Shape {scores_arr.shape}"
+        #         self.logger.debug(f"  DI Valid: True. Points: {points_info}, Labels: {labels_info}, Scores: {scores_info}")
+        #         if points_arr is not None and labels_arr is not None and points_arr.shape[0] != labels_arr.shape[0] and points_arr.shape[0] > 0 : # Only warn if points exist but shapes mismatch
+        #              self.logger.error(f"  CRITICAL SHAPE MISMATCH for sweep {original_sweep_ref_debug['lidar_sd_token']}")
+        #         if points_arr is not None and points_arr.shape[0] > 0 and labels_arr is None:
+        #             self.logger.error(f"  CRITICAL LABELS ARE NONE for sweep {original_sweep_ref_debug['lidar_sd_token']} but points exist.")
 
-            else:
-                self.logger.debug(f"  DI Valid: False (processed_di_object_ref is None)")
-        self.logger.debug("--- END INSPECTION ---")
+        #     else:
+        #         self.logger.debug(f"  DI Valid: False (processed_di_object_ref is None)")
+        # self.logger.debug("--- END INSPECTION ---")
 
          # --- Phase 3: Assemble data from collected outputs ---
         if not collected_mdetector_outputs:
@@ -271,100 +277,55 @@ class NuScenesProcessor:
 
         sweep_lidar_sd_tokens_list: List[str] = []
         sweep_timestamps_us_list: List[int] = []
-        # Add other per-sweep metadata if needed, e.g., calibrated sensor tokens, T_global_lidar
-
-        # For the new structured array:
-        all_points_predictions_list: List[np.ndarray] = [] # List of structured arrays, one per sweep
-        points_predictions_indices: List[int] = [0] # Start/end indices for each sweep's data in the concatenated array
-
-        # Define the dtype for the structured array
-        # Ensure mdet_label can hold OcclusionResult.value (e.g., int8 or int16)
-        # Ensure mdet_score is float32
+        all_points_predictions_list: List[np.ndarray] = [] 
+        points_predictions_indices: List[int] = [0] 
         structured_array_dtype = [
             ('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
-            ('mdet_label', 'i2'), # Or 'i1' if OcclusionResult values fit
-            ('mdet_score', 'f4')  # Add if your MDetector generates scores
+            ('mdet_label', 'i2'), 
+            ('mdet_score', 'f4')
         ]
 
         for output_item in collected_mdetector_outputs:
             original_sweep_ref = output_item['original_sweep_data']
             processed_di = output_item.get('processed_di_object_ref') 
-
             sweep_lidar_sd_tokens_list.append(original_sweep_ref['lidar_sd_token'])
             sweep_timestamps_us_list.append(original_sweep_ref['timestamp'])
-
-            # --- More detailed check and logging ---
             valid_di = False
-            if processed_di:
-                if processed_di.original_points_global_coords is not None and \
-                   processed_di.mdet_labels_for_points is not None:
-                    # Check if shapes match if both exist and are not empty
-                    if processed_di.original_points_global_coords.shape[0] == 0 and \
-                       processed_di.mdet_labels_for_points.shape[0] == 0:
-                        valid_di = True # Empty but consistent DI
-                    elif processed_di.original_points_global_coords.shape[0] > 0 and \
-                         processed_di.mdet_labels_for_points.shape[0] == processed_di.original_points_global_coords.shape[0]:
-                        valid_di = True # Non-empty and consistent
-                    else:
-                        self.logger.warning(
-                            f"HDF5 Assembly: Shape mismatch for sweep {original_sweep_ref['lidar_sd_token']}. "
-                            f"Points shape: {processed_di.original_points_global_coords.shape}, "
-                            f"Labels shape: {processed_di.mdet_labels_for_points.shape}. Treating as invalid."
-                        )
-                else:
-                    points_status = "None" if processed_di.original_points_global_coords is None else f"Shape {processed_di.original_points_global_coords.shape}"
-                    labels_status = "None" if processed_di.mdet_labels_for_points is None else f"Shape {processed_di.mdet_labels_for_points.shape}"
-                    self.logger.warning(
-                        f"HDF5 Assembly: Point or Label array is None for sweep {original_sweep_ref['lidar_sd_token']}. "
-                        f"Points: {points_status}, Labels: {labels_status}. Treating as invalid."
-                    )
-            else:
-                self.logger.warning(f"HDF5 Assembly: processed_di object itself is None for sweep {original_sweep_ref['lidar_sd_token']}. This should not happen if it's in collected_outputs.")
-            # --- End detailed check ---
-
+            if processed_di and processed_di.original_points_global_coords is not None and \
+               processed_di.mdet_labels_for_points is not None:
+                if processed_di.original_points_global_coords.shape[0] == 0 and \
+                   processed_di.mdet_labels_for_points.shape[0] == 0:
+                    valid_di = True
+                elif processed_di.original_points_global_coords.shape[0] > 0 and \
+                     processed_di.mdet_labels_for_points.shape[0] == processed_di.original_points_global_coords.shape[0]:
+                    valid_di = True
             if valid_di:
                 points_xyz_sweep = processed_di.original_points_global_coords
                 labels_sweep_numeric = processed_di.mdet_labels_for_points
                 num_points_in_sweep = points_xyz_sweep.shape[0]
-
-                # Create structured array even if num_points_in_sweep is 0
                 sweep_structured_array = np.empty(num_points_in_sweep, dtype=structured_array_dtype)
-                
                 if num_points_in_sweep > 0:
                     sweep_structured_array['x'] = points_xyz_sweep[:, 0]
                     sweep_structured_array['y'] = points_xyz_sweep[:, 1]
                     sweep_structured_array['z'] = points_xyz_sweep[:, 2]
                     sweep_structured_array['mdet_label'] = labels_sweep_numeric
-                    
-                    # Score handling (ensure mdet_scores_for_points exists and matches shape)
                     if hasattr(processed_di, 'mdet_scores_for_points') and \
                        processed_di.mdet_scores_for_points is not None and \
                        processed_di.mdet_scores_for_points.shape[0] == num_points_in_sweep:
                         sweep_structured_array['mdet_score'] = processed_di.mdet_scores_for_points
                     else:
-                        sweep_structured_array['mdet_score'] = 0.0 # Default
-                
+                        sweep_structured_array['mdet_score'] = 0.0
                 all_points_predictions_list.append(sweep_structured_array)
                 points_predictions_indices.append(points_predictions_indices[-1] + num_points_in_sweep)
-            
-            else: # Case where DI is not valid for HDF5 point data
+            else:
                 points_predictions_indices.append(points_predictions_indices[-1])
-
-        # Concatenate all structured arrays for the scene
         final_all_points_predictions = np.concatenate(all_points_predictions_list) if all_points_predictions_list else \
                                        np.empty(0, dtype=structured_array_dtype)
-
-        # Save config to HDF5
-        config_str = json.dumps(self.config, sort_keys=True, indent=4)
-
         output_data = {
-            'scene_token': np.array([scene_rec['token']], dtype='S36'), # For reference
+            'scene_token': np.array([scene_rec['token']], dtype='S36'),
             'sweep_lidar_sd_tokens': np.array(sweep_lidar_sd_tokens_list, dtype='S36'),
             'sweep_timestamps_us': np.array(sweep_timestamps_us_list, dtype=np.int64),
-            # Add other per-sweep metadata arrays if needed (e.g., T_global_lidar)
-            
-            'all_points_predictions': final_all_points_predictions, # The main structured array
-            'points_predictions_indices': np.array(points_predictions_indices, dtype=np.int64),
-            '_config_json_str': np.array(config_str) # Save config as a string
+            'all_points_predictions': final_all_points_predictions,
+            'points_predictions_indices': np.array(points_predictions_indices, dtype=np.int64)
         }
         return output_data

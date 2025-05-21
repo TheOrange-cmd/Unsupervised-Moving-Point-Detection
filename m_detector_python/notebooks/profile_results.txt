@@ -1,21 +1,21 @@
-         77980 function calls (76433 primitive calls) in 219.285 seconds
+         2623325 function calls (2603745 primitive calls) in 86.853 seconds
 
    Ordered by: cumulative time
-   List reduced from 255 to 15 due to restriction <15>
+   List reduced from 3852 to 15 due to restriction <15>
 
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        1    0.000    0.000  219.285  219.285 {built-in method builtins.exec}
-        1    0.000    0.000  219.285  219.285 <string>:1(<module>)
-        1    0.111    0.111  219.284  219.284 validation_utils.py:506(calculate_metrics_for_experiment_hdf5)
-        1    0.568    0.568  218.960  218.960 validation_utils.py:315(calculate_metrics_for_scene_hdf5)
-        7  216.922   30.989  216.942   30.992 dataset.py:722(__getitem__)
-6935/5395    0.588    0.000    1.294    0.000 {built-in method numpy.core._multiarray_umath.implement_array_function}
-      385    0.040    0.000    0.748    0.002 validation_utils.py:248(calculate_point_metrics_for_sweep)
-     3855    0.628    0.000    0.628    0.000 {method 'reduce' of 'numpy.ufunc' objects}
-     1540    0.002    0.000    0.603    0.000 <__array_function__ internals>:2(stack)
-     1540    0.008    0.000    0.596    0.000 shape_base.py:357(stack)
-     1540    0.002    0.000    0.582    0.000 <__array_function__ internals>:2(concatenate)
-      770    0.001    0.000    0.446    0.001 <__array_function__ internals>:2(norm)
-      770    0.048    0.000    0.444    0.001 linalg.py:2363(norm)
-     2695    0.002    0.000    0.245    0.000 <__array_function__ internals>:2(sum)
-     2695    0.004    0.000    0.240    0.000 fromnumeric.py:2123(sum)
+   1267/1    0.024    0.000   86.856   86.856 {built-in method builtins.exec}
+        1    0.111    0.111   85.191   85.191 validation_utils.py:506(calculate_metrics_for_experiment_hdf5)
+        1    0.701    0.701   85.057   85.057 validation_utils.py:315(calculate_metrics_for_scene_hdf5)
+        7   80.399   11.486   80.470   11.496 dataset.py:722(__getitem__)
+        9    0.000    0.000    1.870    0.208 files.py:363(__init__)
+        2    1.869    0.935    1.870    0.935 files.py:206(make_fid)
+    777/4    0.004    0.000    1.664    0.416 <frozen importlib._bootstrap>:978(_find_and_load)
+    772/4    0.003    0.000    1.664    0.416 <frozen importlib._bootstrap>:948(_find_and_load_unlocked)
+    747/8    0.003    0.000    1.661    0.208 <frozen importlib._bootstrap>:663(_load_unlocked)
+    613/7    0.002    0.000    1.661    0.237 <frozen importlib._bootstrap_external>:722(exec_module)
+   1109/7    0.001    0.000    1.661    0.237 <frozen importlib._bootstrap>:211(_call_with_frames_removed)
+   525/30    0.001    0.000    1.572    0.052 {built-in method builtins.__import__}
+        7    1.423    0.203    1.424    0.203 group.py:319(__getitem__)
+ 3091/982    0.003    0.000    1.302    0.001 <frozen importlib._bootstrap>:1009(_handle_fromlist)
+       29    0.000    0.000    0.880    0.030 __init__.py:1(<module>)

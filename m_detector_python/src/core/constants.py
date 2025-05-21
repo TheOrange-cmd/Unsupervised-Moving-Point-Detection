@@ -16,6 +16,7 @@ class OcclusionResult(Enum):
     OCCLUDED_BY_IMAGE = 1 # Current point is behind data in the reference image (suggests current point is static).
     EMPTY_IN_IMAGE = 2    # Current point projects to an area with no data in the reference image (ambiguous).
     UNDETERMINED = 3      # Cannot determine the occlusion relationship (e.g., point outside FoV, or within epsilon thresholds).
+    PRELABELED_STATIC_GROUND = 4 # Labeled static by RANSAC - ignore for processing, but do use it as static label for consistency checks
 
 POINT_LABEL_DTYPE = np.dtype([
     # Sensor-frame coordinates (for on-the-fly filtering during evaluation)

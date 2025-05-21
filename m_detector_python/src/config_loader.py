@@ -45,13 +45,13 @@ class MDetectorConfigAccessor:
         # Returns the whole block: {'test1_perpendicular': ..., 'test2_parallel_away': ...}
         return self._get_m_detector_base().get('event_detection_logic', {})
     
-    def get_test1_params(self) -> Dict[str, Any]:
+    def get_test1_perpendicular_params(self) -> Dict[str, Any]:
         return self.get_event_detection_logic_params().get('test1_perpendicular', {})
         
-    def get_test2_params(self) -> Dict[str, Any]:
+    def get_test2_parallel_away_params(self) -> Dict[str, Any]:
         return self.get_event_detection_logic_params().get('test2_parallel_away', {})
 
-    def get_test3_params(self) -> Dict[str, Any]:
+    def get_test3_parallel_towards_params(self) -> Dict[str, Any]:
         return self.get_event_detection_logic_params().get('test3_parallel_towards', {})
 
     def get_map_consistency_params(self) -> Dict[str, Any]:
@@ -71,6 +71,9 @@ class MDetectorConfigAccessor:
         
     def get_bidirectional_aggregation_params(self) -> Dict[str, Any]:
         return self._get_m_detector_base().get('bidirectional_aggregation', {})
+    
+    def get_ransac_ground_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base().get('ransac_ground_params', {})
 
     # --- Visualization ---
     def get_visualization_params(self) -> Dict[str, Any]:

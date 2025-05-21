@@ -22,7 +22,6 @@ def is_map_consistent(self, # 'self' implies this is a method of MDetector class
     
     # --- Initial setup and early exit for disabled MCC ---
     if not self.map_consistency_enabled:
-        # ... (existing code for disabled MCC) ...
         if return_debug_info:
             debug_data = {
                 'point_global': point_global.tolist(), 'current_timestamp': current_timestamp,
