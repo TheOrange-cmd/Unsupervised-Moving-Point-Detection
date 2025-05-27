@@ -10,12 +10,20 @@ processing_settings:
   skip_frames: 0
   max_frames: null
 mdetector_output_paths: # Renamed
-  save_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output" # Directory where M-Detector outputs will be saved
-  scene_indices_to_run: 'all' # 'all' or a list, e.g.: [1,] or [0, 3, 5]
-  # scene_indices_to_run: [1,]
+  save_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output_eps05" # Directory where M-Detector outputs will be saved
+  # scene_indices_to_run: 'all' # 'all' or a list, e.g.: [1,] or [0, 3, 5]
+  scene_indices_to_run: [1,]
 validation_params: # Renamed
   gt_velocity_threshold: 1.0 # For comparing against GT
   # coordinate_tolerance_for_verification: 0.01 # If used in validation scripts
+
+adaptive_epsilon_params_schema: &adaptive_epsilon_defaults
+  enabled: false
+  # di_base will be taken from the original epsilon it's adapting (e.g., epsilon_depth_occlusion)
+  dthr: 30.0      # Depth (meters) at which threshold starts increasing/changing
+  kthr: 0.05      # Linear rate (positive for increase, negative for decrease if d_anchor > dthr)
+  dmax: 2.0       # Maximum cap for the adaptive threshold (e.g., di_base * 4 or a fixed value)
+  dmin: 0.1       # Minimum cap for the adaptive threshold (e.g., di_base * 0.2 or a fixed value)
 
 # --- M-Detector Algorithm Configuration ---
 m_detector:
@@ -38,7 +46,14 @@ m_detector:
   # Occlusion Check Parameters (General for all tests that use it)
   # These define how "occlusion" is determined between a point and historical data
   occlusion_determination:
-    epsilon_depth: 1.0   # (εd) General depth threshold for occlusion
+    epsilon_depth: 0.1   # (εd) General depth threshold for occlusion
+    adaptive_epsilon_depth_config:
+      <<: *adaptive_epsilon_defaults # Use the defaults
+      enabled: true                 
+      dthr: 5.0       # <--- NEW (was 30.0 via defaults) Start adapting much earlier
+      kthr: 0.01      # <--- NEW (was 0.05 via defaults) Slower increase
+      dmax: 0.5       # <--- NEW (was 2.0 via defaults) Lower cap
+      dmin: 0.05      # <--- NEW (was 0.1 via defaults) Lower min
     # For pixel-summary based check (currently used by check_occlusion_batch for Test 1 history)
     pixel_neighborhood_h: 2 # (nh)
     pixel_neighborhood_v: 1 # (nv)
@@ -48,36 +63,66 @@ m_detector:
 
   # Event Detection Tests
   event_detection_logic:
-    test1_perpendicular:
-      num_historical_DIs_N: 10
-      min_occluding_DIs_M1: 2
     test2_parallel_away:
       num_historical_DIs_M2: 2
     test3_parallel_towards:
       num_historical_DIs_M3: 3
+      adaptive_epsilon_simulation_params: 
+        enabled_for_simulation: true # To control if Cell 3.12 runs the simulation
+        # di_base: 0.5 # This will be taken from occlusion_determination.epsilon_depth
+        dthr: 30.0              # Depth (meters) at which threshold starts increasing
+        kthr: 0.05              # Linear increasing rate (e.g., 0.05 means 5% of (d - dthr))
+        dmax: 2.0               # Maximum cap for the adaptive threshold
+    
+    test4_perpendicular:
+      num_historical_DIs_N: 10
+      min_occluding_DIs_M4: 4
     # Note: Map consistency is applied *within* each test's logic
 
   # Map Consistency Check (Applied within each test if an occlusion is found)
   map_consistency:
     enabled: true
-    time_window_past_s: 0.3 # How far back to look for static map points
+    time_window_past_s: 0.5 # How far back to look in seconds for static map points in the map consistency check. 
     # time_window_future_s: 0.25 # Will be used if bidirectional is implemented
     # Thresholds for matching a point to a historical static map point
     epsilon_phi_deg: 0.57 # -> 0.57 in paper
     epsilon_theta_deg: 1.72 # -> 1.72 in paper
-    epsilon_depth_forward_m: 1.0 # -> 1.0 in paper
-    epsilon_depth_backward_m: 0.3 # -> 0.3 in paper 
+    epsilon_depth_forward_m: 1.0  # This is the di_base for MCC forward checks, same value as in the paper
+    adaptive_epsilon_forward_config:
+      <<: *adaptive_epsilon_defaults
+      enabled: true
+      dthr: 20.0
+      kthr: 0.07
+      dmax: 3.0
+      dmin: 0.2
+
+    epsilon_depth_backward_m: 0.3 # This is the di_base for MCC backward checks, same value as in the paper
+    adaptive_epsilon_backward_config:
+      <<: *adaptive_epsilon_defaults
+      enabled: true
+      dthr: 20.0
+      kthr: 0.03 # Potentially a smaller increase rate for backward check
+      dmax: 1.0
+      dmin: 0.05
     # Logic for deciding if enough consistency is found
     threshold_mode: "count" # 'count' or 'ratio'
-    threshold_value_count: 1 # Min DIs with a consistent static point
+    threshold_value_count: 2 # Min DIs with a consistent static point
     # threshold_value_ratio: 0.5 # Min ratio of DIs
     static_labels_for_map_check: # Labels in historical DIs considered static
       - "OCCLUDED_BY_IMAGE" # Key one from paper's spirit
       - "UNDETERMINED"      # Often implies static if not clearly dynamic
-      - "NON_EVENT" # From initialization phase
-      - "STATIC_CONFIRMED_BY_MAP" # If previously confirmed as static by this check
-      - "PENDING_CLASSIFICATION" # Default label for future points - necessary if comparing current points with future ones
       - "PRELABELED_STATIC_GROUND" # prelabeled by ransac 
+      # Following are deprecated labels
+      # - "NON_EVENT" # From initialization phase
+      # - "STATIC_CONFIRMED_BY_MAP" # If previously confirmed as static by this check
+      # - "PENDING_CLASSIFICATION" # Default label for future points - necessary if comparing current points with future ones
+    interpolation_enabled: true         # Master switch for this feature
+    interpolation_min_depth_m: 15.0     # Min depth of P_current (projected to DI_hist) to trigger interpolation
+    interpolation_max_depth_m: 70.0     # Max depth of P_current to trigger interpolation (can be same as point_pre_filtering.max_range_meters)
+    interpolation_max_neighbors_to_consider: 20 # Max static neighbors to use for forming triplets
+    interpolation_max_triplets_to_try: 100      # Max triplet combinations to attempt solving
+    interpolation_fallback_to_direct_comparison: true # If true, use direct comparison if interpolation fails
+
 
   ransac_ground_params: # Name should match key in MDetector._load_pre_labeler_configs
     xyradius_threshold: 25.0

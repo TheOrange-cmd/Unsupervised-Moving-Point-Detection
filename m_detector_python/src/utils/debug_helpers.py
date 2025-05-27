@@ -278,9 +278,9 @@ def debug_point_m_detector_logic(
     
     # --- Step 4: Event Test ---
     print("\n  Step 4: Event Test (Perpendicular Test)")
-    test1_params = detector_instance.config_accessor.get_test1_perpendicular_params()
-    n_hist_for_event_test = test1_params.get('num_historical_DIs_N', 3)
-    m1_threshold = test1_params.get('min_occluding_DIs_M1', 2)
+    test4_params = detector_instance.config_accessor.get_test4_perpendicular_params()
+    n_hist_for_event_test = test4_params.get('num_historical_DIs_N', 3)
+    m1_threshold = test4_params.get('min_occluding_DIs_M4', 2)
     
     occluding_count_recalculated = 0
     passed_event_test_recalculated = False

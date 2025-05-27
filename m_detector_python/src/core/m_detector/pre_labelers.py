@@ -53,7 +53,7 @@ def ransac_ground_prelabeler(
     }
     current_ransac_params = ransac_params if ransac_params is not None else default_params
 
-    print(f"Using params for RANSAC: {current_ransac_params}")
+    # print(f"Using params for RANSAC: {current_ransac_params}")
 
     # --- Call your RANSAC function (adapted to take Nx4) ---
     # Assuming your ransac_flatplane is modified or wrapped to accept Nx4

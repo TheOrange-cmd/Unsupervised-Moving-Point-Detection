@@ -20,7 +20,7 @@ if PROJECT_ROOT not in sys.path:
 from scripts.run_mdetector_and_save import main
 
 logging.basicConfig(
-    level=logging.DEBUG,  # Capture DEBUG messages and above
+    level=logging.INFO,  # Capture DEBUG messages and above
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     # Optional: To write to a file as well as console:
     # filename='mdetector_debug.log',

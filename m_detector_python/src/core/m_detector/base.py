@@ -67,7 +67,11 @@ class MDetector:
 
     def _load_occlusion_check_config(self):
         oc_params = self.config_accessor.get_occlusion_determination_params()
-        self.epsilon_depth_occlusion = oc_params.get('epsilon_depth', 0.3)
+        self.epsilon_depth_occlusion = oc_params.get('epsilon_depth', 0.3) # This is di_base
+        # Load the adaptive config for this epsilon
+        self.adaptive_eps_config_occ_depth = self.config_accessor.get_adaptive_epsilon_config_for_occlusion_depth()
+        self.logger.info(f"Loaded adaptive_eps_config_occ_depth: {self.adaptive_eps_config_occ_depth}")
+
         self.neighbor_search_pixels_h = oc_params.get('pixel_neighborhood_h', 1)
         self.neighbor_search_pixels_v = oc_params.get('pixel_neighborhood_v', 1)
         # Angular thresholds are not used in the provided batch check, but keep if used elsewhere
@@ -79,38 +83,59 @@ class MDetector:
         self.map_consistency_enabled = mc_params.get('enabled', True)
         self.map_consistency_time_window_past_s = mc_params.get('time_window_past_s', 0.25)
         self.map_consistency_time_window_future_s = mc_params.get('map_consistency_time_window_future_s', 0.25) 
-        self.epsilon_phi_map_rad = np.deg2rad(mc_params.get('epsilon_phi_map_deg', 1.0))
-        self.epsilon_theta_map_rad = np.deg2rad(mc_params.get('epsilon_theta_map_deg', 1.0))
-        self.epsilon_depth_forward_map = mc_params.get('epsilon_depth_forward_map', 0.3)
-        self.epsilon_depth_backward_map = mc_params.get('epsilon_depth_backward_map', 0.3)
+        self.epsilon_phi_map_rad = np.deg2rad(mc_params.get('epsilon_phi_deg', 1.0))
+        self.epsilon_theta_map_rad = np.deg2rad(mc_params.get('epsilon_theta_deg', 1.0))
+        #  epsilons
+        self.epsilon_depth_forward_map = mc_params.get('epsilon_depth_forward_m', 0.3) # di_base
+        self.epsilon_depth_backward_map = mc_params.get('epsilon_depth_backward_m', 0.3) # di_base
+        
+        # Load adaptive configs for MCC epsilons
+        self.adaptive_eps_config_mc_fwd = self.config_accessor.get_adaptive_epsilon_config_for_map_consistency_forward()
+        self.adaptive_eps_config_mc_bwd = self.config_accessor.get_adaptive_epsilon_config_for_map_consistency_backward()
+        self.logger.info(f"Loaded adaptive_eps_config_mc_fwd: {self.adaptive_eps_config_mc_fwd}")
+        self.logger.info(f"Loaded adaptive_eps_config_mc_bwd: {self.adaptive_eps_config_mc_bwd}")
+        # General thresholds
         self.mc_threshold_mode = mc_params.get('threshold_mode', 'count').lower()
         self.mc_threshold_value_count = mc_params.get('threshold_value_count', 1)
         self.mc_threshold_value_ratio = mc_params.get('threshold_value_ratio', 0.5)
+        # Interplation
+        self.mc_interp_enabled = mc_params.get('interpolation_enabled', False)
+        self.mc_interp_min_depth = mc_params.get('interpolation_min_depth_m', 30.0)
+        self.mc_interp_max_depth = mc_params.get('interpolation_max_depth_m', 50.0)
+        self.mc_interp_max_neighbors = mc_params.get('interpolation_max_neighbors_to_consider', 20)
+        self.mc_interp_max_triplets = mc_params.get('interpolation_max_triplets_to_try', 100)
+        self.mc_interp_fallback = mc_params.get('interpolation_fallback_to_direct_comparison', True)
 
         config_label_strings = mc_params.get('static_labels_for_map_check', [])
-        self.static_labels_for_map_check = []
+        self.static_labels_for_map_check = [] # This will store OcclusionResult ENUM MEMBERS
         if not isinstance(config_label_strings, list):
             self.logger.warning(f"'static_labels_for_map_check' in config is not a list. Found: {config_label_strings}.")
             config_label_strings = []
+            
         for label_str in config_label_strings:
             norm_str = label_str.strip().upper()
-            if norm_str == "NON_EVENT": self.static_labels_for_map_check.append("non_event") # Keep as strings if preferred
-            elif norm_str == "PENDING_CLASSIFICATION": self.static_labels_for_map_check.append("pending_classification")
-            elif norm_str == "PRELABELED_STATIC_GROUND": self.static_labels_for_map_check.append(OcclusionResult.PRELABELED_STATIC_GROUND) # Use enum
-            elif hasattr(OcclusionResult, norm_str): self.static_labels_for_map_check.append(OcclusionResult[norm_str])
-            else: self.static_labels_for_map_check.append(label_str)
-        self.logger.debug(f"Parsed static_labels_for_map_check: {self.static_labels_for_map_check}")
+            try:
+                # Try to get the enum member by name
+                enum_member = OcclusionResult[norm_str]
+                self.static_labels_for_map_check.append(enum_member)
+            except KeyError:
+                self.logger.warning(f"Unknown label '{label_str}' in 'static_labels_for_map_check' config. Skipping.")
+        self.logger.debug(f"Parsed static_labels_for_map_check (enum members): {self.static_labels_for_map_check}")
+
+        # Then, create a list of *values* for quick lookup, also in __init__ or _load_map_consistency_config
+        self.static_labels_for_map_check_values = [label.value for label in self.static_labels_for_map_check]
+        self.logger.debug(f"Parsed static_labels_for_map_check_values (integer enum values): {self.static_labels_for_map_check_values}")
 
     def _load_event_tests_config(self):
-        test1_params = self.config_accessor.get_test1_perpendicular_params()
-        self.test1_N_historical_DIs = test1_params.get('num_historical_DIs_N', 5)
-        self.test1_M1_threshold = test1_params.get('min_occluding_DIs_M1', 2)
-
         test2_params = self.config_accessor.get_test2_parallel_away_params()
         self.test2_M2_depth_images = test2_params.get('num_historical_DIs_M2', 3)
 
         test3_params = self.config_accessor.get_test3_parallel_towards_params()
         self.test3_M3_depth_images = test3_params.get('num_historical_DIs_M3', 3)
+
+        test4_params = self.config_accessor.get_test4_perpendicular_params()
+        self.test1_N_historical_DIs = test4_params.get('num_historical_DIs_N', 5)
+        self.test1_M4_threshold = test4_params.get('min_occluding_DIs_M4', 2)
         
         # Detailed check parameters are under 'occlusion_determination' in your config
         oc_params = self.config_accessor.get_occlusion_determination_params()
@@ -120,7 +145,7 @@ class MDetector:
         # or you can add a specific 'detailed_check_epsilon_depth_m' to your config.
         self.detailed_check_epsilon_depth = oc_params.get('epsilon_depth', 0.5) # Reusing general epsilon_depth
 
-        self.logger.info(f"Event Test Config: Test1_N={self.test1_N_historical_DIs}, Test1_M1={self.test1_M1_threshold}, "
+        self.logger.info(f"Event Test Config: Test1_N={self.test1_N_historical_DIs}, Test1_M1={self.test1_M4_threshold}, "
                          f"Test2_M2={self.test2_M2_depth_images}, Test3_M3={self.test3_M3_depth_images}")
         self.logger.info(f"Detailed Occlusion Check Config: AngH_rad={self.detailed_check_angular_threshold_h_rad:.3f}, "
                          f"AngV_rad={self.detailed_check_angular_threshold_v_rad:.3f}, EpsDepth={self.detailed_check_epsilon_depth:.2f}")

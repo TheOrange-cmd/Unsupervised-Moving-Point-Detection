@@ -37,6 +37,12 @@ def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     )
 
+    logging.basicConfig(level=logging.INFO) # General level
+    logging.getLogger('src.core.m_detector.base').setLevel(logging.INFO)
+    logging.getLogger('src.core.m_detector.processing').setLevel(logging.INFO)
+    logging.getLogger('src.core.m_detector.map_consistency').setLevel(logging.INFO) # MCC logs
+    logging.getLogger('src.core.m_detector.interpolation_utils').setLevel(logging.INFO) # Interpolation logs
+
     config_file_path_relative = 'config/m_detector_config.yaml' # Relative to project root
     config_file_path_absolute = config_file_path_relative
     if not os.path.isabs(config_file_path_relative) and PROJECT_ROOT:

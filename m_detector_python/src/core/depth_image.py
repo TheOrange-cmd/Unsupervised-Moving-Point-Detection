@@ -320,7 +320,6 @@ class DepthImage:
     ) -> Optional[np.ndarray]:
         """
         Calculates the 3D global coordinates of the four corners of a given pixel.
-        Does not rely on an external cs_converter.
 
         Args:
             v_idx (int): Vertical pixel index.

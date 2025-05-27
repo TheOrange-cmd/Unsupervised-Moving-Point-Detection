@@ -2,13 +2,16 @@
 # This file is imported into MDetector class
 
 import numpy as np
-from typing import Tuple, Optional, List, Dict, Any
-
-from ..depth_image import DepthImage
+from typing import Tuple, Optional, List, Dict, Any, TYPE_CHECKING 
 from ..constants import OcclusionResult
+from .adaptive_epsilon_utils import calculate_adaptive_epsilon 
+from ..depth_image import DepthImage 
 
 import logging
-logger_oc = logging.getLogger(__name__) # Logger for this module
+logger_oc = logging.getLogger(__name__)
+
+if TYPE_CHECKING: # To avoid circular import issues for type hinting
+    from .base import MDetector
 
 def check_occlusion_pixel_level(self,
                                current_point_global: np.ndarray,
@@ -142,83 +145,113 @@ def check_occlusion_batch(self,
     return np.array([OcclusionResult(int(r)) for r in results])
 
 def check_occlusion_point_level_detailed(
-    self, # MDetector instance
-    point_eval_global: np.ndarray,      # The point whose occlusion status relative to point_hist_cand_global is being checked
-    point_hist_cand_global: np.ndarray, # A candidate point from a historical DI's neighborhood
-    historical_di: DepthImage,          # The historical DI where point_hist_cand_global originated
-    occlusion_type_to_check: str        # "OCCLUDING" (eval occludes hist_cand) or "OCCLUDED_BY" (eval occluded by hist_cand)
+    self: 'MDetector', # MDetector instance
+    point_eval_global: np.ndarray,
+    # ADDED: d_anchor for point_eval_global and its origin DI timestamp for logging
+    d_anchor_of_point_eval: Optional[float],
+    origin_di_of_point_eval_ts: Optional[float], # Timestamp of DI where point_eval originated
+    point_hist_cand_global: np.ndarray,
+    historical_di: 'DepthImage', # Type hint for historical_di
+    occlusion_type_to_check: str,
+    # ADDED: For debug trace, if point_eval_global is being traced by PointDebugCollector
+    pt_idx_eval_if_tracing: Optional[int] = None,
+    # ADDED: For debug trace, to store details if needed by the caller (like Test 2)
+    debug_dict_for_caller: Optional[Dict[str, Any]] = None
 ) -> bool:
     """
     Performs a detailed occlusion check between two specific global points,
-    considering their projection into the historical_di.
-
-    Args:
-        self (MDetector): The MDetector instance (for config params).
-        point_eval_global: Global coordinates of the point being evaluated.
-        point_hist_cand_global: Global coordinates of the historical candidate point.
-        historical_di: The DepthImage object for the historical frame.
-        occlusion_type_to_check: 
-            - "OCCLUDING": Checks if point_eval_global occludes point_hist_cand_global.
-            - "OCCLUDED_BY": Checks if point_eval_global is occluded by point_hist_cand_global.
-
-    Returns:
-        bool: True if the specified occlusion condition is met, False otherwise.
+    considering their projection into the historical_di. Uses adaptive epsilon.
     """
     if not historical_di.is_prepared_for_projection():
-        logger_oc.warning(f"DetailedCheck: Historical DI (TS {historical_di.timestamp}) not prepared for projection. Cannot perform check.")
+        logger_oc.warning(f"DetailedCheck: Historical DI (TS {historical_di.timestamp}) not prepared. Cannot check.")
+        if debug_dict_for_caller is not None:
+            debug_dict_for_caller['error'] = "Historical DI not prepared"
         return False
 
-    # 1. Project point_eval_global into historical_di to get its spherical coordinates
-    #    relative to the historical_di's sensor frame.
     _, sph_coords_eval_in_hist, px_indices_eval_in_hist = \
         historical_di.project_point_to_pixel_indices(point_eval_global)
 
     if sph_coords_eval_in_hist is None or px_indices_eval_in_hist is None:
-        # point_eval_global is outside the FoV of historical_di
         logger_oc.debug(f"DetailedCheck: point_eval_global projects outside historical_di (TS {historical_di.timestamp}).")
+        if debug_dict_for_caller is not None:
+            debug_dict_for_caller['error'] = "point_eval_global projects outside historical_di"
         return False
     
     phi_eval_in_hist, theta_eval_in_hist, d_eval_in_hist = sph_coords_eval_in_hist
 
-    # 2. Get spherical coordinates of point_hist_cand_global.
-    #    These should be pre-calculated and stored in historical_di.local_sph_coords_for_points.
-    #    We need to find the original index of point_hist_cand_global within historical_di.
-    #    This is a bit tricky if only global coords are passed.
-    #    A robust way is if point_hist_cand_global was identified by its original_index in historical_di.
-    #    For now, let's assume we can find it or we pass its original_index.
-    #    Let's modify the signature or assume point_hist_cand_global is an index.
-    #    
-    #    Alternative: Project point_hist_cand_global also into historical_di. This ensures both are in
-    #    the same spherical coordinate system relative to historical_di.
     _, sph_coords_hist_cand_in_hist, px_indices_hist_cand_in_hist = \
         historical_di.project_point_to_pixel_indices(point_hist_cand_global)
 
     if sph_coords_hist_cand_in_hist is None or px_indices_hist_cand_in_hist is None:
-        logger_oc.debug(f"DetailedCheck: point_hist_cand_global projects outside historical_di (TS {historical_di.timestamp}). Should not happen if it's from this DI.")
+        logger_oc.debug(f"DetailedCheck: point_hist_cand_global projects outside historical_di (TS {historical_di.timestamp}).")
+        if debug_dict_for_caller is not None:
+            debug_dict_for_caller['error'] = "point_hist_cand_global projects outside historical_di"
         return False
         
     phi_hist_cand_in_hist, theta_hist_cand_in_hist, d_hist_cand_in_hist = sph_coords_hist_cand_in_hist
 
-    # 3. Check angular proximity
     angular_phi_match = abs(phi_eval_in_hist - phi_hist_cand_in_hist) <= self.detailed_check_angular_threshold_h_rad
     angular_theta_match = abs(theta_eval_in_hist - theta_hist_cand_in_hist) <= self.detailed_check_angular_threshold_v_rad
 
     if not (angular_phi_match and angular_theta_match):
         logger_oc.debug(f"DetailedCheck: Angular mismatch. Eval_sph({phi_eval_in_hist:.3f},{theta_eval_in_hist:.3f}) vs "
                         f"HistCand_sph({phi_hist_cand_in_hist:.3f},{theta_hist_cand_in_hist:.3f}).")
+        if debug_dict_for_caller is not None:
+            debug_dict_for_caller['angular_match'] = False
+            debug_dict_for_caller['phi_eval_in_hist'] = phi_eval_in_hist
+            debug_dict_for_caller['theta_eval_in_hist'] = theta_eval_in_hist
+            debug_dict_for_caller['phi_hist_cand_in_hist'] = phi_hist_cand_in_hist
+            debug_dict_for_caller['theta_hist_cand_in_hist'] = theta_hist_cand_in_hist
         return False
+    
+    if debug_dict_for_caller is not None:
+        debug_dict_for_caller['angular_match'] = True
 
-    # 4. Check depth condition based on occlusion_type_to_check
+
+    # Calculate adaptive epsilon using self.detailed_check_epsilon_depth as di_base
+    # and the general adaptive config for occlusion depth.
+    current_detailed_epsilon = calculate_adaptive_epsilon(
+        d_anchor_of_point_eval,
+        self.detailed_check_epsilon_depth, # di_base
+        self.adaptive_eps_config_occ_depth # General adaptive config for occlusion
+    )
+    
+    log_msg_prefix = (f"DetailedCheck (Adaptive, {occlusion_type_to_check}): "
+                      f"EvalPt(d_anchor={d_anchor_of_point_eval if d_anchor_of_point_eval is not None else 'N/A'}m, "
+                      f"d_in_hist={d_eval_in_hist:.3f}m) vs "
+                      f"HistCand(d_in_hist={d_hist_cand_in_hist:.3f}m). "
+                      f"BaseEps={self.detailed_check_epsilon_depth:.3f}, AdapEps={current_detailed_epsilon:.3f}. ")
+
     depth_condition_met = False
-    if occlusion_type_to_check == "OCCLUDING": # point_eval occludes point_hist_cand
-        depth_condition_met = d_eval_in_hist < d_hist_cand_in_hist - self.detailed_check_epsilon_depth
-        logger_oc.debug(f"DetailedCheck (OCCLUDING): d_eval={d_eval_in_hist:.3f}, d_hist_cand={d_hist_cand_in_hist:.3f}, "
-                        f"eps={self.detailed_check_epsilon_depth:.3f}. Condition met: {depth_condition_met}")
-    elif occlusion_type_to_check == "OCCLUDED_BY": # point_eval is occluded by point_hist_cand
-        depth_condition_met = d_eval_in_hist > d_hist_cand_in_hist + self.detailed_check_epsilon_depth
-        logger_oc.debug(f"DetailedCheck (OCCLUDED_BY): d_eval={d_eval_in_hist:.3f}, d_hist_cand={d_hist_cand_in_hist:.3f}, "
-                        f"eps={self.detailed_check_epsilon_depth:.3f}. Condition met: {depth_condition_met}")
+    if occlusion_type_to_check == "OCCLUDING": 
+        depth_condition_met = d_eval_in_hist < d_hist_cand_in_hist - current_detailed_epsilon
+    elif occlusion_type_to_check == "OCCLUDED_BY": 
+        depth_condition_met = d_eval_in_hist > d_hist_cand_in_hist + current_detailed_epsilon
     else:
         raise ValueError(f"Invalid occlusion_type_to_check: {occlusion_type_to_check}")
 
+    logger_oc.debug(log_msg_prefix + f"Condition met: {depth_condition_met}")
+
+    if debug_dict_for_caller is not None:
+        debug_dict_for_caller['d_anchor_of_point_eval'] = d_anchor_of_point_eval
+        debug_dict_for_caller['d_eval_in_hist_frame'] = d_eval_in_hist
+        debug_dict_for_caller['d_hist_cand_in_hist_frame'] = d_hist_cand_in_hist
+        debug_dict_for_caller['base_epsilon_used'] = self.detailed_check_epsilon_depth
+        debug_dict_for_caller['adaptive_epsilon_calculated'] = current_detailed_epsilon
+        debug_dict_for_caller['depth_condition_met'] = depth_condition_met
+        debug_dict_for_caller['occlusion_type_checked'] = occlusion_type_to_check
+
+    # If tracing this specific point_eval_global, add to MDetector's debug_collector
+    if pt_idx_eval_if_tracing is not None and self.debug_collector and self.debug_collector.is_tracing(pt_idx_eval_if_tracing):
+        trace_key_prefix = f"Test2_Step_DetailedCheck_{historical_di.timestamp:.0f}"
+        self.debug_collector.trace(pt_idx_eval_if_tracing, **{
+            f"{trace_key_prefix}_d_anchor_eval": d_anchor_of_point_eval,
+            f"{trace_key_prefix}_d_eval_in_hist": d_eval_in_hist,
+            f"{trace_key_prefix}_d_hist_cand_in_hist": d_hist_cand_in_hist,
+            f"{trace_key_prefix}_base_eps": self.detailed_check_epsilon_depth,
+            f"{trace_key_prefix}_adaptive_eps": current_detailed_epsilon,
+            f"{trace_key_prefix}_type": occlusion_type_to_check,
+            f"{trace_key_prefix}_outcome": depth_condition_met
+        })
+        
     return depth_condition_met
