@@ -8,11 +8,15 @@ nuscenes:
   # Or use the omni dataset Ted (Teddy) de Vries Lentsch is working on. 
 processing_settings: 
   skip_frames: 0
-  max_frames: null
+  max_frames: 500 # provide an int, or None to process the entire sequence
+  # max_frames: 50 
 mdetector_output_paths: # Renamed
-  save_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output_eps05" # Directory where M-Detector outputs will be saved
+  save_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25" # Directory where M-Detector outputs will be saved
   # scene_indices_to_run: 'all' # 'all' or a list, e.g.: [1,] or [0, 3, 5]
+  # scene_indices_to_run: [0, 1, 2, 3, 4, ]
   scene_indices_to_run: [1,]
+  max_parallel_scenes: 58 # How many sequences to process in parallel - will use one core and approx 0.6 GB RAM per job for nuscenes. 
+
 validation_params: # Renamed
   gt_velocity_threshold: 1.0 # For comparing against GT
   # coordinate_tolerance_for_verification: 0.01 # If used in validation scripts
@@ -94,7 +98,7 @@ m_detector:
       dthr: 20.0
       kthr: 0.07
       dmax: 3.0
-      dmin: 0.2
+      dmin: 0.1
 
     epsilon_depth_backward_m: 0.3 # This is the di_base for MCC backward checks, same value as in the paper
     adaptive_epsilon_backward_config:
@@ -146,7 +150,7 @@ m_detector:
 
   # Initialization Phase (for initial DIs before full processing)
   initialization_phase:
-    num_sweeps_for_initial_map: 5
+    num_sweeps_for_initial_map: 10
 
   # --- Bidirectional Temporal Processing (Advanced/Future) ---
   # This section can be kept separate and clearly marked as for future/advanced use.

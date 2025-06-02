@@ -7,6 +7,7 @@ class MDetectorConfigAccessor:
         try:
             with open(config_path, 'r') as f:
                 self._config_data: Dict[str, Any] = yaml.safe_load(f)
+
         except FileNotFoundError:
             raise FileNotFoundError(f"Configuration file not found at: {config_path}")
         except yaml.YAMLError as e:
@@ -20,7 +21,8 @@ class MDetectorConfigAccessor:
         return self._config_data.get('nuscenes', {})
 
     def get_processing_settings(self) -> Dict[str, Any]:
-        return self._config_data.get('processing_settings', {})
+        settings = self._config_data.get('processing_settings', {})
+        return settings
         
     def get_mdetector_output_paths(self) -> Dict[str, Any]:
         return self._config_data.get('mdetector_output_paths', {})
@@ -100,3 +102,9 @@ class MDetectorConfigAccessor:
     def get_library_size(self, default: int = 20) -> int:
         di_params = self.get_depth_image_params()
         return di_params.get('library_size', default)
+    
+    def get_raw_config(self) -> Dict[str, Any]:
+        """
+        Returns the entire configuration dictionary as loaded from the YAML file.
+        """
+        return self._config_data

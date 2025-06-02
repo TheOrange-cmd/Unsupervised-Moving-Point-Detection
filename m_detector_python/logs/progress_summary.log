@@ -1,0 +1,253 @@
+2025-05-30 21:03:56,543 - === M-Detector Processing Run Started ===
+2025-05-30 21:03:56,544 - Loading BASE config from: /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/config/m_detector_config.yaml
+2025-05-30 21:03:56,626 - Preparing 116 tuning configurations...
+2025-05-30 21:03:56,628 -   Preparing tuning [1/116]: ref_mccFwdDmin0p1
+2025-05-30 21:03:57,507 -   Preparing tuning [2/116]: Occ_BaseEps_0p07
+2025-05-30 21:03:58,309 -   Preparing tuning [3/116]: Occ_BaseEps_0p13
+2025-05-30 21:03:59,091 -   Preparing tuning [4/116]: AdapOcc_dthr3p0_kthr0p005_dmax0p3_dmin0p03
+2025-05-30 21:03:59,886 -   Preparing tuning [5/116]: AdapOcc_dthr3p0_kthr0p005_dmax0p3_dmin0p07
+2025-05-30 21:04:00,625 -   Preparing tuning [6/116]: AdapOcc_dthr3p0_kthr0p005_dmax0p7_dmin0p03
+2025-05-30 21:04:01,417 -   Preparing tuning [7/116]: AdapOcc_dthr3p0_kthr0p005_dmax0p7_dmin0p07
+2025-05-30 21:04:02,154 -   Preparing tuning [8/116]: AdapOcc_dthr3p0_kthr0p015_dmax0p3_dmin0p03
+2025-05-30 21:04:03,045 -   Preparing tuning [9/116]: AdapOcc_dthr3p0_kthr0p015_dmax0p3_dmin0p07
+2025-05-30 21:04:03,775 -   Preparing tuning [10/116]: AdapOcc_dthr3p0_kthr0p015_dmax0p7_dmin0p03
+2025-05-30 21:04:04,696 -   Preparing tuning [11/116]: AdapOcc_dthr3p0_kthr0p015_dmax0p7_dmin0p07
+2025-05-30 21:04:05,422 -   Preparing tuning [12/116]: AdapOcc_dthr7p0_kthr0p005_dmax0p3_dmin0p03
+2025-05-30 21:04:06,174 -   Preparing tuning [13/116]: AdapOcc_dthr7p0_kthr0p005_dmax0p3_dmin0p07
+2025-05-30 21:04:06,946 -   Preparing tuning [14/116]: AdapOcc_dthr7p0_kthr0p005_dmax0p7_dmin0p03
+2025-05-30 21:04:07,664 -   Preparing tuning [15/116]: AdapOcc_dthr7p0_kthr0p005_dmax0p7_dmin0p07
+2025-05-30 21:04:08,530 -   Preparing tuning [16/116]: AdapOcc_dthr7p0_kthr0p015_dmax0p3_dmin0p03
+2025-05-30 21:04:09,313 -   Preparing tuning [17/116]: AdapOcc_dthr7p0_kthr0p015_dmax0p3_dmin0p07
+2025-05-30 21:04:10,042 -   Preparing tuning [18/116]: AdapOcc_dthr7p0_kthr0p015_dmax0p7_dmin0p03
+2025-05-30 21:04:10,752 -   Preparing tuning [19/116]: AdapOcc_dthr7p0_kthr0p015_dmax0p7_dmin0p07
+2025-05-30 21:04:11,611 -   Preparing tuning [20/116]: Event_M2_1
+2025-05-30 21:04:12,349 -   Preparing tuning [21/116]: Event_M2_3
+2025-05-30 21:04:13,057 -   Preparing tuning [22/116]: Event_M3_2
+2025-05-30 21:04:13,924 -   Preparing tuning [23/116]: Event_M3_4
+2025-05-30 21:04:14,662 -   Preparing tuning [24/116]: Event_N_7
+2025-05-30 21:04:15,389 -   Preparing tuning [25/116]: Event_N_13
+2025-05-30 21:04:16,110 -   Preparing tuning [26/116]: Event_M4_3_N10
+2025-05-30 21:04:16,965 -   Preparing tuning [27/116]: Event_M4_5_N10
+2025-05-30 21:04:17,677 -   Preparing tuning [28/116]: MCC_Time_0p25s
+2025-05-30 21:04:18,393 -   Preparing tuning [29/116]: MCC_Time_0p75s
+2025-05-30 21:04:19,258 -   Preparing tuning [30/116]: MCC_EpsPhi_0p3
+2025-05-30 21:04:19,979 -   Preparing tuning [31/116]: MCC_EpsPhi_0p8
+2025-05-30 21:04:20,703 -   Preparing tuning [32/116]: MCC_EpsTheta_1p0
+2025-05-30 21:04:21,418 -   Preparing tuning [33/116]: MCC_EpsTheta_2p5
+2025-05-30 21:04:22,279 -   Preparing tuning [34/116]: MCC_ThreshCount_1
+2025-05-30 21:04:23,046 -   Preparing tuning [35/116]: MCC_ThreshCount_3
+2025-05-30 21:04:23,772 -   Preparing tuning [36/116]: MCC_InterpDisabled
+2025-05-30 21:04:24,628 -   Preparing tuning [37/116]: MCC_InterpMinD_10p0
+2025-05-30 21:04:25,340 -   Preparing tuning [38/116]: MCC_InterpMinD_20p0
+2025-05-30 21:04:26,046 -   Preparing tuning [39/116]: MCC_InterpMaxN_10
+2025-05-30 21:04:26,760 -   Preparing tuning [40/116]: MCC_InterpMaxN_30
+2025-05-30 21:04:27,615 -   Preparing tuning [41/116]: AdapMCCB_dthr15p0_kthr0p015_dmax0p7_dmin0p025
+2025-05-30 21:04:28,428 -   Preparing tuning [42/116]: AdapMCCB_dthr15p0_kthr0p015_dmax0p7_dmin0p075
+2025-05-30 21:04:29,156 -   Preparing tuning [43/116]: AdapMCCB_dthr15p0_kthr0p015_dmax1p3_dmin0p025
+2025-05-30 21:04:30,014 -   Preparing tuning [44/116]: AdapMCCB_dthr15p0_kthr0p015_dmax1p3_dmin0p075
+2025-05-30 21:04:30,735 -   Preparing tuning [45/116]: AdapMCCB_dthr15p0_kthr0p045_dmax0p7_dmin0p025
+2025-05-30 21:04:31,446 -   Preparing tuning [46/116]: AdapMCCB_dthr15p0_kthr0p045_dmax0p7_dmin0p075
+2025-05-30 21:04:32,157 -   Preparing tuning [47/116]: AdapMCCB_dthr15p0_kthr0p045_dmax1p3_dmin0p025
+2025-05-30 21:04:33,002 -   Preparing tuning [48/116]: AdapMCCB_dthr15p0_kthr0p045_dmax1p3_dmin0p075
+2025-05-30 21:04:33,714 -   Preparing tuning [49/116]: AdapMCCB_dthr25p0_kthr0p015_dmax0p7_dmin0p025
+2025-05-30 21:04:34,449 -   Preparing tuning [50/116]: AdapMCCB_dthr25p0_kthr0p015_dmax0p7_dmin0p075
+2025-05-30 21:04:35,315 -   Preparing tuning [51/116]: AdapMCCB_dthr25p0_kthr0p015_dmax1p3_dmin0p025
+2025-05-30 21:04:36,035 -   Preparing tuning [52/116]: AdapMCCB_dthr25p0_kthr0p015_dmax1p3_dmin0p075
+2025-05-30 21:04:36,746 -   Preparing tuning [53/116]: AdapMCCB_dthr25p0_kthr0p045_dmax0p7_dmin0p025
+2025-05-30 21:04:37,455 -   Preparing tuning [54/116]: AdapMCCB_dthr25p0_kthr0p045_dmax0p7_dmin0p075
+2025-05-30 21:04:38,294 -   Preparing tuning [55/116]: AdapMCCB_dthr25p0_kthr0p045_dmax1p3_dmin0p025
+2025-05-30 21:04:39,010 -   Preparing tuning [56/116]: AdapMCCB_dthr25p0_kthr0p045_dmax1p3_dmin0p075
+2025-05-30 21:04:39,736 -   Preparing tuning [57/116]: AdapMCCF_dmin0p1_dthr15p0_kthr0p05_dmax2p5
+2025-05-30 21:04:40,584 -   Preparing tuning [58/116]: AdapMCCF_dmin0p1_dthr15p0_kthr0p05_dmax3p5
+2025-05-30 21:04:41,295 -   Preparing tuning [59/116]: AdapMCCF_dmin0p1_dthr15p0_kthr0p09_dmax2p5
+2025-05-30 21:04:42,014 -   Preparing tuning [60/116]: AdapMCCF_dmin0p1_dthr15p0_kthr0p09_dmax3p5
+2025-05-30 21:04:42,747 -   Preparing tuning [61/116]: AdapMCCF_dmin0p1_dthr25p0_kthr0p05_dmax2p5
+2025-05-30 21:04:43,595 -   Preparing tuning [62/116]: AdapMCCF_dmin0p1_dthr25p0_kthr0p05_dmax3p5
+2025-05-30 21:04:44,320 -   Preparing tuning [63/116]: AdapMCCF_dmin0p1_dthr25p0_kthr0p09_dmax2p5
+2025-05-30 21:04:45,037 -   Preparing tuning [64/116]: AdapMCCF_dmin0p1_dthr25p0_kthr0p09_dmax3p5
+2025-05-30 21:04:45,878 -   Preparing tuning [65/116]: RANSAC_XYRad_15p0
+2025-05-30 21:04:46,592 -   Preparing tuning [66/116]: RANSAC_XYRad_35p0
+2025-05-30 21:04:47,358 -   Preparing tuning [67/116]: RANSAC_Trials_10
+2025-05-30 21:04:48,057 -   Preparing tuning [68/116]: RANSAC_Trials_30
+2025-05-30 21:04:48,888 -   Preparing tuning [69/116]: RANSAC_Inlier_0p2
+2025-05-30 21:04:49,611 -   Preparing tuning [70/116]: RANSAC_Inlier_0p4
+2025-05-30 21:04:50,318 -   Preparing tuning [71/116]: RANSAC_GroundTh_0p2
+2025-05-30 21:04:51,198 -   Preparing tuning [72/116]: RANSAC_GroundTh_0p4
+2025-05-30 21:04:51,959 -   Preparing tuning [73/116]: Init_Sweeps_5
+2025-05-30 21:04:52,712 -   Preparing tuning [74/116]: Init_Sweeps_15
+2025-05-30 21:04:53,458 -   Preparing tuning [75/116]: Init_Sweeps_20
+2025-05-30 21:04:54,347 -   Preparing tuning [76/116]: Occ_PixelH_1
+2025-05-30 21:04:55,087 -   Preparing tuning [77/116]: Occ_PixelH_3
+2025-05-30 21:04:55,817 -   Preparing tuning [78/116]: Occ_PixelV_0
+2025-05-30 21:04:56,678 -   Preparing tuning [79/116]: Occ_PixelV_2
+2025-05-30 21:04:57,399 -   Preparing tuning [80/116]: Occ_AngularH_0p15
+2025-05-30 21:04:58,103 -   Preparing tuning [81/116]: Occ_AngularH_0p45
+2025-05-30 21:04:58,815 -   Preparing tuning [82/116]: Occ_AngularV_0p2
+2025-05-30 21:04:59,656 -   Preparing tuning [83/116]: Occ_AngularV_0p6
+2025-05-30 21:05:00,371 -   Preparing tuning [84/116]: Event_N_5_v2
+2025-05-30 21:05:01,070 -   Preparing tuning [85/116]: Event_N_15_v2
+2025-05-30 21:05:01,917 -   Preparing tuning [86/116]: Event_M4_2_N10_v2
+2025-05-30 21:05:02,644 -   Preparing tuning [87/116]: Event_M4_6_N10_v2
+2025-05-30 21:05:03,347 -   Preparing tuning [88/116]: Event_N7_M4_2
+2025-05-30 21:05:04,073 -   Preparing tuning [89/116]: Event_N7_M4_3
+2025-05-30 21:05:04,977 -   Preparing tuning [90/116]: Event_N7_M4_4
+2025-05-30 21:05:05,722 -   Preparing tuning [91/116]: Event_N13_M4_3
+2025-05-30 21:05:06,483 -   Preparing tuning [92/116]: Event_N13_M4_4
+2025-05-30 21:05:07,357 -   Preparing tuning [93/116]: Event_N13_M4_5
+2025-05-30 21:05:08,100 -   Preparing tuning [94/116]: Event_N13_M4_6
+2025-05-30 21:05:08,838 -   Preparing tuning [95/116]: MCC_StaticLabels_Strict
+2025-05-30 21:05:09,556 -   Preparing tuning [96/116]: MCC_StaticLabels_WithEmpty
+2025-05-30 21:05:10,398 -   Preparing tuning [97/116]: AdapOcc_Single_dthr_4p0
+2025-05-30 21:05:11,120 -   Preparing tuning [98/116]: AdapOcc_Single_kthr_0p02
+2025-05-30 21:05:11,834 -   Preparing tuning [99/116]: AdapOcc_Single_dmax_0p4
+2025-05-30 21:05:12,686 -   Preparing tuning [100/116]: AdapOcc_Single_dmin_0p06
+2025-05-30 21:05:13,467 -   Preparing tuning [101/116]: AdapMCCB_Single_dthr_18p0
+2025-05-30 21:05:14,219 -   Preparing tuning [102/116]: AdapMCCB_Single_kthr_0p02
+2025-05-30 21:05:14,974 -   Preparing tuning [103/116]: AdapMCCB_Single_dmax_0p8
+2025-05-30 21:05:15,834 -   Preparing tuning [104/116]: AdapMCCB_Single_dmin_0p06
+2025-05-30 21:05:16,581 -   Preparing tuning [105/116]: AdapMCCF_Single_dthr_18p0
+2025-05-30 21:05:17,276 -   Preparing tuning [106/116]: AdapMCCF_Single_kthr_0p06
+2025-05-30 21:05:18,131 -   Preparing tuning [107/116]: AdapMCCF_Single_dmax_2p8
+2025-05-30 21:05:18,847 -   Preparing tuning [108/116]: Occ_BaseEps_0p085
+2025-05-30 21:05:19,538 -   Preparing tuning [109/116]: Occ_BaseEps_0p115
+2025-05-30 21:05:20,259 -   Preparing tuning [110/116]: Event_M2_v2
+2025-05-30 21:05:21,085 -   Preparing tuning [111/116]: Event_M3_v2
+2025-05-30 21:05:21,791 -   Preparing tuning [112/116]: MCC_Time_0p5s_v2
+2025-05-30 21:05:22,499 -   Preparing tuning [113/116]: MCC_EpsPhi_0p57_v2
+2025-05-30 21:05:23,356 -   Preparing tuning [114/116]: MCC_EpsTheta_1p72_v2
+2025-05-30 21:05:24,070 -   Preparing tuning [115/116]: RANSAC_Inlier_0p3_v2
+2025-05-30 21:05:24,845 -   Preparing tuning [116/116]: Init_Sweeps_10_v2
+2025-05-30 21:05:25,604 - Total processing tasks to run: 116
+2025-05-30 21:05:25,604 - Using up to 56 parallel processes.
+2025-05-31 00:52:05,894 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_InterpDisabled.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_InterpDisabled/mdet_results_scene-0103.h5
+2025-05-31 01:34:40,029 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_Time_0p25s.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_Time_0p25s/mdet_results_scene-0103.h5
+2025-05-31 02:45:07,409 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_EpsPhi_0p3.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_EpsPhi_0p3/mdet_results_scene-0103.h5
+2025-05-31 02:54:57,798 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_InterpMinD_20p0.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_InterpMinD_20p0/mdet_results_scene-0103.h5
+2025-05-31 03:13:05,191 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_EpsTheta_1p0.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_EpsTheta_1p0/mdet_results_scene-0103.h5
+2025-05-31 03:20:28,999 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_N_7.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_N_7/mdet_results_scene-0103.h5
+2025-05-31 03:31:04,758 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr7p0_kthr0p015_dmax0p7_dmin0p03.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr7p0_kthr0p015_dmax0p7_dmin0p03/mdet_results_scene-0103.h5
+2025-05-31 03:34:12,854 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr7p0_kthr0p015_dmax0p7_dmin0p07.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr7p0_kthr0p015_dmax0p7_dmin0p07/mdet_results_scene-0103.h5
+2025-05-31 03:34:41,086 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr15p0_kthr0p045_dmax1p3_dmin0p075.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr15p0_kthr0p045_dmax1p3_dmin0p075/mdet_results_scene-0103.h5
+2025-05-31 03:35:05,247 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr25p0_kthr0p045_dmax1p3_dmin0p025.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr25p0_kthr0p045_dmax1p3_dmin0p025/mdet_results_scene-0103.h5
+2025-05-31 03:35:05,249 - Task processing progress: 10/116 tasks processed (saved/failed).
+2025-05-31 03:35:13,291 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_ThreshCount_1.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_ThreshCount_1/mdet_results_scene-0103.h5
+2025-05-31 03:35:33,556 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr25p0_kthr0p045_dmax1p3_dmin0p075.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr25p0_kthr0p045_dmax1p3_dmin0p075/mdet_results_scene-0103.h5
+2025-05-31 03:36:00,004 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr3p0_kthr0p015_dmax0p3_dmin0p03.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr3p0_kthr0p015_dmax0p3_dmin0p03/mdet_results_scene-0103.h5
+2025-05-31 03:36:21,172 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_BaseEps_0p13.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_BaseEps_0p13/mdet_results_scene-0103.h5
+2025-05-31 03:36:24,826 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr15p0_kthr0p045_dmax0p7_dmin0p025.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr15p0_kthr0p045_dmax0p7_dmin0p025/mdet_results_scene-0103.h5
+2025-05-31 03:36:33,479 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_ref_mccFwdDmin0p1.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/ref_mccFwdDmin0p1/mdet_results_scene-0103.h5
+2025-05-31 03:37:11,034 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_M3_2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_M3_2/mdet_results_scene-0103.h5
+2025-05-31 03:37:30,443 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_M4_5_N10.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_M4_5_N10/mdet_results_scene-0103.h5
+2025-05-31 03:37:41,111 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr25p0_kthr0p045_dmax0p7_dmin0p025.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr25p0_kthr0p045_dmax0p7_dmin0p025/mdet_results_scene-0103.h5
+2025-05-31 03:37:56,357 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr15p0_kthr0p045_dmax1p3_dmin0p025.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr15p0_kthr0p045_dmax1p3_dmin0p025/mdet_results_scene-0103.h5
+2025-05-31 03:37:56,359 - Task processing progress: 20/116 tasks processed (saved/failed).
+2025-05-31 03:38:37,607 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr3p0_kthr0p005_dmax0p3_dmin0p07.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr3p0_kthr0p005_dmax0p3_dmin0p07/mdet_results_scene-0103.h5
+2025-05-31 03:38:39,233 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_M2_3.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_M2_3/mdet_results_scene-0103.h5
+2025-05-31 03:39:18,556 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr25p0_kthr0p015_dmax1p3_dmin0p075.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr25p0_kthr0p015_dmax1p3_dmin0p075/mdet_results_scene-0103.h5
+2025-05-31 03:40:32,214 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr7p0_kthr0p015_dmax0p3_dmin0p03.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr7p0_kthr0p015_dmax0p3_dmin0p03/mdet_results_scene-0103.h5
+2025-05-31 03:40:42,261 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr3p0_kthr0p005_dmax0p3_dmin0p03.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr3p0_kthr0p005_dmax0p3_dmin0p03/mdet_results_scene-0103.h5
+2025-05-31 03:41:53,260 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr3p0_kthr0p015_dmax0p7_dmin0p03.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr3p0_kthr0p015_dmax0p7_dmin0p03/mdet_results_scene-0103.h5
+2025-05-31 03:43:19,920 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr3p0_kthr0p015_dmax0p7_dmin0p07.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr3p0_kthr0p015_dmax0p7_dmin0p07/mdet_results_scene-0103.h5
+2025-05-31 03:43:34,438 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr15p0_kthr0p045_dmax0p7_dmin0p075.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr15p0_kthr0p045_dmax0p7_dmin0p075/mdet_results_scene-0103.h5
+2025-05-31 03:43:43,231 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr15p0_kthr0p015_dmax1p3_dmin0p075.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr15p0_kthr0p015_dmax1p3_dmin0p075/mdet_results_scene-0103.h5
+2025-05-31 03:43:51,796 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr3p0_kthr0p005_dmax0p7_dmin0p03.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr3p0_kthr0p005_dmax0p7_dmin0p03/mdet_results_scene-0103.h5
+2025-05-31 03:43:51,798 - Task processing progress: 30/116 tasks processed (saved/failed).
+2025-05-31 03:44:29,560 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr3p0_kthr0p015_dmax0p3_dmin0p07.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr3p0_kthr0p015_dmax0p3_dmin0p07/mdet_results_scene-0103.h5
+2025-05-31 03:44:35,841 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_M3_4.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_M3_4/mdet_results_scene-0103.h5
+2025-05-31 03:44:50,435 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_InterpMaxN_30.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_InterpMaxN_30/mdet_results_scene-0103.h5
+2025-05-31 03:44:58,712 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr3p0_kthr0p005_dmax0p7_dmin0p07.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr3p0_kthr0p005_dmax0p7_dmin0p07/mdet_results_scene-0103.h5
+2025-05-31 03:45:00,291 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr25p0_kthr0p015_dmax1p3_dmin0p025.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr25p0_kthr0p015_dmax1p3_dmin0p025/mdet_results_scene-0103.h5
+2025-05-31 03:45:09,644 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_M2_1.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_M2_1/mdet_results_scene-0103.h5
+2025-05-31 03:45:13,298 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_M4_3_N10.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_M4_3_N10/mdet_results_scene-0103.h5
+2025-05-31 03:47:07,060 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr25p0_kthr0p045_dmax0p7_dmin0p075.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr25p0_kthr0p045_dmax0p7_dmin0p075/mdet_results_scene-0103.h5
+2025-05-31 03:47:13,720 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr7p0_kthr0p005_dmax0p7_dmin0p03.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr7p0_kthr0p005_dmax0p7_dmin0p03/mdet_results_scene-0103.h5
+2025-05-31 03:47:57,868 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr25p0_kthr0p015_dmax0p7_dmin0p025.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr25p0_kthr0p015_dmax0p7_dmin0p025/mdet_results_scene-0103.h5
+2025-05-31 03:47:57,871 - Task processing progress: 40/116 tasks processed (saved/failed).
+2025-05-31 03:48:07,102 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr7p0_kthr0p015_dmax0p3_dmin0p07.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr7p0_kthr0p015_dmax0p3_dmin0p07/mdet_results_scene-0103.h5
+2025-05-31 03:49:01,714 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr15p0_kthr0p015_dmax0p7_dmin0p075.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr15p0_kthr0p015_dmax0p7_dmin0p075/mdet_results_scene-0103.h5
+2025-05-31 03:49:23,726 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr25p0_kthr0p015_dmax0p7_dmin0p075.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr25p0_kthr0p015_dmax0p7_dmin0p075/mdet_results_scene-0103.h5
+2025-05-31 03:49:53,343 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_InterpMaxN_10.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_InterpMaxN_10/mdet_results_scene-0103.h5
+2025-05-31 03:49:56,541 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr15p0_kthr0p015_dmax0p7_dmin0p025.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr15p0_kthr0p015_dmax0p7_dmin0p025/mdet_results_scene-0103.h5
+2025-05-31 03:50:03,073 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_dthr15p0_kthr0p015_dmax1p3_dmin0p025.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_dthr15p0_kthr0p015_dmax1p3_dmin0p025/mdet_results_scene-0103.h5
+2025-05-31 03:52:11,823 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr7p0_kthr0p005_dmax0p3_dmin0p07.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr7p0_kthr0p005_dmax0p3_dmin0p07/mdet_results_scene-0103.h5
+2025-05-31 03:52:49,881 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_BaseEps_0p07.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_BaseEps_0p07/mdet_results_scene-0103.h5
+2025-05-31 03:53:06,732 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_ThreshCount_3.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_ThreshCount_3/mdet_results_scene-0103.h5
+2025-05-31 03:54:29,676 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr7p0_kthr0p005_dmax0p3_dmin0p03.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr7p0_kthr0p005_dmax0p3_dmin0p03/mdet_results_scene-0103.h5
+2025-05-31 03:54:29,678 - Task processing progress: 50/116 tasks processed (saved/failed).
+2025-05-31 03:57:42,664 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_dthr7p0_kthr0p005_dmax0p7_dmin0p07.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_dthr7p0_kthr0p005_dmax0p7_dmin0p07/mdet_results_scene-0103.h5
+2025-05-31 04:04:08,411 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_N_13.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_N_13/mdet_results_scene-0103.h5
+2025-05-31 04:06:23,847 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_EpsTheta_2p5.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_EpsTheta_2p5/mdet_results_scene-0103.h5
+2025-05-31 04:46:18,231 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_EpsPhi_0p8.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_EpsPhi_0p8/mdet_results_scene-0103.h5
+2025-05-31 05:00:37,729 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_InterpMinD_10p0.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_InterpMinD_10p0/mdet_results_scene-0103.h5
+2025-05-31 05:36:57,407 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_Time_0p75s.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_Time_0p75s/mdet_results_scene-0103.h5
+2025-05-31 07:22:28,403 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCF_dmin0p1_dthr15p0_kthr0p05_dmax2p5.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCF_dmin0p1_dthr15p0_kthr0p05_dmax2p5/mdet_results_scene-0103.h5
+2025-05-31 08:01:38,559 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCF_dmin0p1_dthr15p0_kthr0p05_dmax3p5.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCF_dmin0p1_dthr15p0_kthr0p05_dmax3p5/mdet_results_scene-0103.h5
+2025-05-31 08:32:11,463 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_StaticLabels_Strict.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_StaticLabels_Strict/mdet_results_scene-0103.h5
+2025-05-31 09:02:14,856 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCF_dmin0p1_dthr15p0_kthr0p09_dmax2p5.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCF_dmin0p1_dthr15p0_kthr0p09_dmax2p5/mdet_results_scene-0103.h5
+2025-05-31 09:02:14,860 - Task processing progress: 60/116 tasks processed (saved/failed).
+2025-05-31 09:10:21,523 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCF_dmin0p1_dthr15p0_kthr0p09_dmax3p5.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCF_dmin0p1_dthr15p0_kthr0p09_dmax3p5/mdet_results_scene-0103.h5
+2025-05-31 09:11:34,049 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_N_5_v2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_N_5_v2/mdet_results_scene-0103.h5
+2025-05-31 09:29:39,708 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCF_dmin0p1_dthr25p0_kthr0p05_dmax2p5.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCF_dmin0p1_dthr25p0_kthr0p05_dmax2p5/mdet_results_scene-0103.h5
+2025-05-31 09:32:45,223 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_N7_M4_4.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_N7_M4_4/mdet_results_scene-0103.h5
+2025-05-31 09:33:16,795 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_N7_M4_3.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_N7_M4_3/mdet_results_scene-0103.h5
+2025-05-31 09:34:36,444 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_N7_M4_2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_N7_M4_2/mdet_results_scene-0103.h5
+2025-05-31 09:36:52,435 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_RANSAC_GroundTh_0p4.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/RANSAC_GroundTh_0p4/mdet_results_scene-0103.h5
+2025-05-31 09:39:06,340 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCF_dmin0p1_dthr25p0_kthr0p05_dmax3p5.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCF_dmin0p1_dthr25p0_kthr0p05_dmax3p5/mdet_results_scene-0103.h5
+2025-05-31 09:45:52,194 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_RANSAC_Trials_30.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/RANSAC_Trials_30/mdet_results_scene-0103.h5
+2025-05-31 09:45:55,289 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCF_dmin0p1_dthr25p0_kthr0p09_dmax2p5.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCF_dmin0p1_dthr25p0_kthr0p09_dmax2p5/mdet_results_scene-0103.h5
+2025-05-31 09:45:55,291 - Task processing progress: 70/116 tasks processed (saved/failed).
+2025-05-31 09:46:19,750 - Successfully saved HDF5 (370 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Init_Sweeps_20.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Init_Sweeps_20/mdet_results_scene-0103.h5
+2025-05-31 09:47:12,419 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_RANSAC_XYRad_15p0.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/RANSAC_XYRad_15p0/mdet_results_scene-0103.h5
+2025-05-31 09:47:33,881 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_AngularH_0p15.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_AngularH_0p15/mdet_results_scene-0103.h5
+2025-05-31 09:48:21,138 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_RANSAC_XYRad_35p0.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/RANSAC_XYRad_35p0/mdet_results_scene-0103.h5
+2025-05-31 09:48:51,031 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCF_dmin0p1_dthr25p0_kthr0p09_dmax3p5.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCF_dmin0p1_dthr25p0_kthr0p09_dmax3p5/mdet_results_scene-0103.h5
+2025-05-31 09:49:39,459 - Successfully saved HDF5 (385 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Init_Sweeps_5.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Init_Sweeps_5/mdet_results_scene-0103.h5
+2025-05-31 09:50:01,457 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_RANSAC_Inlier_0p2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/RANSAC_Inlier_0p2/mdet_results_scene-0103.h5
+2025-05-31 09:50:05,282 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_PixelH_3.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_PixelH_3/mdet_results_scene-0103.h5
+2025-05-31 09:51:27,626 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_PixelH_1.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_PixelH_1/mdet_results_scene-0103.h5
+2025-05-31 09:51:52,203 - Successfully saved HDF5 (375 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Init_Sweeps_15.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Init_Sweeps_15/mdet_results_scene-0103.h5
+2025-05-31 09:51:52,204 - Task processing progress: 80/116 tasks processed (saved/failed).
+2025-05-31 09:53:07,956 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_PixelV_0.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_PixelV_0/mdet_results_scene-0103.h5
+2025-05-31 09:53:31,271 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_AngularV_0p6.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_AngularV_0p6/mdet_results_scene-0103.h5
+2025-05-31 09:54:26,781 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_AngularH_0p45.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_AngularH_0p45/mdet_results_scene-0103.h5
+2025-05-31 09:55:06,713 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_M4_6_N10_v2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_M4_6_N10_v2/mdet_results_scene-0103.h5
+2025-05-31 09:55:21,084 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_RANSAC_Trials_10.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/RANSAC_Trials_10/mdet_results_scene-0103.h5
+2025-05-31 09:55:25,563 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_PixelV_2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_PixelV_2/mdet_results_scene-0103.h5
+2025-05-31 09:56:00,841 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_AngularV_0p2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_AngularV_0p2/mdet_results_scene-0103.h5
+2025-05-31 09:56:26,927 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_RANSAC_Inlier_0p4.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/RANSAC_Inlier_0p4/mdet_results_scene-0103.h5
+2025-05-31 09:56:58,655 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_StaticLabels_WithEmpty.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_StaticLabels_WithEmpty/mdet_results_scene-0103.h5
+2025-05-31 09:57:13,499 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_M4_2_N10_v2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_M4_2_N10_v2/mdet_results_scene-0103.h5
+2025-05-31 09:57:13,500 - Task processing progress: 90/116 tasks processed (saved/failed).
+2025-05-31 09:57:33,259 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_Single_dthr_4p0.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_Single_dthr_4p0/mdet_results_scene-0103.h5
+2025-05-31 09:57:43,807 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_Single_kthr_0p02.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_Single_kthr_0p02/mdet_results_scene-0103.h5
+2025-05-31 09:58:23,432 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_Single_kthr_0p02.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_Single_kthr_0p02/mdet_results_scene-0103.h5
+2025-05-31 10:00:04,384 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCF_Single_dthr_18p0.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCF_Single_dthr_18p0/mdet_results_scene-0103.h5
+2025-05-31 10:00:20,533 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_Single_dmin_0p06.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_Single_dmin_0p06/mdet_results_scene-0103.h5
+2025-05-31 10:00:23,018 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_Single_dmax_0p4.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_Single_dmax_0p4/mdet_results_scene-0103.h5
+2025-05-31 10:00:25,238 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapOcc_Single_dmin_0p06.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapOcc_Single_dmin_0p06/mdet_results_scene-0103.h5
+2025-05-31 10:00:37,927 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_Single_dthr_18p0.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_Single_dthr_18p0/mdet_results_scene-0103.h5
+2025-05-31 10:01:24,603 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCF_Single_kthr_0p06.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCF_Single_kthr_0p06/mdet_results_scene-0103.h5
+2025-05-31 10:02:38,938 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCB_Single_dmax_0p8.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCB_Single_dmax_0p8/mdet_results_scene-0103.h5
+2025-05-31 10:02:38,939 - Task processing progress: 100/116 tasks processed (saved/failed).
+2025-05-31 10:05:48,855 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_RANSAC_GroundTh_0p2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/RANSAC_GroundTh_0p2/mdet_results_scene-0103.h5
+2025-05-31 10:06:05,725 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_AdapMCCF_Single_dmax_2p8.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/AdapMCCF_Single_dmax_2p8/mdet_results_scene-0103.h5
+2025-05-31 10:08:00,104 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_BaseEps_0p085.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_BaseEps_0p085/mdet_results_scene-0103.h5
+2025-05-31 10:10:25,028 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_N13_M4_5.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_N13_M4_5/mdet_results_scene-0103.h5
+2025-05-31 10:10:45,662 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Occ_BaseEps_0p115.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Occ_BaseEps_0p115/mdet_results_scene-0103.h5
+2025-05-31 10:12:25,451 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_N13_M4_4.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_N13_M4_4/mdet_results_scene-0103.h5
+2025-05-31 10:13:01,093 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_N13_M4_3.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_N13_M4_3/mdet_results_scene-0103.h5
+2025-05-31 10:13:35,666 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_N13_M4_6.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_N13_M4_6/mdet_results_scene-0103.h5
+2025-05-31 10:17:25,495 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_N_15_v2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_N_15_v2/mdet_results_scene-0103.h5
+2025-05-31 10:33:08,045 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_M2_v2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_M2_v2/mdet_results_scene-0103.h5
+2025-05-31 10:33:08,046 - Task processing progress: 110/116 tasks processed (saved/failed).
+2025-05-31 10:36:57,917 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Event_M3_v2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Event_M3_v2/mdet_results_scene-0103.h5
+2025-05-31 10:52:45,956 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_Time_0p5s_v2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_Time_0p5s_v2/mdet_results_scene-0103.h5
+2025-05-31 11:51:54,235 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_EpsPhi_0p57_v2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_EpsPhi_0p57_v2/mdet_results_scene-0103.h5
+2025-05-31 12:03:44,564 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_MCC_EpsTheta_1p72_v2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/MCC_EpsTheta_1p72_v2/mdet_results_scene-0103.h5
+2025-05-31 12:18:34,763 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_RANSAC_Inlier_0p3_v2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/RANSAC_Inlier_0p3_v2/mdet_results_scene-0103.h5
+2025-05-31 12:36:21,213 - Successfully saved HDF5 (380 frames) for Scene 'scene-0103' (idx 1), Config: config_tuned_Init_Sweeps_10_v2.yaml to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25/Init_Sweeps_10_v2/mdet_results_scene-0103.h5
+2025-05-31 12:36:21,214 - Task processing progress: 116/116 tasks processed (saved/failed).
+2025-05-31 12:36:25,948 - All worker processes and incremental saving finished.
+2025-05-31 12:36:25,948 - === M-Detector Processing Run Finished ===
+2025-05-31 12:36:25,948 - Total duration: 55949.40 seconds (15.54 hours).
+2025-05-31 12:36:25,948 - Total successful scene-tuning instances saved: 116.

@@ -172,7 +172,8 @@ def check_occlusion_point_level_detailed(
         historical_di.project_point_to_pixel_indices(point_eval_global)
 
     if sph_coords_eval_in_hist is None or px_indices_eval_in_hist is None:
-        logger_oc.debug(f"DetailedCheck: point_eval_global projects outside historical_di (TS {historical_di.timestamp}).")
+        if logger_oc.isEnabledFor(logging.DEBUG):
+            logger_oc.debug(f"DetailedCheck: point_eval_global projects outside historical_di (TS {historical_di.timestamp}).")
         if debug_dict_for_caller is not None:
             debug_dict_for_caller['error'] = "point_eval_global projects outside historical_di"
         return False
@@ -183,7 +184,8 @@ def check_occlusion_point_level_detailed(
         historical_di.project_point_to_pixel_indices(point_hist_cand_global)
 
     if sph_coords_hist_cand_in_hist is None or px_indices_hist_cand_in_hist is None:
-        logger_oc.debug(f"DetailedCheck: point_hist_cand_global projects outside historical_di (TS {historical_di.timestamp}).")
+        if logger_oc.isEnabledFor(logging.DEBUG):
+            logger_oc.debug(f"DetailedCheck: point_hist_cand_global projects outside historical_di (TS {historical_di.timestamp}).")
         if debug_dict_for_caller is not None:
             debug_dict_for_caller['error'] = "point_hist_cand_global projects outside historical_di"
         return False
@@ -194,8 +196,9 @@ def check_occlusion_point_level_detailed(
     angular_theta_match = abs(theta_eval_in_hist - theta_hist_cand_in_hist) <= self.detailed_check_angular_threshold_v_rad
 
     if not (angular_phi_match and angular_theta_match):
-        logger_oc.debug(f"DetailedCheck: Angular mismatch. Eval_sph({phi_eval_in_hist:.3f},{theta_eval_in_hist:.3f}) vs "
-                        f"HistCand_sph({phi_hist_cand_in_hist:.3f},{theta_hist_cand_in_hist:.3f}).")
+        if logger_oc.isEnabledFor(logging.DEBUG):
+            logger_oc.debug(f"DetailedCheck: Angular mismatch. Eval_sph({phi_eval_in_hist:.3f},{theta_eval_in_hist:.3f}) vs "
+                            f"HistCand_sph({phi_hist_cand_in_hist:.3f},{theta_hist_cand_in_hist:.3f}).")
         if debug_dict_for_caller is not None:
             debug_dict_for_caller['angular_match'] = False
             debug_dict_for_caller['phi_eval_in_hist'] = phi_eval_in_hist
@@ -213,14 +216,19 @@ def check_occlusion_point_level_detailed(
     current_detailed_epsilon = calculate_adaptive_epsilon(
         d_anchor_of_point_eval,
         self.detailed_check_epsilon_depth, # di_base
-        self.adaptive_eps_config_occ_depth # General adaptive config for occlusion
+        self.adaptive_eps_config_occ_depth.get('enabled', False),
+        self.adaptive_eps_config_occ_depth.get('dthr'),  
+        self.adaptive_eps_config_occ_depth.get('kthr'),
+        self.adaptive_eps_config_occ_depth.get('dmax'),
+        self.adaptive_eps_config_occ_depth.get('dmin')
     )
-    
-    log_msg_prefix = (f"DetailedCheck (Adaptive, {occlusion_type_to_check}): "
-                      f"EvalPt(d_anchor={d_anchor_of_point_eval if d_anchor_of_point_eval is not None else 'N/A'}m, "
-                      f"d_in_hist={d_eval_in_hist:.3f}m) vs "
-                      f"HistCand(d_in_hist={d_hist_cand_in_hist:.3f}m). "
-                      f"BaseEps={self.detailed_check_epsilon_depth:.3f}, AdapEps={current_detailed_epsilon:.3f}. ")
+
+    if logger_oc.isEnabledFor(logging.DEBUG):
+        log_msg_prefix = (f"DetailedCheck (Adaptive, {occlusion_type_to_check}): "
+                        f"EvalPt(d_anchor={d_anchor_of_point_eval if d_anchor_of_point_eval is not None else 'N/A'}m, "
+                        f"d_in_hist={d_eval_in_hist:.3f}m) vs "
+                        f"HistCand(d_in_hist={d_hist_cand_in_hist:.3f}m). "
+                        f"BaseEps={self.detailed_check_epsilon_depth:.3f}, AdapEps={current_detailed_epsilon:.3f}. ")
 
     depth_condition_met = False
     if occlusion_type_to_check == "OCCLUDING": 
@@ -229,8 +237,8 @@ def check_occlusion_point_level_detailed(
         depth_condition_met = d_eval_in_hist > d_hist_cand_in_hist + current_detailed_epsilon
     else:
         raise ValueError(f"Invalid occlusion_type_to_check: {occlusion_type_to_check}")
-
-    logger_oc.debug(log_msg_prefix + f"Condition met: {depth_condition_met}")
+    if logger_oc.isEnabledFor(logging.DEBUG):
+        logger_oc.debug(log_msg_prefix + f"Condition met: {depth_condition_met}")
 
     if debug_dict_for_caller is not None:
         debug_dict_for_caller['d_anchor_of_point_eval'] = d_anchor_of_point_eval

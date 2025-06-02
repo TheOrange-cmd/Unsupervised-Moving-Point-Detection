@@ -10,93 +10,6 @@ import h5py
 
 from ..core.constants import POINT_LABEL_DTYPE 
 
-# def get_gt_dynamic_points_for_sweep(
-#     nusc: NuScenes,
-#     sweep_data_dict: Dict,
-#     all_points_global: np.ndarray,
-#     gt_labels_scene_hdf5_path: str,
-#     velocity_threshold: float
-# ) -> Dict[str, np.ndarray]:
-#     lidar_sd_token = sweep_data_dict['lidar_sd_token']
-#     # print(f"    DEBUG (get_gt_dynamic): Getting GT for token: {lidar_sd_token}, HDF5: {gt_labels_scene_hdf5_path}") # DEBUG
-#     empty_result = {'dynamic': np.empty((0, 3)), 'static': np.empty((0,3)), 'unlabeled': all_points_global if all_points_global is not None else np.empty((0,3))}
-
-#     if not os.path.exists(gt_labels_scene_hdf5_path):
-#         tqdm.write(f"    DEBUG (get_gt_dynamic): GT Label HDF5 file NOT FOUND: {gt_labels_scene_hdf5_path}") # DEBUG
-#         return empty_result
-
-#     point_labels_for_sweep: Optional[np.ndarray] = None
-#     try:
-#         with h5py.File(gt_labels_scene_hdf5_path, 'r') as hf:
-#             # print(f"    DEBUG (get_gt_dynamic): Opened GT HDF5: {gt_labels_scene_hdf5_path}") # DEBUG
-#             all_tokens_bytes = hf['sweep_lidar_sd_tokens'][:]
-#             target_token_bytes = lidar_sd_token.encode('utf-8') if isinstance(lidar_sd_token, str) else lidar_sd_token
-            
-#             matches = np.array([]) # Initialize
-#             try:
-#                 matches = np.where(all_tokens_bytes == target_token_bytes)[0]
-#                 if not matches.size > 0:
-#                     all_tokens_str_decoded = [t.decode('utf-8', 'ignore') for t in all_tokens_bytes]
-#                     matches = np.where(np.array(all_tokens_str_decoded) == (target_token_bytes.decode('utf-8', 'ignore') if isinstance(target_token_bytes, bytes) else target_token_bytes) )[0]
-#             except TypeError:
-#                  matches = np.where(all_tokens_bytes == (target_token_bytes.decode('utf-8', 'ignore') if isinstance(target_token_bytes, bytes) else target_token_bytes) )[0]
-
-
-#             if not matches.size > 0:
-#                 # print(f"    DEBUG (get_gt_dynamic): Sweep token {lidar_sd_token} NOT FOUND in GT HDF5.") # DEBUG
-#                 return empty_result
-#             idx_in_token_list = matches[0]
-#             # print(f"    DEBUG (get_gt_dynamic): Token {lidar_sd_token} found at GT HDF5 index {idx_in_token_list}.") # DEBUG
-
-
-#             indices_array = hf['gt_point_labels_indices'][:]
-#             start_idx = indices_array[idx_in_token_list]
-#             if idx_in_token_list + 1 >= len(indices_array):
-#                 tqdm.write(f"    DEBUG (get_gt_dynamic): Index issue for token {lidar_sd_token} in GT HDF5 indices.") # DEBUG
-#                 return empty_result
-#             end_idx = indices_array[idx_in_token_list + 1]
-#             # print(f"    DEBUG (get_gt_dynamic): For token {lidar_sd_token}, GT point indices: {start_idx} to {end_idx}") # DEBUG
-
-#             point_labels_for_sweep = hf['all_gt_point_labels'][start_idx:end_idx]
-#             # print(f"    DEBUG (get_gt_dynamic): Loaded 'all_gt_point_labels' for token {lidar_sd_token}, shape: {point_labels_for_sweep.shape}, dtype: {point_labels_for_sweep.dtype}") # DEBUG
-
-
-#             if point_labels_for_sweep.dtype != POINT_LABEL_DTYPE:
-#                 # print(f"    DEBUG (get_gt_dynamic): Dtype mismatch for GT labels. Expected {POINT_LABEL_DTYPE}, got {point_labels_for_sweep.dtype}. Attempting cast.") # DEBUG
-#                 try:
-#                     point_labels_for_sweep = point_labels_for_sweep.astype(POINT_LABEL_DTYPE)
-#                 except ValueError as ve:
-#                     tqdm.write(f"    DEBUG (get_gt_dynamic): CRITICAL DTYPE cast failed for GT labels. Error: {ve}.") # DEBUG
-#                     return empty_result
-                    
-#     except Exception as e:
-#         tqdm.write(f"    DEBUG (get_gt_dynamic): Error loading GT labels from HDF5 {gt_labels_scene_hdf5_path} for sweep {lidar_sd_token}: {e}") # DEBUG
-#         import traceback
-#         traceback.print_exc()
-#         return empty_result
-
-#     if point_labels_for_sweep is None or point_labels_for_sweep.shape[0] == 0 :
-#         # print(f"    DEBUG (get_gt_dynamic): No GT point labels loaded for sweep {lidar_sd_token} (empty slice or None).") # DEBUG
-#         return empty_result
-        
-#     points_with_gt_labels_global = np.stack((
-#         point_labels_for_sweep['x'], point_labels_for_sweep['y'], point_labels_for_sweep['z']
-#     ), axis=-1)
-
-#     gt_speed_sq = point_labels_for_sweep['velocity_x']**2 + point_labels_for_sweep['velocity_y']**2
-#     is_valid_instance_mask = (point_labels_for_sweep['instance_token'] != b'')
-#     dynamic_mask = (gt_speed_sq >= velocity_threshold**2) & is_valid_instance_mask
-#     static_mask = (~dynamic_mask) & is_valid_instance_mask
-#     unlabeled_mask = ~is_valid_instance_mask
-    
-#     # print(f"    DEBUG (get_gt_dynamic): Token {lidar_sd_token} - GT Dynamic pts: {np.sum(dynamic_mask)}, Static pts: {np.sum(static_mask)}, Unlabeled: {np.sum(unlabeled_mask)}") # DEBUG
-
-#     return {
-#         'dynamic': points_with_gt_labels_global[dynamic_mask],
-#         'static': points_with_gt_labels_global[static_mask],
-#         'unlabeled': points_with_gt_labels_global[unlabeled_mask]
-#     }
-
 def get_gt_dynamic_points_for_sweep(
     nusc: NuScenes, # Not strictly used if only relying on HDF5 and sweep_data_dict for token
     sweep_data_dict: Dict, # Primarily for lidar_sd_token
@@ -317,109 +230,108 @@ def calculate_metrics_for_scene_hdf5(
     mdet_scene_hdf5_path: str,    
     eval_params: Dict[str, Any]
 ) -> Optional[Dict[str, Any]]:
-    scene_name_for_log = os.path.basename(mdet_scene_hdf5_path) # Use hdf5 path for logging
-    # print(f"\nDEBUG SCENE START (HDF5): {os.path.basename(gt_scene_hdf5_path)} vs {scene_name_for_log}")
-
+    scene_name_for_log = os.path.basename(mdet_scene_hdf5_path)
     gt_data_h5_file: Optional[h5py.File] = None
     mdet_data_h5_file: Optional[h5py.File] = None
 
+    # Get the keyframe evaluation flag from eval_params 
+    evaluate_only_keyframes = eval_params.get('evaluate_only_keyframes')
+
     try:
+        mdet_config_loaded_dict = load_config_from_hdf5(mdet_scene_hdf5_path)
         gt_data_h5_file = h5py.File(gt_scene_hdf5_path, 'r')
         mdet_data_h5_file = h5py.File(mdet_scene_hdf5_path, 'r')
 
-        # --- Pre-load all necessary arrays from HDF5 files ---
-        # Slicing with [:] loads the data into a NumPy array in memory.
-        # For scalar datasets (like scene_token or _config_json_str if saved as scalar), use [()]
-        
         # GT arrays
         gt_sweep_lidar_sd_tokens_arr = gt_data_h5_file['sweep_lidar_sd_tokens'][:]
         gt_point_labels_indices_arr = gt_data_h5_file['gt_point_labels_indices'][:]
         all_gt_point_labels_arr = gt_data_h5_file['all_gt_point_labels'][:]
-        # scene_token_gt = gt_data_h5_file['scene_token'][()] # Example if needed
+        
+        # Load keyframe flags from GT HDF5 
+        gt_sweep_is_key_frame_arr: Optional[np.ndarray] = None
+        if 'sweep_is_key_frame' in gt_data_h5_file:
+            gt_sweep_is_key_frame_arr = gt_data_h5_file['sweep_is_key_frame'][:]
+        elif evaluate_only_keyframes:
+            # If we need to evaluate only keyframes but the flag isn't in HDF5, we can't proceed.
+            print(f"  Error: 'evaluate_only_keyframes' is True, but 'sweep_is_key_frame' dataset "
+                  f"not found in GT HDF5: {gt_scene_hdf5_path}")
+            # Close files before returning
+            if gt_data_h5_file: gt_data_h5_file.close()
+            if mdet_data_h5_file: mdet_data_h5_file.close()
+            return {"scene_name": scene_name_for_log, "processed_sweeps": 0, "error": "Missing sweep_is_key_frame in GT HDF5"}
 
         # MDet arrays
         mdet_sweep_lidar_sd_tokens_arr = mdet_data_h5_file['sweep_lidar_sd_tokens'][:]
         points_predictions_indices_arr = mdet_data_h5_file['points_predictions_indices'][:]
         all_points_predictions_arr = mdet_data_h5_file['all_points_predictions'][:]
-        # scene_token_mdet = mdet_data_h5_file['scene_token'][()] # Example if needed
 
-        mdet_config_loaded_dict = None
-        if '_config_json_str' in mdet_data_h5_file:
-            config_str_data = mdet_data_h5_file['_config_json_str'][()]
-            if isinstance(config_str_data, bytes):
-                config_str = config_str_data.decode('utf-8')
-            else: # Assumed to be str
-                config_str = str(config_str_data)
-            mdet_config_loaded_dict = json.loads(config_str)
-        # --- End pre-loading arrays ---
-
-        # --- Determine M-Detector's range parameters ---
-        default_min_range = eval_params.get('mdet_min_point_range_meters', 1.0)
-        default_max_range = eval_params.get('mdet_max_point_range_meters', 80.0)
+        # ... (Determine M-Detector's range parameters ...
+        default_min_range = eval_params.get('mdet_min_point_range_meters')
+        default_max_range = eval_params.get('mdet_max_point_range_meters')
         mdet_min_range = default_min_range
         mdet_max_range = default_max_range
-        loaded_from_config_successfully = False # Renamed for clarity
-
+        loaded_from_config_successfully = False
         if mdet_config_loaded_dict:
-            try:
-                filtering_config = mdet_config_loaded_dict.get('filtering')
-                if filtering_config and isinstance(filtering_config, dict):
-                    min_r_from_cfg = filtering_config.get('min_point_range_meters')
-                    max_r_from_cfg = filtering_config.get('max_point_range_meters')
-                    if min_r_from_cfg is not None and max_r_from_cfg is not None:
-                        mdet_min_range = float(min_r_from_cfg)
-                        mdet_max_range = float(max_r_from_cfg)
-                        # print(f"  Successfully loaded MDet range params from HDF5 config: min={mdet_min_range:.2f}m, max={mdet_max_range:.2f}m")
-                        loaded_from_config_successfully = True
-                    # else:
-                        # print(f"  MDet config in HDF5 found, but 'min_point_range_meters' or 'max_point_range_meters' missing in 'filtering' dict.")
-                # else:
-                    # print(f"  MDet config in HDF5 found, but 'filtering' key missing or not a dictionary.")
-            except Exception as e_cfg: # Catch any error during parsing of the loaded dict
-                print(f"  Warning: Error processing MDet config dict from HDF5 for '{scene_name_for_log}'. Error: {e_cfg}")
-        # else:
-            # print(f"  Info: MDet HDF5 for '{scene_name_for_log}' does not contain '_config_json_str' or failed to parse.")
-
+            if not mdet_config_loaded_dict.get("error_while_saving_config"):
+                try:
+                    m_detector_cfg = mdet_config_loaded_dict.get('m_detector', {})
+                    filtering_config = m_detector_cfg.get('point_pre_filtering')
+                    if filtering_config and isinstance(filtering_config, dict):
+                        min_r_from_cfg = filtering_config.get('min_range_meters')
+                        max_r_from_cfg = filtering_config.get('max_range_meters')
+                        if min_r_from_cfg is not None and max_r_from_cfg is not None:
+                            mdet_min_range = float(min_r_from_cfg)
+                            mdet_max_range = float(max_r_from_cfg)
+                            loaded_from_config_successfully = True
+                except Exception as e_cfg:
+                    print(f"  Warning: Error processing MDet config dict from HDF5 for '{scene_name_for_log}'. Error: {e_cfg}")
         if not loaded_from_config_successfully:
-            mdet_min_range = default_min_range
-            mdet_max_range = default_max_range
-            # print(f"  INFO: Using fallback/default MDet range params from eval_params: min={mdet_min_range:.2f}m, max={mdet_max_range:.2f}m")
-        # --- End range parameter determination ---
+            # print(f"  INFO: Using fallback/default MDet range params from eval_params: min={mdet_min_range:.2f}m, max={mdet_max_range:.2f}m for {scene_name_for_log}")
+            pass
+
 
         # --- Find common sweeps based on lidar_sd_token ---
-        # Ensure tokens are bytes for set operations if they were loaded as bytes
         gt_token_to_idx: Dict[bytes, int] = {token: i for i, token in enumerate(gt_sweep_lidar_sd_tokens_arr)}
         mdet_token_to_idx: Dict[bytes, int] = {token: i for i, token in enumerate(mdet_sweep_lidar_sd_tokens_arr)}
         common_sd_tokens_bytes = set(gt_token_to_idx.keys()) & set(mdet_token_to_idx.keys())
 
         if not common_sd_tokens_bytes:
-            # print(f"  No common sweep tokens found between GT and MDet for scene '{scene_name_for_log}'. Skipping.")
-            return None # Or an error dict
+            if gt_data_h5_file: gt_data_h5_file.close()
+            if mdet_data_h5_file: mdet_data_h5_file.close()
+            return None
 
         common_sweep_indices: List[Tuple[int, int]] = []
         for token_bytes in common_sd_tokens_bytes:
-            common_sweep_indices.append((gt_token_to_idx[token_bytes], mdet_token_to_idx[token_bytes]))
-        common_sweep_indices.sort(key=lambda x: x[0]) # Sort by GT index
-        # print(f"  Found {len(common_sweep_indices)} common sweeps for scene '{scene_name_for_log}'.")
+            gt_idx = gt_token_to_idx[token_bytes]
+            mdet_idx = mdet_token_to_idx[token_bytes]
+
+            # Filter for keyframes if requested 
+            if evaluate_only_keyframes:
+                if gt_sweep_is_key_frame_arr is not None and gt_idx < len(gt_sweep_is_key_frame_arr):
+                    if not gt_sweep_is_key_frame_arr[gt_idx]:
+                        continue # Skip this sweep if it's not a keyframe
+                else: # Should have been caught if gt_sweep_is_key_frame_arr was None and evaluate_only_keyframes was True
+                    print(f"  Warning: Keyframe flag missing for GT sweep index {gt_idx} but evaluate_only_keyframes is True. Skipping sweep.")
+                    continue
+            common_sweep_indices.append((gt_idx, mdet_idx))
+
+        common_sweep_indices.sort(key=lambda x: x[0])
 
         scene_tp, scene_fp, scene_fn, scene_tn = 0, 0, 0, 0
         scene_total_gt_points_in_range = 0
-        scene_total_mdet_points = 0 # Renamed for clarity
+        scene_total_mdet_points = 0
         processed_sweeps_count_scene = 0
+
+        desc_suffix = " (Keyframes Only)" if evaluate_only_keyframes else " (All Sweeps)"
         for sweep_idx_gt, sweep_idx_mdet in tqdm(
             common_sweep_indices,
-            desc=f"  Sweeps ({scene_name_for_log})",
-            position=1, 
-            leave=True,
-            unit="sweep"
+            desc=f"  Sweeps ({scene_name_for_log}{desc_suffix})",
+            position=1, leave=True, unit="sweep"
         ):
             gt_start, gt_end = gt_point_labels_indices_arr[sweep_idx_gt], gt_point_labels_indices_arr[sweep_idx_gt + 1]
             mdet_start, mdet_end = points_predictions_indices_arr[sweep_idx_mdet], points_predictions_indices_arr[sweep_idx_mdet + 1]
-
             gt_sweep_labels_structured_full = all_gt_point_labels_arr[gt_start:gt_end]
             mdet_sweep_preds_structured = all_points_predictions_arr[mdet_start:mdet_end]
-            
-            # current_sweep_sd_token_str = gt_sweep_lidar_sd_tokens_arr[sweep_idx_gt].decode('utf-8', 'ignore')
 
             if gt_sweep_labels_structured_full.shape[0] > 0:
                 try:
@@ -428,9 +340,8 @@ def calculate_metrics_for_scene_hdf5(
                         gt_sweep_labels_structured_full['y_sensor'],
                         gt_sweep_labels_structured_full['z_sensor']
                     ), axis=-1)
-                except ValueError: # Missing keys
-                    # print(f"      ERROR for sweep {current_sweep_sd_token_str}: Missing 'x_sensor'/'y_sensor'/'z_sensor' in GT labels. Cannot filter.")
-                    continue
+                except ValueError:
+                    continue # Skip sweep if sensor coords are missing
                 gt_ranges = np.linalg.norm(gt_points_sensor_for_filter, axis=1)
                 gt_range_mask = (gt_ranges >= mdet_min_range) & (gt_ranges <= mdet_max_range)
                 filtered_gt_labels_for_comparison = gt_sweep_labels_structured_full[gt_range_mask]
@@ -440,7 +351,7 @@ def calculate_metrics_for_scene_hdf5(
             sweep_metrics_results = calculate_point_metrics_for_sweep(
                 gt_sweep_labels=filtered_gt_labels_for_comparison,
                 pred_sweep_labels=mdet_sweep_preds_structured,
-                eval_params=eval_params
+                eval_params=eval_params # Pass the full eval_params
             )
 
             if sweep_metrics_results and not sweep_metrics_results.get("Error_Msg"):
@@ -451,14 +362,11 @@ def calculate_metrics_for_scene_hdf5(
                 scene_total_gt_points_in_range += sweep_metrics_results.get('num_gt_points', 0)
                 scene_total_mdet_points += sweep_metrics_results.get('num_pred_points', 0)
                 processed_sweeps_count_scene += 1
-            # else: # Error logging already in your original, can be kept or simplified
-                # error_msg = sweep_metrics_results.get("Error_Msg", "Unknown error") if sweep_metrics_results else "calc_point_metrics returned None"
-                # print(f"      Skipping metrics for sweep {current_sweep_sd_token_str}: {error_msg}")
-
 
         if processed_sweeps_count_scene == 0:
-            # print(f"  No sweeps successfully processed for scene '{scene_name_for_log}'. Cannot calculate scene metrics.")
-            return {"scene_name": scene_name_for_log, "processed_sweeps": 0, "error": "No sweeps processed"}
+            if gt_data_h5_file: gt_data_h5_file.close()
+            if mdet_data_h5_file: mdet_data_h5_file.close()
+            return {"scene_name": scene_name_for_log, "processed_sweeps": 0, "error": "No sweeps processed (check keyframe filter or data)"}
 
         precision = scene_tp / (scene_tp + scene_fp) if (scene_tp + scene_fp) > 0 else 0.0
         recall = scene_tp / (scene_tp + scene_fn) if (scene_tp + scene_fn) > 0 else 0.0
@@ -466,11 +374,7 @@ def calculate_metrics_for_scene_hdf5(
         accuracy = (scene_tp + scene_tn) / (scene_tp + scene_fp + scene_fn + scene_tn) if (scene_tp + scene_fp + scene_fn + scene_tn) > 0 else 0.0
         scene_denominator_iou = scene_tp + scene_fp + scene_fn
         scene_iou_dynamic = scene_tp / scene_denominator_iou if scene_denominator_iou > 0 else 0.0
-
-        # if scene_total_gt_points_in_range != scene_total_mdet_points and scene_total_gt_points_in_range > 0 :
-        #     print(f"  Warning for scene '{scene_name_for_log}': Total filtered GT points ({scene_total_gt_points_in_range}) "
-        #           f"does not match total MDet points ({scene_total_mdet_points}) across processed sweeps.")
-
+        
         scene_summary_stats = {
             "scene_name": scene_name_for_log,
             "tp": scene_tp, "fp": scene_fp, "fn": scene_fn, "tn": scene_tn,
@@ -480,9 +384,9 @@ def calculate_metrics_for_scene_hdf5(
             "total_mdet_points_processed": scene_total_mdet_points,
             "processed_sweeps": processed_sweeps_count_scene,
             "mdet_min_range_used": mdet_min_range,
-            "mdet_max_range_used": mdet_max_range
+            "mdet_max_range_used": mdet_max_range,
+            "evaluated_only_keyframes": evaluate_only_keyframes 
         }
-        # print(f"  Scene Summary (HDF5) for '{scene_name_for_log}': P={precision:.3f}, R={recall:.3f}, F1={f1_score:.3f}, IoU_dyn={scene_iou_dynamic:.3f} ({processed_sweeps_count_scene} sweeps)")
         return scene_summary_stats
 
     except FileNotFoundError:
@@ -493,14 +397,10 @@ def calculate_metrics_for_scene_hdf5(
         return None
     except Exception as e:
         print(f"  Error processing scene '{scene_name_for_log}' with HDF5: {e}")
-        # import traceback
-        # traceback.print_exc() # For more detailed errors during debugging
         return None
     finally:
-        if gt_data_h5_file:
-            gt_data_h5_file.close()
-        if mdet_data_h5_file:
-            mdet_data_h5_file.close()
+        if gt_data_h5_file: gt_data_h5_file.close()
+        if mdet_data_h5_file: mdet_data_h5_file.close()
 
 
 def calculate_metrics_for_experiment_hdf5(

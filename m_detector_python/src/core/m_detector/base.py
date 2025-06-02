@@ -59,7 +59,7 @@ class MDetector:
     
     def reset_scene_state(self):
         """Resets internal state for processing a new scene."""
-        self.logger.critical(f"!!!!!! MDetector.reset_scene_state CALLED. Library will be cleared. Current lib size: {len(self.depth_image_library._images)} !!!!!!") # Use CRITICAL to make it stand out
+        self.logger.info(f"MDetector.reset_scene_state CALLED. Library will be cleared. Current lib size: {len(self.depth_image_library._images)}") 
         self.depth_image_library.clear()
         self.timestamp_of_last_processed_di = None
         self.current_lidar_sd_token = None
@@ -120,11 +120,13 @@ class MDetector:
                 self.static_labels_for_map_check.append(enum_member)
             except KeyError:
                 self.logger.warning(f"Unknown label '{label_str}' in 'static_labels_for_map_check' config. Skipping.")
-        self.logger.debug(f"Parsed static_labels_for_map_check (enum members): {self.static_labels_for_map_check}")
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f"Parsed static_labels_for_map_check (enum members): {self.static_labels_for_map_check}")
 
         # Then, create a list of *values* for quick lookup, also in __init__ or _load_map_consistency_config
         self.static_labels_for_map_check_values = [label.value for label in self.static_labels_for_map_check]
-        self.logger.debug(f"Parsed static_labels_for_map_check_values (integer enum values): {self.static_labels_for_map_check_values}")
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f"Parsed static_labels_for_map_check_values (integer enum values): {self.static_labels_for_map_check_values}")
 
     def _load_event_tests_config(self):
         test2_params = self.config_accessor.get_test2_parallel_away_params()
@@ -207,7 +209,8 @@ class MDetector:
         preliminary_labels = np.full(num_filtered_points, OcclusionResult.UNDETERMINED.value, dtype=np.int8)
 
         for pre_labeler_name, pre_labeler_func, _ in ACTIVE_PRE_LABELERS: # Use _ for default params for now
-            self.logger.debug(f"Applying pre-labeler: {pre_labeler_name}")
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(f"Applying pre-labeler: {pre_labeler_name}")
             # Get specific params for this pre-labeler if configured
             specific_params = self.pre_labeler_params.get(pre_labeler_name, None)
             
@@ -294,8 +297,8 @@ class MDetector:
         # Check if this latest DI is newer than the last processed one
         if self.timestamp_of_last_processed_di is None or \
         target_di_candidate.timestamp > self.timestamp_of_last_processed_di:
-            
-            self.logger.debug(f"Processing CAUSAL DI lib_idx: {target_idx_in_deque} (TS: {target_di_candidate.timestamp}), lib_len: {library_len}, last_proc_TS: {self.timestamp_of_last_processed_di}")
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(f"Processing CAUSAL DI lib_idx: {target_idx_in_deque} (TS: {target_di_candidate.timestamp}), lib_len: {library_len}, last_proc_TS: {self.timestamp_of_last_processed_di}")
             self.timestamp_of_last_processed_di = target_di_candidate.timestamp # Update with current DI's timestamp
             return self._process_causal_di_wrapper(target_idx_in_deque)
         else:

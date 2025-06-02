@@ -62,6 +62,12 @@ class DepthImage:
         self.matrix_local_from_global: np.ndarray = np.linalg.inv(self.image_pose_global)
         self.total_points_added_to_di_arrays: int = 0
 
+        # For caching static points references
+        self.static_points_mask: Optional[np.ndarray] = None
+        self._static_labels_for_mask_generation: Optional[List[int]] = None
+
+        
+
     def is_prepared_for_projection(self) -> bool:
         """
         Checks if the DepthImage has the necessary data populated for projection operations
@@ -204,6 +210,8 @@ class DepthImage:
             self.mdet_scores_for_points = np.empty(0, dtype=np.float32)
             self.local_sph_coords_for_points = np.empty((0,3), dtype=np.float32)
             self.total_points_added_to_di_arrays = 0
+            self.static_points_mask = None
+            self._static_labels_used_for_cache = None
             return 0
 
         # 1. Store Original Data & Initialize Label/Score Arrays
@@ -255,6 +263,9 @@ class DepthImage:
             self.pixel_min_depth[v_idx, h_idx] = min(self.pixel_min_depth[v_idx, h_idx], depth)
             self.pixel_max_depth[v_idx, h_idx] = max(self.pixel_max_depth[v_idx, h_idx], depth)
             self.pixel_count[v_idx, h_idx] += 1
+
+        self.static_points_mask = None
+        self._static_labels_used_for_cache = None
             
         return batch_size # Returns total points added to the main arrays
 
@@ -382,3 +393,25 @@ class DepthImage:
             # This case should ideally not happen if we are visualizing in a global context
             logger.warning("DepthImage has no image_pose_global. Returning pixel corners in sensor frame.")
             return cartesian_corners_sensor_frame
+        
+    def get_static_points_mask(self, static_config_values: List[int]) -> Optional[np.ndarray]:
+        """
+        Returns a boolean mask indicating static points in this DepthImage.
+        Uses a cache to avoid recomputing the mask if labels and config haven't changed.
+        """
+        if self.mdet_labels_for_points is None:
+            # This case should ideally be prevented by is_prepared_for_projection() checks
+            # before calling functions that need this mask.
+            logger.warning(f"Attempted to get static_points_mask for DI TS={self.timestamp} but mdet_labels_for_points is None.")
+            return None 
+
+        # Check if cache is valid
+        if self.static_points_mask is not None and \
+           self._static_labels_used_for_cache == static_config_values:
+            return self.static_points_mask # Cache hit
+        
+        # Cache miss or config changed: Recompute
+        # logger.debug(f"Recomputing static_points_mask for DI TS={self.timestamp}") # Optional: for debugging cache behavior
+        self.static_points_mask = np.isin(self.mdet_labels_for_points, static_config_values)
+        self._static_labels_used_for_cache = static_config_values # Store the config used for this cache
+        return self.static_points_mask

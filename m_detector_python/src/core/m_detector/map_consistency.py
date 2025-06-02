@@ -97,8 +97,8 @@ def is_map_consistent(self, # self is MDetector instance
     consistent_matches_across_dis = 0
     num_dis_actually_checked = 0
     total_dis_where_projection_valid = 0
-
-    logger.debug(f"MCC_TRACE: Checking point_global {np.round(point_global[:3],3).tolist()} against {len(relevant_dis)} DIs.")
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"MCC_TRACE: Checking point_global {np.round(point_global[:3],3).tolist()} against {len(relevant_dis)} DIs.")
 
     for di_original_idx_in_deque, di_hist_future in relevant_dis:
         di_debug_details: Dict[str, Any] = {}
@@ -134,8 +134,8 @@ def is_map_consistent(self, # self is MDetector instance
             di_debug_details['projection_successful'] = True
             di_debug_details['target_sph_coords_in_di'] = sph_coords_target.tolist()
             di_debug_details['target_pixel_indices_in_di'] = list(pixel_indices_target)
-        
-        logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: P_target projected to sph {np.round(sph_coords_target,3)}, pixel {pixel_indices_target}")
+        if self.logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: P_target projected to sph {np.round(sph_coords_target,3)}, pixel {pixel_indices_target}")
         
         phi_target_in_hist_di, theta_target_in_hist_di, depth_target_in_hist_di = sph_coords_target
         found_consistent_static_point_in_this_di = False
@@ -150,8 +150,8 @@ def is_map_consistent(self, # self is MDetector instance
             
             interpolation_was_attempted_for_this_di = True
             if return_debug_info: di_debug_details['attempted_interpolation'] = True
-            
-            logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Attempting interpolation (d_proj={depth_target_in_hist_di:.2f}m).")
+            if self.logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Attempting interpolation (d_proj={depth_target_in_hist_di:.2f}m).")
             interpolated_surface_depth = interpolate_surface_depth_at_angle(
                 target_phi_rad=phi_target_in_hist_di,
                 target_theta_rad=theta_target_in_hist_di,
@@ -169,12 +169,22 @@ def is_map_consistent(self, # self is MDetector instance
                 current_epsilon_fwd_interp = calculate_adaptive_epsilon(
                     d_anchor_point_global,
                     self.epsilon_depth_forward_map, # di_base
-                    self.adaptive_eps_config_mc_fwd
+                    self.adaptive_eps_config_mc_fwd.get('enabled'),
+                    self.adaptive_eps_config_mc_fwd.get('dthr'),
+                    self.adaptive_eps_config_mc_fwd.get('kthr'),
+                    self.adaptive_eps_config_mc_fwd.get('dmax'),
+                    self.adaptive_eps_config_mc_fwd.get('dmin')
                 )
+
+                adaptive_config_bwd = self.adaptive_eps_config_mc_bwd
                 current_epsilon_bwd_interp = calculate_adaptive_epsilon(
                     d_anchor_point_global,
                     self.epsilon_depth_backward_map, # di_base
-                    self.adaptive_eps_config_mc_bwd
+                    adaptive_config_bwd.get('enabled'),
+                    adaptive_config_bwd.get('dthr'), 
+                    adaptive_config_bwd.get('kthr'),
+                    adaptive_config_bwd.get('dmax'),
+                    adaptive_config_bwd.get('dmin')
                 )
                 if return_debug_info and di_debug_details.get('attempted_interpolation'):
                     di_debug_details.setdefault('interp_depth_target_vs_surface', {})
@@ -189,13 +199,16 @@ def is_map_consistent(self, # self is MDetector instance
                     depth_target_in_hist_di <= interpolated_surface_depth + current_epsilon_fwd_interp
                 )
                 if is_consistent_depth_wise_interp:
-                    logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Match FOUND via interpolation (interp_d={interpolated_surface_depth:.2f}, target_d={depth_target_in_hist_di:.2f}).")
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Match FOUND via interpolation (interp_d={interpolated_surface_depth:.2f}, target_d={depth_target_in_hist_di:.2f}).")
                     found_consistent_static_point_in_this_di = True
                 else:
-                    logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Interpolation successful (interp_d={interpolated_surface_depth:.2f}) but depth_target ({depth_target_in_hist_di:.2f}) NOT consistent.")
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Interpolation successful (interp_d={interpolated_surface_depth:.2f}) but depth_target ({depth_target_in_hist_di:.2f}) NOT consistent.")
             else: # interpolated_surface_depth is None
                 is_consistent_depth_wise_interp = False # Explicitly set to False if no surface
-                logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Interpolation FAILED (returned None).")
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Interpolation FAILED (returned None).")
 
             # Now, populate the debug details for interpolation if return_debug_info is True
             if return_debug_info and interpolation_was_attempted_for_this_di: # Check if interp was attempted
@@ -240,7 +253,8 @@ def is_map_consistent(self, # self is MDetector instance
                             'count': pixel_info['count'], 
                             'num_original_indices': len(pixel_info['original_indices_in_pixel'])
                         }
-                    logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Attempting direct comparison (pixel has {len(pixel_info['original_indices_in_pixel'])} points).")
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Attempting direct comparison (pixel has {len(pixel_info['original_indices_in_pixel'])} points).")
                     
                     for static_candidate_original_idx in pixel_info['original_indices_in_pixel']:
                         static_pt_debug_info: Dict[str, Any] = {}
@@ -257,7 +271,8 @@ def is_map_consistent(self, # self is MDetector instance
                         if return_debug_info: static_pt_debug_info['label_in_di'] = static_candidate_label_enum.name
 
                         if static_candidate_label_enum not in self.static_labels_for_map_check:
-                            logger.debug(f"MCC_TRACE:    StaticCand (idx {static_candidate_original_idx}, label {static_candidate_label_enum.name}) REJECTED (not static label).")
+                            if self.logger.isEnabledFor(logging.DEBUG):
+                                logger.debug(f"MCC_TRACE:    StaticCand (idx {static_candidate_original_idx}, label {static_candidate_label_enum.name}) REJECTED (not static label).")
                             if return_debug_info:
                                 static_pt_debug_info['reason_skipped_point'] = 'Not a static label.'
                                 di_debug_details['static_points_in_pixel_details'].append(static_pt_debug_info)
@@ -280,15 +295,24 @@ def is_map_consistent(self, # self is MDetector instance
                         theta_consistent_direct = theta_diff <= self.epsilon_theta_map_rad 
                         
                         # Calculate adaptive epsilons for direct comparison
+                        adaptive_config_fwd = self.adaptive_eps_config_mc_fwd 
                         current_epsilon_fwd_direct = calculate_adaptive_epsilon(
                             d_anchor_point_global,
-                            self.epsilon_depth_forward_map, # di_base
-                            self.adaptive_eps_config_mc_fwd
+                            self.epsilon_depth_forward_map,
+                            self.adaptive_eps_config_mc_fwd .get('enabled'),
+                            self.adaptive_eps_config_mc_fwd .get('dthr'),
+                            self.adaptive_eps_config_mc_fwd .get('kthr'),
+                            self.adaptive_eps_config_mc_fwd .get('dmax'),
+                            self.adaptive_eps_config_mc_fwd .get('dmin')
                         )
                         current_epsilon_bwd_direct = calculate_adaptive_epsilon(
                             d_anchor_point_global,
-                            self.epsilon_depth_backward_map, # di_base
-                            self.adaptive_eps_config_mc_bwd
+                            self.epsilon_depth_backward_map,
+                            self.adaptive_eps_config_mc_bwd.get('enabled'),
+                            self.adaptive_eps_config_mc_bwd.get('dthr'),
+                            self.adaptive_eps_config_mc_bwd.get('kthr'),
+                            self.adaptive_eps_config_mc_bwd.get('dmax'),
+                            self.adaptive_eps_config_mc_bwd.get('dmin')
                         )
                         if return_debug_info:
                             static_pt_debug_info['adaptive_epsilon_fwd_used'] = current_epsilon_fwd_direct
@@ -301,11 +325,11 @@ def is_map_consistent(self, # self is MDetector instance
                             depth_target_in_hist_di >= depth_static_cand - current_epsilon_bwd_direct and
                             depth_target_in_hist_di <= depth_static_cand + current_epsilon_fwd_direct
                         )
-
-                        logger.debug(f"MCC_TRACE:    StaticCand (idx {static_candidate_original_idx}, label {static_candidate_label_enum.name}, sph {np.round(static_sph_coords_in_di_hist_future,3)}):")
-                        logger.debug(f"MCC_TRACE:      Phi_target={phi_target_in_hist_di:.3f}, Phi_static={phi_static_cand:.3f}, Diff={phi_diff:.3f}, Eps_phi={self.epsilon_phi_map_rad:.3f}, Consistent={phi_consistent_direct}")
-                        logger.debug(f"MCC_TRACE:      Theta_target={theta_target_in_hist_di:.3f}, Theta_static={theta_static_cand:.3f}, Diff={theta_diff:.3f}, Eps_theta={self.epsilon_theta_map_rad:.3f}, Consistent={theta_consistent_direct}")
-                        logger.debug(f"MCC_TRACE:      Depth_target={depth_target_in_hist_di:.3f}, Depth_static={depth_static_cand:.3f}, Eps_fwd={self.epsilon_depth_forward_map:.3f}, Eps_back={self.epsilon_depth_backward_map:.3f}, Consistent={depth_consistent_direct}")
+                        if self.logger.isEnabledFor(logging.DEBUG):
+                            logger.debug(f"MCC_TRACE:    StaticCand (idx {static_candidate_original_idx}, label {static_candidate_label_enum.name}, sph {np.round(static_sph_coords_in_di_hist_future,3)}):")
+                            logger.debug(f"MCC_TRACE:      Phi_target={phi_target_in_hist_di:.3f}, Phi_static={phi_static_cand:.3f}, Diff={phi_diff:.3f}, Eps_phi={self.epsilon_phi_map_rad:.3f}, Consistent={phi_consistent_direct}")
+                            logger.debug(f"MCC_TRACE:      Theta_target={theta_target_in_hist_di:.3f}, Theta_static={theta_static_cand:.3f}, Diff={theta_diff:.3f}, Eps_theta={self.epsilon_theta_map_rad:.3f}, Consistent={theta_consistent_direct}")
+                            logger.debug(f"MCC_TRACE:      Depth_target={depth_target_in_hist_di:.3f}, Depth_static={depth_static_cand:.3f}, Eps_fwd={self.epsilon_depth_forward_map:.3f}, Eps_back={self.epsilon_depth_backward_map:.3f}, Consistent={depth_consistent_direct}")
 
                         if return_debug_info:
                             static_pt_debug_info.update({
@@ -315,17 +339,20 @@ def is_map_consistent(self, # self is MDetector instance
                             })
 
                         if phi_consistent_direct and theta_consistent_direct and depth_consistent_direct:
-                            logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Match FOUND (direct) for StaticCand idx {static_candidate_original_idx}.")
+                            if self.logger.isEnabledFor(logging.DEBUG):
+                                logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Match FOUND (direct) for StaticCand idx {static_candidate_original_idx}.")
                             found_consistent_static_point_in_this_di = True
                             if return_debug_info: static_pt_debug_info['match_found'] = True
                             if return_debug_info: di_debug_details['static_points_in_pixel_details'].append(static_pt_debug_info)
                             break 
                         else:
-                            logger.debug(f"MCC_TRACE:    NO MATCH for StaticCand idx {static_candidate_original_idx}.")
+                            if self.logger.isEnabledFor(logging.DEBUG):
+                                logger.debug(f"MCC_TRACE:    NO MATCH for StaticCand idx {static_candidate_original_idx}.")
                         
                         if return_debug_info: di_debug_details['static_points_in_pixel_details'].append(static_pt_debug_info)
                 else: 
-                    logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Direct comparison skipped (target pixel empty).")
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Direct comparison skipped (target pixel empty).")
                     if return_debug_info:
                         di_debug_details['direct_comparison_pixel_had_content'] = False
                         di_debug_details['reason_skipped_direct_comp'] = 'Direct pixel empty.'

@@ -359,7 +359,7 @@ def _get_points_in_box_mask_global_coords(
 
 
     
-def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
+def generate_and_save_point_labels_for_scene_hdf5(
     nusc: NuScenes,
     scene_token: str,
     output_hdf5_dir: str,
@@ -374,14 +374,13 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
     scene_name = scene_record['name']
 
     os.makedirs(output_hdf5_dir, exist_ok=True)
-    output_hdf5_filename = f"gt_point_labels_{scene_name}.h5" # Changed extension
+    output_hdf5_filename = f"gt_point_labels_{scene_name}.h5"
     output_hdf5_filepath = os.path.join(output_hdf5_dir, output_hdf5_filename)
 
     if verbose:
         tqdm.write(f"Processing scene for GT point labels: {scene_name} ({scene_token})")
         tqdm.write(f"Output will be saved to: {output_hdf5_filepath}")
 
-    # --- Data gathering  ---
     all_sweep_data_dicts = list(get_scene_sweep_data_sequence(nusc, scene_token))
     if not all_sweep_data_dicts:
         if verbose: tqdm.write(f"No LiDAR sweeps found for scene {scene_name}. Skipping.")
@@ -404,8 +403,9 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
         all_instances_boxes_at_sweeps[inst_token] = boxes_at_sweeps
     if verbose: tqdm.write("All instance GT box states generated. Now creating point labels per sweep...")
 
-    hdf5_sweep_lidar_sd_tokens: List[bytes] = [] # Store as bytes for 'S36'
+    hdf5_sweep_lidar_sd_tokens: List[bytes] = []
     hdf5_sweep_timestamps_us: List[int] = []
+    hdf5_sweep_is_key_frame: List[bool] = []
     hdf5_all_point_labels_list: List[np.ndarray] = []
     hdf5_point_labels_indices: List[int] = [0]
 
@@ -413,18 +413,19 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
 
     for sweep_idx, sweep_data in sweep_iterator:
         lidar_sd_token_str = sweep_data['lidar_sd_token']
-        # Ensure lidar_sd_token is bytes if it's coming as str from dummy or real function
         if isinstance(lidar_sd_token_str, str):
             lidar_sd_token_bytes = lidar_sd_token_str.encode('utf-8')
-        else: # Assuming it's already bytes
+        else:
             lidar_sd_token_bytes = lidar_sd_token_str
 
         points_sensor_frame = sweep_data['points_sensor_frame']
         T_global_lidar = sweep_data['T_global_lidar']
         timestamp = sweep_data['timestamp']
+        is_key_frame = sweep_data['is_key_frame'] 
 
         hdf5_sweep_lidar_sd_tokens.append(lidar_sd_token_bytes)
         hdf5_sweep_timestamps_us.append(timestamp)
+        hdf5_sweep_is_key_frame.append(is_key_frame)
 
         if points_sensor_frame.shape[0] == 0:
             current_sweep_point_labels = np.zeros(0, dtype=POINT_LABEL_DTYPE)
@@ -435,13 +436,19 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
 
         points_global = transform_points_numpy(points_sensor_frame, T_global_lidar)
 
-        if points_global.shape[0] == 0:
+        if points_sensor_frame.shape[0] == 0:
+            current_sweep_point_labels = np.zeros(0, dtype=POINT_LABEL_DTYPE)
+            hdf5_all_point_labels_list.append(current_sweep_point_labels)
+            hdf5_point_labels_indices.append(hdf5_point_labels_indices[-1])
+            if verbose: tqdm.write(f"    No points in LiDAR sweep {lidar_sd_token_str}. Recorded empty labels.")
+            continue
+        points_global = transform_points_numpy(points_sensor_frame, T_global_lidar)
+        if points_global.shape[0] == 0: # Should be redundant if points_sensor_frame check is there, but safe
             current_sweep_point_labels = np.zeros(0, dtype=POINT_LABEL_DTYPE)
             hdf5_all_point_labels_list.append(current_sweep_point_labels)
             hdf5_point_labels_indices.append(hdf5_point_labels_indices[-1])
             if verbose: tqdm.write(f"    No points after transformation for {lidar_sd_token_str}. Recorded empty labels.")
             continue
-
         current_sweep_point_labels = np.zeros(points_global.shape[0], dtype=POINT_LABEL_DTYPE)
         current_sweep_point_labels['instance_token'] = b''
         current_sweep_point_labels['category_name'] = b''
@@ -452,14 +459,11 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
             current_sweep_point_labels['x_sensor'] = points_sensor_frame[:, 0]
             current_sweep_point_labels['y_sensor'] = points_sensor_frame[:, 1]
             current_sweep_point_labels['z_sensor'] = points_sensor_frame[:, 2]
-
         for inst_token, list_of_boxes_for_instance in all_instances_boxes_at_sweeps.items():
             box_object = list_of_boxes_for_instance[sweep_idx]
             if box_object is not None:
                 try:
-                    mask_points_in_obb = _get_points_in_box_mask_global_coords(
-                        points_global, box_object
-                    )
+                    mask_points_in_obb = _get_points_in_box_mask_global_coords(points_global, box_object)
                     if np.any(mask_points_in_obb):
                         unassigned_mask_for_current_obb_points = (current_sweep_point_labels['instance_token'][mask_points_in_obb] == b'')
                         indices_in_obb_and_unassigned = np.where(mask_points_in_obb)[0][unassigned_mask_for_current_obb_points]
@@ -472,9 +476,9 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
                 except Exception as e_gen:
                     if verbose: tqdm.write(f"Error processing instance {inst_token[:6]} in sweep {lidar_sd_token_str}: {e_gen}")
                     continue
-
         hdf5_all_point_labels_list.append(current_sweep_point_labels)
         hdf5_point_labels_indices.append(hdf5_point_labels_indices[-1] + len(current_sweep_point_labels))
+
 
     if not hdf5_sweep_lidar_sd_tokens:
         if verbose: tqdm.write(f"No sweep data was processed to generate labels for scene {scene_name}. No HDF5 file created.")
@@ -482,25 +486,17 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
 
     final_all_point_labels = np.concatenate(hdf5_all_point_labels_list, axis=0) if hdf5_all_point_labels_list else np.empty(0, dtype=POINT_LABEL_DTYPE)
 
-    # --- Save to HDF5 ---
     try:
         with h5py.File(output_hdf5_filepath, 'w') as hf:
-            # Store scene token as a scalar dataset of fixed-length string
-            # h5py can create scalar datasets from 0-dim numpy arrays or directly from python strings/bytes
-            hf.create_dataset('scene_token', data=scene_token.encode('utf-8')) # Save as bytes
-
+            hf.create_dataset('scene_token', data=scene_token.encode('utf-8'))
             hf.create_dataset('sweep_lidar_sd_tokens', data=np.array(hdf5_sweep_lidar_sd_tokens, dtype='S36'))
             hf.create_dataset('sweep_timestamps_us', data=np.array(hdf5_sweep_timestamps_us, dtype=np.int64))
-            
-            # For the structured array, h5py handles it directly.
-            # Check if final_all_point_labels is truly empty (shape (0,) or (0, num_fields))
+            hf.create_dataset('sweep_is_key_frame', data=np.array(hdf5_sweep_is_key_frame, dtype=bool)) # <<< SAVE THE FLAGS
+
             if final_all_point_labels.size == 0 and final_all_point_labels.shape[0] == 0 :
-                 # Create an empty dataset with the correct dtype if the array is empty.
-                 # This is important if the dtype has fields, h5py needs to know them.
                  hf.create_dataset('all_gt_point_labels', shape=(0,), dtype=POINT_LABEL_DTYPE)
             else:
                  hf.create_dataset('all_gt_point_labels', data=final_all_point_labels)
-
             hf.create_dataset('gt_point_labels_indices', data=np.array(hdf5_point_labels_indices, dtype=np.int64))
 
         if verbose: tqdm.write(f"Successfully saved GT point labels for scene {scene_name} to {output_hdf5_filepath}")

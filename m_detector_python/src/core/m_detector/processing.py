@@ -6,6 +6,7 @@ from typing import Dict, Optional, Any
 from ..depth_image import DepthImage
 from ..constants import OcclusionResult
 from tqdm import tqdm
+import logging
 
 def extract_mdetector_points(depth_image_output_from_mdetector: Optional[Any]) -> Dict[str, np.ndarray]:
     """
@@ -53,7 +54,8 @@ def process_and_label_di(self, # self is MDetector instance
 
     if current_di.original_points_global_coords is None or \
        current_di.original_points_global_coords.shape[0] == 0:
-        self.logger.debug(f"ProcessDI: current_di (TS: {current_di.timestamp}) has no points.")
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f"ProcessDI: current_di (TS: {current_di.timestamp}) has no points.")
         # Convert enum keys to values for the return dict if that's the expected format
         label_counts_val_keys = {k.value: v for k,v in label_counts_enum_keys.items()}
         return {'points_labeled': 0, 'label_counts': label_counts_val_keys, 'success': True,

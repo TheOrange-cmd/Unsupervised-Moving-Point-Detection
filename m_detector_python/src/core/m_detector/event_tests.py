@@ -25,8 +25,9 @@ def execute_test2_parallel_motion(
     MCC is on P1, P2, ..., PM2 (the occluders in historical frames).
     Adaptive epsilon is used for the detailed occlusion check.
     """
-    logger_et.debug(f"Executing Test 2 for P idx {original_pt_idx_of_P_in_current_di} ({point_global_P.tolist()}) "
-                    f"from DI @ ts {current_di_timestamp:.2f} (lib_idx {current_di_idx_in_lib})")
+    if logger_et.isEnabledFor(logging.DEBUG):
+        logger_et.debug(f"Executing Test 2 for P idx {original_pt_idx_of_P_in_current_di} ({point_global_P.tolist()}) "
+                        f"from DI @ ts {current_di_timestamp:.2f} (lib_idx {current_di_idx_in_lib})")
     
     # --- Initialize Final Debug Info ---
     test2_final_debug_info: Dict[str, Any] = {
@@ -252,8 +253,9 @@ def execute_test3_perpendicular_motion(
     Initial MCC is on point_global_P.
     This version adds more debug info to help analyze adaptive epsilon post-hoc.
     """
-    logger_et.debug(f"Executing Test 3 for P idx {original_pt_idx_of_P_in_current_di} ({point_global_P.tolist()}) "
-                    f"from DI @ ts {current_di_timestamp:.0f} (lib_idx {current_di_idx_in_lib})")
+    if logger_et.isEnabledFor(logging.DEBUG):
+        logger_et.debug(f"Executing Test 3 for P idx {original_pt_idx_of_P_in_current_di} ({point_global_P.tolist()}) "
+                        f"from DI @ ts {current_di_timestamp:.0f} (lib_idx {current_di_idx_in_lib})")
 
     # --- Initialize Final Debug Info ---
     test3_final_debug_info: Dict[str, Any] = {
@@ -373,9 +375,13 @@ def execute_test3_perpendicular_motion(
                     occlusion_cand_debug["depth_hist_cand_native_to_hist_frame"] = depth_hist_cand_native_to_hist
                     
                     current_test3_epsilon = calculate_adaptive_epsilon(
-                        d_anchor_for_current_occluder_point, # d_anchor of the point *doing the occluding*
+                        d_anchor_for_current_occluder_point,
                         mdetector_instance.epsilon_depth_occlusion, # di_base
-                        mdetector_instance.adaptive_eps_config_occ_depth # The config for general occlusion
+                        mdetector_instance.adaptive_eps_config_occ_depth.get('enabled'),
+                        mdetector_instance.adaptive_eps_config_occ_depth.get('dthr'),
+                        mdetector_instance.adaptive_eps_config_occ_depth.get('kthr'),
+                        mdetector_instance.adaptive_eps_config_occ_depth.get('dmax'),
+                        mdetector_instance.adaptive_eps_config_occ_depth.get('dmin')
                     )
                     occlusion_cand_debug["epsilon_used_for_check"] = current_test3_epsilon # Log it
                     occlusion_cand_debug["d_anchor_for_this_check"] = d_anchor_for_current_occluder_point

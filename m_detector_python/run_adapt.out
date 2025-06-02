@@ -1,0 +1,260 @@
+2025-05-27 13:27:23,011 - src.core.m_detector.base.MDetector - INFO - Loaded adaptive_eps_config_occ_depth: {'enabled': True, 'dthr': 5.0, 'kthr': 0.01, 'dmax': 0.5, 'dmin': 0.05}
+2025-05-27 13:27:23,011 - src.core.m_detector.base.MDetector - INFO - Loaded adaptive_eps_config_mc_fwd: {'enabled': True, 'dthr': 20.0, 'kthr': 0.07, 'dmax': 3.0, 'dmin': 0.2}
+2025-05-27 13:27:23,011 - src.core.m_detector.base.MDetector - INFO - Loaded adaptive_eps_config_mc_bwd: {'enabled': True, 'dthr': 20.0, 'kthr': 0.03, 'dmax': 1.0, 'dmin': 0.05}
+2025-05-27 13:27:23,011 - src.core.m_detector.base.MDetector - INFO - Event Test Config: Test1_N=10, Test1_M1=4, Test2_M2=2, Test3_M3=3
+2025-05-27 13:27:23,011 - src.core.m_detector.base.MDetector - INFO - Detailed Occlusion Check Config: AngH_rad=0.005, AngV_rad=0.007, EpsDepth=0.10
+2025-05-27 13:27:23,011 - src.core.m_detector.base.MDetector - INFO - MDetector initialized successfully.
+2025-05-27 13:27:23,012 - src.data_utils.nuscenes_helper - CRITICAL - @@@@@@ NuScenesProcessor.process_scene ENTERED for scene_idx: 1, scene_token: fcbccedd61424f1b85dcbf8f897f9754 @@@@@@
+2025-05-27 13:27:23,012 - src.data_utils.nuscenes_helper - INFO - Skipping first 0 frames. Processing max: 50 frames for LiDAR: LIDAR_TOP.
+2025-05-27 13:27:23,246 - src.core.m_detector.base.MDetector - CRITICAL - !!!!!! MDetector.reset_scene_state CALLED. Library will be cleared. Current lib size: 0 !!!!!!
+Added project root to sys.path: /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python
+Loading config from: /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/config/m_detector_config.yaml
+Initializing NuScenes...
+Initializing MDetector...
+Initializing NuScenesProcessor...
+
+Processing Scene 1: scene-0103 (fcbccedd61424f1b85dcbf8f897f9754)
+Feeding sweeps to M-Detector for Scene scene-0103:   0%|          | 0/50 [00:00<?, ?it/s]/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/pre_labelers.py:85: UserWarning: Using torch.cross without specifying the dim arg is deprecated.
+Please either pass the dim explicitly or simply use torch.linalg.cross.
+The default value of dim will change to agree with that of linalg.cross in a future release. (Triggered internally at /pytorch/aten/src/ATen/native/Cross.cpp:62.)
+  normals = torch.cross(v1, v2)
+2025-05-27 13:27:23,873 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13705 points as ground.
+2025-05-27 13:27:23,967 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151603547590. Lib size now: 1. Max size: 20
+2025-05-27 13:27:23,967 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 1, Min sweeps needed: 5, Last processed TS: None
+2025-05-27 13:27:23,968 - src.core.m_detector.base.MDetector - WARNING - DECIDE_FRAME_NOT_READY: Lib len 1 < min_sweeps 5. Returning 'not ready'.
+                                                                                         Feeding sweeps to M-Detector for Scene scene-0103:   0%|          | 0/50 [00:00<?, ?it/s]Feeding sweeps to M-Detector for Scene scene-0103:   2%|▏         | 1/50 [00:00<00:35,  1.39it/s]2025-05-27 13:27:23,973 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13793 points as ground.
+2025-05-27 13:27:24,065 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151603597909. Lib size now: 2. Max size: 20
+2025-05-27 13:27:24,065 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 2, Min sweeps needed: 5, Last processed TS: None
+2025-05-27 13:27:24,065 - src.core.m_detector.base.MDetector - WARNING - DECIDE_FRAME_NOT_READY: Lib len 2 < min_sweeps 5. Returning 'not ready'.
+                                                                                                 Feeding sweeps to M-Detector for Scene scene-0103:   2%|▏         | 1/50 [00:00<00:35,  1.39it/s]2025-05-27 13:27:24,070 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13784 points as ground.
+2025-05-27 13:27:24,164 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151603647672. Lib size now: 3. Max size: 20
+2025-05-27 13:27:24,164 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 3, Min sweeps needed: 5, Last processed TS: None
+2025-05-27 13:27:24,164 - src.core.m_detector.base.MDetector - WARNING - DECIDE_FRAME_NOT_READY: Lib len 3 < min_sweeps 5. Returning 'not ready'.
+                                                                                                 Feeding sweeps to M-Detector for Scene scene-0103:   2%|▏         | 1/50 [00:00<00:35,  1.39it/s]Feeding sweeps to M-Detector for Scene scene-0103:   6%|▌         | 3/50 [00:00<00:12,  3.86it/s]2025-05-27 13:27:24,169 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13788 points as ground.
+2025-05-27 13:27:24,263 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151603698009. Lib size now: 4. Max size: 20
+2025-05-27 13:27:24,263 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 4, Min sweeps needed: 5, Last processed TS: None
+2025-05-27 13:27:24,263 - src.core.m_detector.base.MDetector - WARNING - DECIDE_FRAME_NOT_READY: Lib len 4 < min_sweeps 5. Returning 'not ready'.
+                                                                                                 Feeding sweeps to M-Detector for Scene scene-0103:   6%|▌         | 3/50 [00:01<00:12,  3.86it/s]2025-05-27 13:27:24,268 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 12786 points as ground.
+2025-05-27 13:27:24,362 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151603747767. Lib size now: 5. Max size: 20
+2025-05-27 13:27:24,362 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 5, Min sweeps needed: 5, Last processed TS: None
+2025-05-27 13:27:53,904 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151603747767, Idx: 4): Labeled 19800/19800 points. Counts: {'OCCLUDING_IMAGE': 266, 'OCCLUDED_BY_IMAGE': 292, 'EMPTY_IN_IMAGE': 21, 'UNDETERMINED': 6435, 'PRELABELED_STATIC_GROUND': 12786}
+Feeding sweeps to M-Detector for Scene scene-0103:  10%|█         | 5/50 [00:30<05:49,  7.77s/it]2025-05-27 13:27:53,912 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13817 points as ground.
+2025-05-27 13:27:54,181 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151603798066. Lib size now: 6. Max size: 20
+2025-05-27 13:27:54,181 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 6, Min sweeps needed: 5, Last processed TS: 1533151603747767
+2025-05-27 13:28:26,054 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151603798066, Idx: 5): Labeled 19851/19851 points. Counts: {'OCCLUDING_IMAGE': 264, 'OCCLUDED_BY_IMAGE': 261, 'EMPTY_IN_IMAGE': 53, 'UNDETERMINED': 5456, 'PRELABELED_STATIC_GROUND': 13817}
+Feeding sweeps to M-Detector for Scene scene-0103:  12%|█▏        | 6/50 [01:02<10:30, 14.32s/it]2025-05-27 13:28:26,064 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13827 points as ground.
+2025-05-27 13:28:26,163 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151603847842. Lib size now: 7. Max size: 20
+2025-05-27 13:28:26,163 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 7, Min sweeps needed: 5, Last processed TS: 1533151603798066
+2025-05-27 13:29:04,123 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151603847842, Idx: 6): Labeled 19898/19898 points. Counts: {'OCCLUDING_IMAGE': 268, 'OCCLUDED_BY_IMAGE': 292, 'EMPTY_IN_IMAGE': 8, 'UNDETERMINED': 5503, 'PRELABELED_STATIC_GROUND': 13827}
+Feeding sweeps to M-Detector for Scene scene-0103:  14%|█▍        | 7/50 [01:40<14:58, 20.91s/it]2025-05-27 13:29:04,132 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13051 points as ground.
+2025-05-27 13:29:04,225 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151603898164. Lib size now: 8. Max size: 20
+2025-05-27 13:29:04,225 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 8, Min sweeps needed: 5, Last processed TS: 1533151603847842
+2025-05-27 13:29:50,950 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151603898164, Idx: 7): Labeled 19882/19882 points. Counts: {'OCCLUDING_IMAGE': 318, 'OCCLUDED_BY_IMAGE': 316, 'EMPTY_IN_IMAGE': 29, 'UNDETERMINED': 6168, 'PRELABELED_STATIC_GROUND': 13051}
+Feeding sweeps to M-Detector for Scene scene-0103:  16%|█▌        | 8/50 [02:27<19:46, 28.26s/it]2025-05-27 13:29:50,958 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13089 points as ground.
+2025-05-27 13:29:51,052 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151603947935. Lib size now: 9. Max size: 20
+2025-05-27 13:29:51,052 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 9, Min sweeps needed: 5, Last processed TS: 1533151603898164
+2025-05-27 13:30:45,704 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151603947935, Idx: 8): Labeled 19914/19914 points. Counts: {'OCCLUDING_IMAGE': 397, 'OCCLUDED_BY_IMAGE': 316, 'EMPTY_IN_IMAGE': 36, 'UNDETERMINED': 6076, 'PRELABELED_STATIC_GROUND': 13089}
+Feeding sweeps to M-Detector for Scene scene-0103:  18%|█▊        | 9/50 [03:22<24:31, 35.90s/it]2025-05-27 13:30:45,712 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13758 points as ground.
+2025-05-27 13:30:45,806 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151603997687. Lib size now: 10. Max size: 20
+2025-05-27 13:30:45,806 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 10, Min sweeps needed: 5, Last processed TS: 1533151603947935
+2025-05-27 13:31:43,929 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151603997687, Idx: 9): Labeled 19981/19981 points. Counts: {'OCCLUDING_IMAGE': 418, 'OCCLUDED_BY_IMAGE': 346, 'EMPTY_IN_IMAGE': 26, 'UNDETERMINED': 5433, 'PRELABELED_STATIC_GROUND': 13758}
+Feeding sweeps to M-Detector for Scene scene-0103:  20%|██        | 10/50 [04:20<28:16, 42.42s/it]2025-05-27 13:31:43,937 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13790 points as ground.
+2025-05-27 13:31:44,032 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604048025. Lib size now: 11. Max size: 20
+2025-05-27 13:31:44,032 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 11, Min sweeps needed: 5, Last processed TS: 1533151603997687
+2025-05-27 13:32:42,529 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604048025, Idx: 10): Labeled 19921/19921 points. Counts: {'OCCLUDING_IMAGE': 476, 'OCCLUDED_BY_IMAGE': 367, 'EMPTY_IN_IMAGE': 33, 'UNDETERMINED': 5255, 'PRELABELED_STATIC_GROUND': 13790}
+Feeding sweeps to M-Detector for Scene scene-0103:  22%|██▏       | 11/50 [05:19<30:39, 47.18s/it]2025-05-27 13:32:42,538 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13713 points as ground.
+2025-05-27 13:32:42,630 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604097779. Lib size now: 12. Max size: 20
+2025-05-27 13:32:42,630 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 12, Min sweeps needed: 5, Last processed TS: 1533151604048025
+2025-05-27 13:33:47,468 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604097779, Idx: 11): Labeled 20003/20003 points. Counts: {'OCCLUDING_IMAGE': 457, 'OCCLUDED_BY_IMAGE': 339, 'EMPTY_IN_IMAGE': 27, 'UNDETERMINED': 5467, 'PRELABELED_STATIC_GROUND': 13713}
+Feeding sweeps to M-Detector for Scene scene-0103:  24%|██▍       | 12/50 [06:24<33:12, 52.43s/it]2025-05-27 13:33:47,476 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13354 points as ground.
+2025-05-27 13:33:47,570 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604148103. Lib size now: 13. Max size: 20
+2025-05-27 13:33:47,570 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 13, Min sweeps needed: 5, Last processed TS: 1533151604097779
+2025-05-27 13:34:53,190 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604148103, Idx: 12): Labeled 20054/20054 points. Counts: {'OCCLUDING_IMAGE': 490, 'OCCLUDED_BY_IMAGE': 337, 'EMPTY_IN_IMAGE': 16, 'UNDETERMINED': 5857, 'PRELABELED_STATIC_GROUND': 13354}
+Feeding sweeps to M-Detector for Scene scene-0103:  26%|██▌       | 13/50 [07:29<34:46, 56.38s/it]2025-05-27 13:34:53,198 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13678 points as ground.
+2025-05-27 13:34:53,489 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604197861. Lib size now: 14. Max size: 20
+2025-05-27 13:34:53,489 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 14, Min sweeps needed: 5, Last processed TS: 1533151604148103
+2025-05-27 13:36:03,956 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604197861, Idx: 13): Labeled 20113/20113 points. Counts: {'OCCLUDING_IMAGE': 550, 'OCCLUDED_BY_IMAGE': 326, 'EMPTY_IN_IMAGE': 31, 'UNDETERMINED': 5528, 'PRELABELED_STATIC_GROUND': 13678}
+Feeding sweeps to M-Detector for Scene scene-0103:  28%|██▊       | 14/50 [08:40<36:24, 60.67s/it]2025-05-27 13:36:03,964 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13696 points as ground.
+2025-05-27 13:36:04,060 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604247644. Lib size now: 15. Max size: 20
+2025-05-27 13:36:04,061 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 15, Min sweeps needed: 5, Last processed TS: 1533151604197861
+2025-05-27 13:37:15,488 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604247644, Idx: 14): Labeled 20138/20138 points. Counts: {'OCCLUDING_IMAGE': 577, 'OCCLUDED_BY_IMAGE': 324, 'EMPTY_IN_IMAGE': 26, 'UNDETERMINED': 5515, 'PRELABELED_STATIC_GROUND': 13696}
+Feeding sweeps to M-Detector for Scene scene-0103:  30%|███       | 15/50 [09:52<37:16, 63.91s/it]2025-05-27 13:37:15,496 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13844 points as ground.
+2025-05-27 13:37:15,591 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604297943. Lib size now: 16. Max size: 20
+2025-05-27 13:37:15,591 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 16, Min sweeps needed: 5, Last processed TS: 1533151604247644
+2025-05-27 13:38:24,550 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604297943, Idx: 15): Labeled 20292/20292 points. Counts: {'OCCLUDING_IMAGE': 533, 'OCCLUDED_BY_IMAGE': 277, 'EMPTY_IN_IMAGE': 51, 'UNDETERMINED': 5587, 'PRELABELED_STATIC_GROUND': 13844}
+Feeding sweeps to M-Detector for Scene scene-0103:  32%|███▏      | 16/50 [11:01<37:05, 65.45s/it]2025-05-27 13:38:24,559 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14058 points as ground.
+2025-05-27 13:38:24,654 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604347783. Lib size now: 17. Max size: 20
+2025-05-27 13:38:24,654 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 17, Min sweeps needed: 5, Last processed TS: 1533151604297943
+2025-05-27 13:39:29,598 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604347783, Idx: 16): Labeled 20316/20316 points. Counts: {'OCCLUDING_IMAGE': 452, 'OCCLUDED_BY_IMAGE': 307, 'EMPTY_IN_IMAGE': 32, 'UNDETERMINED': 5467, 'PRELABELED_STATIC_GROUND': 14058}
+Feeding sweeps to M-Detector for Scene scene-0103:  34%|███▍      | 17/50 [12:06<35:55, 65.33s/it]2025-05-27 13:39:29,606 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13689 points as ground.
+2025-05-27 13:39:29,701 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604398040. Lib size now: 18. Max size: 20
+2025-05-27 13:39:29,701 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 18, Min sweeps needed: 5, Last processed TS: 1533151604347783
+2025-05-27 13:40:39,663 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604398040, Idx: 17): Labeled 20355/20355 points. Counts: {'OCCLUDING_IMAGE': 499, 'OCCLUDED_BY_IMAGE': 300, 'EMPTY_IN_IMAGE': 35, 'UNDETERMINED': 5832, 'PRELABELED_STATIC_GROUND': 13689}
+Feeding sweeps to M-Detector for Scene scene-0103:  36%|███▌      | 18/50 [13:16<35:35, 66.75s/it]2025-05-27 13:40:39,672 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13928 points as ground.
+2025-05-27 13:40:39,767 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604447804. Lib size now: 19. Max size: 20
+2025-05-27 13:40:39,767 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 19, Min sweeps needed: 5, Last processed TS: 1533151604398040
+2025-05-27 13:41:49,390 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604447804, Idx: 18): Labeled 20402/20402 points. Counts: {'OCCLUDING_IMAGE': 491, 'OCCLUDED_BY_IMAGE': 280, 'EMPTY_IN_IMAGE': 39, 'UNDETERMINED': 5664, 'PRELABELED_STATIC_GROUND': 13928}
+Feeding sweeps to M-Detector for Scene scene-0103:  38%|███▊      | 19/50 [14:26<34:56, 67.64s/it]2025-05-27 13:41:49,398 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13850 points as ground.
+2025-05-27 13:41:49,493 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604497593. Lib size now: 20. Max size: 20
+2025-05-27 13:41:49,493 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604447804
+2025-05-27 13:42:53,558 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604497593, Idx: 19): Labeled 20405/20405 points. Counts: {'OCCLUDING_IMAGE': 444, 'OCCLUDED_BY_IMAGE': 277, 'EMPTY_IN_IMAGE': 45, 'UNDETERMINED': 5789, 'PRELABELED_STATIC_GROUND': 13850}
+Feeding sweeps to M-Detector for Scene scene-0103:  40%|████      | 20/50 [15:30<33:18, 66.60s/it]2025-05-27 13:42:53,566 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14244 points as ground.
+2025-05-27 13:42:53,665 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604547893. Lib size now: 20. Max size: 20
+2025-05-27 13:42:53,665 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604497593
+2025-05-27 13:43:58,811 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604547893, Idx: 19): Labeled 20369/20369 points. Counts: {'OCCLUDING_IMAGE': 437, 'OCCLUDED_BY_IMAGE': 255, 'EMPTY_IN_IMAGE': 20, 'UNDETERMINED': 5413, 'PRELABELED_STATIC_GROUND': 14244}
+Feeding sweeps to M-Detector for Scene scene-0103:  42%|████▏     | 21/50 [16:35<31:59, 66.20s/it]2025-05-27 13:43:58,819 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14328 points as ground.
+2025-05-27 13:43:58,918 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604597667. Lib size now: 20. Max size: 20
+2025-05-27 13:43:58,918 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604547893
+2025-05-27 13:45:02,482 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604597667, Idx: 19): Labeled 20468/20468 points. Counts: {'OCCLUDING_IMAGE': 544, 'OCCLUDED_BY_IMAGE': 312, 'EMPTY_IN_IMAGE': 28, 'UNDETERMINED': 5256, 'PRELABELED_STATIC_GROUND': 14328}
+Feeding sweeps to M-Detector for Scene scene-0103:  44%|████▍     | 22/50 [17:39<30:32, 65.44s/it]2025-05-27 13:45:02,491 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13832 points as ground.
+2025-05-27 13:45:02,590 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604647997. Lib size now: 20. Max size: 20
+2025-05-27 13:45:02,590 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604597667
+2025-05-27 13:46:08,550 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604647997, Idx: 19): Labeled 20587/20587 points. Counts: {'OCCLUDING_IMAGE': 389, 'OCCLUDED_BY_IMAGE': 262, 'EMPTY_IN_IMAGE': 20, 'UNDETERMINED': 6084, 'PRELABELED_STATIC_GROUND': 13832}
+Feeding sweeps to M-Detector for Scene scene-0103:  46%|████▌     | 23/50 [18:45<29:31, 65.63s/it]2025-05-27 13:46:08,560 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14279 points as ground.
+2025-05-27 13:46:08,657 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604697738. Lib size now: 20. Max size: 20
+2025-05-27 13:46:08,658 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604647997
+2025-05-27 13:47:15,549 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604697738, Idx: 19): Labeled 20672/20672 points. Counts: {'OCCLUDING_IMAGE': 428, 'OCCLUDED_BY_IMAGE': 250, 'EMPTY_IN_IMAGE': 32, 'UNDETERMINED': 5683, 'PRELABELED_STATIC_GROUND': 14279}
+Feeding sweeps to M-Detector for Scene scene-0103:  48%|████▊     | 24/50 [19:52<28:37, 66.04s/it]2025-05-27 13:47:15,557 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14376 points as ground.
+2025-05-27 13:47:15,876 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604748075. Lib size now: 20. Max size: 20
+2025-05-27 13:47:15,876 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604697738
+2025-05-27 13:48:18,292 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604748075, Idx: 19): Labeled 20743/20743 points. Counts: {'OCCLUDING_IMAGE': 446, 'OCCLUDED_BY_IMAGE': 276, 'EMPTY_IN_IMAGE': 35, 'UNDETERMINED': 5610, 'PRELABELED_STATIC_GROUND': 14376}
+Feeding sweeps to M-Detector for Scene scene-0103:  50%|█████     | 25/50 [20:55<27:06, 65.05s/it]2025-05-27 13:48:18,300 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14301 points as ground.
+2025-05-27 13:48:18,396 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604797841. Lib size now: 20. Max size: 20
+2025-05-27 13:48:18,396 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604748075
+2025-05-27 13:49:23,706 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604797841, Idx: 19): Labeled 20787/20787 points. Counts: {'OCCLUDING_IMAGE': 403, 'OCCLUDED_BY_IMAGE': 245, 'EMPTY_IN_IMAGE': 32, 'UNDETERMINED': 5806, 'PRELABELED_STATIC_GROUND': 14301}
+Feeding sweeps to M-Detector for Scene scene-0103:  52%|█████▏    | 26/50 [22:00<26:03, 65.16s/it]2025-05-27 13:49:23,714 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14106 points as ground.
+2025-05-27 13:49:23,813 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604848152. Lib size now: 20. Max size: 20
+2025-05-27 13:49:23,813 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604797841
+2025-05-27 13:50:28,209 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604848152, Idx: 19): Labeled 20978/20978 points. Counts: {'OCCLUDING_IMAGE': 426, 'OCCLUDED_BY_IMAGE': 260, 'EMPTY_IN_IMAGE': 36, 'UNDETERMINED': 6150, 'PRELABELED_STATIC_GROUND': 14106}
+Feeding sweeps to M-Detector for Scene scene-0103:  54%|█████▍    | 27/50 [23:04<24:54, 64.96s/it]2025-05-27 13:50:28,218 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14223 points as ground.
+2025-05-27 13:50:28,316 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604897912. Lib size now: 20. Max size: 20
+2025-05-27 13:50:28,317 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604848152
+2025-05-27 13:51:34,234 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604897912, Idx: 19): Labeled 21044/21044 points. Counts: {'OCCLUDING_IMAGE': 432, 'OCCLUDED_BY_IMAGE': 211, 'EMPTY_IN_IMAGE': 13, 'UNDETERMINED': 6165, 'PRELABELED_STATIC_GROUND': 14223}
+Feeding sweeps to M-Detector for Scene scene-0103:  56%|█████▌    | 28/50 [24:10<23:56, 65.28s/it]2025-05-27 13:51:34,243 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14450 points as ground.
+2025-05-27 13:51:34,342 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604948525. Lib size now: 20. Max size: 20
+2025-05-27 13:51:34,343 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604897912
+2025-05-27 13:52:34,910 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604948525, Idx: 19): Labeled 21092/21092 points. Counts: {'OCCLUDING_IMAGE': 460, 'OCCLUDED_BY_IMAGE': 190, 'EMPTY_IN_IMAGE': 32, 'UNDETERMINED': 5960, 'PRELABELED_STATIC_GROUND': 14450}
+Feeding sweeps to M-Detector for Scene scene-0103:  58%|█████▊    | 29/50 [25:11<22:21, 63.90s/it]2025-05-27 13:52:34,918 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14458 points as ground.
+2025-05-27 13:52:35,019 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151604998006. Lib size now: 20. Max size: 20
+2025-05-27 13:52:35,019 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604948525
+2025-05-27 13:53:41,747 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151604998006, Idx: 19): Labeled 21208/21208 points. Counts: {'OCCLUDING_IMAGE': 1000, 'OCCLUDED_BY_IMAGE': 252, 'EMPTY_IN_IMAGE': 18, 'UNDETERMINED': 5480, 'PRELABELED_STATIC_GROUND': 14458}
+Feeding sweeps to M-Detector for Scene scene-0103:  60%|██████    | 30/50 [26:18<21:35, 64.78s/it]2025-05-27 13:53:41,755 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14893 points as ground.
+2025-05-27 13:53:41,852 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605047769. Lib size now: 20. Max size: 20
+2025-05-27 13:53:41,852 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151604998006
+2025-05-27 13:54:47,952 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605047769, Idx: 19): Labeled 21281/21281 points. Counts: {'OCCLUDING_IMAGE': 520, 'OCCLUDED_BY_IMAGE': 210, 'EMPTY_IN_IMAGE': 34, 'UNDETERMINED': 5624, 'PRELABELED_STATIC_GROUND': 14893}
+Feeding sweeps to M-Detector for Scene scene-0103:  62%|██████▏   | 31/50 [27:24<20:38, 65.21s/it]2025-05-27 13:54:47,960 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14340 points as ground.
+2025-05-27 13:54:48,061 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605098086. Lib size now: 20. Max size: 20
+2025-05-27 13:54:48,061 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605047769
+2025-05-27 13:55:53,066 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605098086, Idx: 19): Labeled 21309/21309 points. Counts: {'OCCLUDING_IMAGE': 580, 'OCCLUDED_BY_IMAGE': 194, 'EMPTY_IN_IMAGE': 15, 'UNDETERMINED': 6180, 'PRELABELED_STATIC_GROUND': 14340}
+Feeding sweeps to M-Detector for Scene scene-0103:  64%|██████▍   | 32/50 [28:29<19:33, 65.18s/it]2025-05-27 13:55:53,074 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14666 points as ground.
+2025-05-27 13:55:53,177 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605147845. Lib size now: 20. Max size: 20
+2025-05-27 13:55:53,177 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605098086
+2025-05-27 13:57:01,633 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605147845, Idx: 19): Labeled 21371/21371 points. Counts: {'OCCLUDING_IMAGE': 549, 'OCCLUDED_BY_IMAGE': 212, 'EMPTY_IN_IMAGE': 13, 'UNDETERMINED': 5931, 'PRELABELED_STATIC_GROUND': 14666}
+Feeding sweeps to M-Detector for Scene scene-0103:  66%|██████▌   | 33/50 [29:38<18:45, 66.20s/it]2025-05-27 13:57:01,642 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15232 points as ground.
+2025-05-27 13:57:01,742 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605198172. Lib size now: 20. Max size: 20
+2025-05-27 13:57:01,742 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605147845
+2025-05-27 13:58:01,003 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605198172, Idx: 19): Labeled 21420/21420 points. Counts: {'OCCLUDING_IMAGE': 557, 'OCCLUDED_BY_IMAGE': 210, 'EMPTY_IN_IMAGE': 35, 'UNDETERMINED': 5386, 'PRELABELED_STATIC_GROUND': 15232}
+Feeding sweeps to M-Detector for Scene scene-0103:  68%|██████▊   | 34/50 [30:37<17:06, 64.15s/it]2025-05-27 13:58:01,012 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15101 points as ground.
+2025-05-27 13:58:01,112 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605247935. Lib size now: 20. Max size: 20
+2025-05-27 13:58:01,112 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605198172
+2025-05-27 13:59:04,989 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605247935, Idx: 19): Labeled 21422/21422 points. Counts: {'OCCLUDING_IMAGE': 551, 'OCCLUDED_BY_IMAGE': 177, 'EMPTY_IN_IMAGE': 47, 'UNDETERMINED': 5546, 'PRELABELED_STATIC_GROUND': 15101}
+Feeding sweeps to M-Detector for Scene scene-0103:  70%|███████   | 35/50 [31:41<16:01, 64.10s/it]2025-05-27 13:59:04,997 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14971 points as ground.
+2025-05-27 13:59:05,361 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605298250. Lib size now: 20. Max size: 20
+2025-05-27 13:59:05,361 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605247935
+2025-05-27 14:00:06,487 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605298250, Idx: 19): Labeled 21485/21485 points. Counts: {'OCCLUDING_IMAGE': 515, 'OCCLUDED_BY_IMAGE': 176, 'EMPTY_IN_IMAGE': 34, 'UNDETERMINED': 5789, 'PRELABELED_STATIC_GROUND': 14971}
+Feeding sweeps to M-Detector for Scene scene-0103:  72%|███████▏  | 36/50 [32:43<14:46, 63.32s/it]2025-05-27 14:00:06,495 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15357 points as ground.
+2025-05-27 14:00:06,595 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605348124. Lib size now: 20. Max size: 20
+2025-05-27 14:00:06,595 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605298250
+2025-05-27 14:01:13,511 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605348124, Idx: 19): Labeled 21587/21587 points. Counts: {'OCCLUDING_IMAGE': 519, 'OCCLUDED_BY_IMAGE': 138, 'EMPTY_IN_IMAGE': 30, 'UNDETERMINED': 5543, 'PRELABELED_STATIC_GROUND': 15357}
+Feeding sweeps to M-Detector for Scene scene-0103:  74%|███████▍  | 37/50 [33:50<13:57, 64.43s/it]2025-05-27 14:01:13,519 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14964 points as ground.
+2025-05-27 14:01:13,621 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605398352. Lib size now: 20. Max size: 20
+2025-05-27 14:01:13,621 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605348124
+2025-05-27 14:02:18,592 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605398352, Idx: 19): Labeled 21675/21675 points. Counts: {'OCCLUDING_IMAGE': 578, 'OCCLUDED_BY_IMAGE': 160, 'EMPTY_IN_IMAGE': 27, 'UNDETERMINED': 5946, 'PRELABELED_STATIC_GROUND': 14964}
+Feeding sweeps to M-Detector for Scene scene-0103:  76%|███████▌  | 38/50 [34:55<12:55, 64.63s/it]2025-05-27 14:02:18,600 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15136 points as ground.
+2025-05-27 14:02:18,702 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605448139. Lib size now: 20. Max size: 20
+2025-05-27 14:02:18,703 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605398352
+2025-05-27 14:03:27,600 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605448139, Idx: 19): Labeled 21715/21715 points. Counts: {'OCCLUDING_IMAGE': 595, 'OCCLUDED_BY_IMAGE': 166, 'EMPTY_IN_IMAGE': 36, 'UNDETERMINED': 5782, 'PRELABELED_STATIC_GROUND': 15136}
+Feeding sweeps to M-Detector for Scene scene-0103:  78%|███████▊  | 39/50 [36:04<12:05, 65.94s/it]2025-05-27 14:03:27,608 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 13788 points as ground.
+2025-05-27 14:03:27,709 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605498430. Lib size now: 20. Max size: 20
+2025-05-27 14:03:27,710 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605448139
+2025-05-27 14:04:37,611 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605498430, Idx: 19): Labeled 21733/21733 points. Counts: {'OCCLUDING_IMAGE': 555, 'OCCLUDED_BY_IMAGE': 228, 'EMPTY_IN_IMAGE': 21, 'UNDETERMINED': 7141, 'PRELABELED_STATIC_GROUND': 13788}
+Feeding sweeps to M-Detector for Scene scene-0103:  80%|████████  | 40/50 [37:14<11:11, 67.16s/it]2025-05-27 14:04:37,620 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 14924 points as ground.
+2025-05-27 14:04:37,718 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605548192. Lib size now: 20. Max size: 20
+2025-05-27 14:04:37,718 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605498430
+2025-05-27 14:05:39,246 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605548192, Idx: 19): Labeled 21665/21665 points. Counts: {'OCCLUDING_IMAGE': 515, 'OCCLUDED_BY_IMAGE': 159, 'EMPTY_IN_IMAGE': 24, 'UNDETERMINED': 6043, 'PRELABELED_STATIC_GROUND': 14924}
+Feeding sweeps to M-Detector for Scene scene-0103:  82%|████████▏ | 41/50 [38:15<09:49, 65.50s/it]2025-05-27 14:05:39,254 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15142 points as ground.
+2025-05-27 14:05:39,356 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605598507. Lib size now: 20. Max size: 20
+2025-05-27 14:05:39,356 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605548192
+2025-05-27 14:06:41,250 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605598507, Idx: 19): Labeled 21808/21808 points. Counts: {'OCCLUDING_IMAGE': 564, 'OCCLUDED_BY_IMAGE': 183, 'EMPTY_IN_IMAGE': 27, 'UNDETERMINED': 5892, 'PRELABELED_STATIC_GROUND': 15142}
+Feeding sweeps to M-Detector for Scene scene-0103:  84%|████████▍ | 42/50 [39:18<08:35, 64.45s/it]2025-05-27 14:06:41,258 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15017 points as ground.
+2025-05-27 14:06:41,359 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605648833. Lib size now: 20. Max size: 20
+2025-05-27 14:06:41,359 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605598507
+2025-05-27 14:07:44,871 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605648833, Idx: 19): Labeled 21816/21816 points. Counts: {'OCCLUDING_IMAGE': 628, 'OCCLUDED_BY_IMAGE': 210, 'EMPTY_IN_IMAGE': 6, 'UNDETERMINED': 5955, 'PRELABELED_STATIC_GROUND': 15017}
+Feeding sweeps to M-Detector for Scene scene-0103:  86%|████████▌ | 43/50 [40:21<07:29, 64.20s/it]2025-05-27 14:07:44,879 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15284 points as ground.
+2025-05-27 14:07:44,981 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605698597. Lib size now: 20. Max size: 20
+2025-05-27 14:07:44,981 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605648833
+2025-05-27 14:08:49,122 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605698597, Idx: 19): Labeled 21786/21786 points. Counts: {'OCCLUDING_IMAGE': 654, 'OCCLUDED_BY_IMAGE': 215, 'EMPTY_IN_IMAGE': 14, 'UNDETERMINED': 5619, 'PRELABELED_STATIC_GROUND': 15284}
+Feeding sweeps to M-Detector for Scene scene-0103:  88%|████████▊ | 44/50 [41:25<06:25, 64.22s/it]2025-05-27 14:08:49,130 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15262 points as ground.
+2025-05-27 14:08:49,232 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605748921. Lib size now: 20. Max size: 20
+2025-05-27 14:08:49,232 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605698597
+2025-05-27 14:09:51,419 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605748921, Idx: 19): Labeled 21795/21795 points. Counts: {'OCCLUDING_IMAGE': 520, 'OCCLUDED_BY_IMAGE': 213, 'EMPTY_IN_IMAGE': 17, 'UNDETERMINED': 5783, 'PRELABELED_STATIC_GROUND': 15262}
+Feeding sweeps to M-Detector for Scene scene-0103:  90%|█████████ | 45/50 [42:28<05:18, 63.64s/it]2025-05-27 14:09:51,427 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15473 points as ground.
+2025-05-27 14:09:51,530 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605798681. Lib size now: 20. Max size: 20
+2025-05-27 14:09:51,530 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605748921
+2025-05-27 14:10:51,983 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605798681, Idx: 19): Labeled 21810/21810 points. Counts: {'OCCLUDING_IMAGE': 511, 'OCCLUDED_BY_IMAGE': 206, 'EMPTY_IN_IMAGE': 11, 'UNDETERMINED': 5609, 'PRELABELED_STATIC_GROUND': 15473}
+Feeding sweeps to M-Detector for Scene scene-0103:  92%|█████████▏| 46/50 [43:28<04:10, 62.72s/it]2025-05-27 14:10:51,992 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15346 points as ground.
+2025-05-27 14:10:52,094 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605849018. Lib size now: 20. Max size: 20
+2025-05-27 14:10:52,094 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605798681
+2025-05-27 14:11:53,497 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605849018, Idx: 19): Labeled 21911/21911 points. Counts: {'OCCLUDING_IMAGE': 565, 'OCCLUDED_BY_IMAGE': 197, 'EMPTY_IN_IMAGE': 12, 'UNDETERMINED': 5791, 'PRELABELED_STATIC_GROUND': 15346}
+Feeding sweeps to M-Detector for Scene scene-0103:  94%|█████████▍| 47/50 [44:30<03:07, 62.36s/it]2025-05-27 14:11:53,505 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15114 points as ground.
+2025-05-27 14:11:53,610 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605898788. Lib size now: 20. Max size: 20
+2025-05-27 14:11:53,610 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605849018
+2025-05-27 14:13:03,281 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605898788, Idx: 19): Labeled 21993/21993 points. Counts: {'OCCLUDING_IMAGE': 839, 'OCCLUDED_BY_IMAGE': 175, 'EMPTY_IN_IMAGE': 15, 'UNDETERMINED': 5850, 'PRELABELED_STATIC_GROUND': 15114}
+Feeding sweeps to M-Detector for Scene scene-0103:  96%|█████████▌| 48/50 [45:40<02:09, 64.59s/it]2025-05-27 14:13:03,290 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15026 points as ground.
+2025-05-27 14:13:03,391 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605949098. Lib size now: 20. Max size: 20
+2025-05-27 14:13:03,391 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605898788
+2025-05-27 14:14:16,875 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605949098, Idx: 19): Labeled 22034/22034 points. Counts: {'OCCLUDING_IMAGE': 951, 'OCCLUDED_BY_IMAGE': 155, 'EMPTY_IN_IMAGE': 19, 'UNDETERMINED': 5883, 'PRELABELED_STATIC_GROUND': 15026}
+Feeding sweeps to M-Detector for Scene scene-0103:  98%|█████████▊| 49/50 [46:53<01:07, 67.29s/it]2025-05-27 14:14:16,883 - src.core.m_detector.base.MDetector - INFO - RANSAC pre-labeled 15714 points as ground.
+2025-05-27 14:14:17,322 - src.core.m_detector.base.MDetector - INFO - ADD_SWEEP: Added DI for TS 1533151605998850. Lib size now: 20. Max size: 20
+2025-05-27 14:14:17,322 - src.core.m_detector.base.MDetector - INFO - DECIDE_FRAME_START: Lib len: 20, Min sweeps needed: 5, Last processed TS: 1533151605949098
+2025-05-27 14:15:20,999 - src.core.m_detector.base.MDetector - INFO - Processed DI (TS: 1533151605998850, Idx: 19): Labeled 22074/22074 points. Counts: {'OCCLUDING_IMAGE': 697, 'OCCLUDED_BY_IMAGE': 190, 'EMPTY_IN_IMAGE': 19, 'UNDETERMINED': 5454, 'PRELABELED_STATIC_GROUND': 15714}
+Feeding sweeps to M-Detector for Scene scene-0103: 100%|██████████| 50/50 [47:57<00:00, 66.34s/it]Feeding sweeps to M-Detector for Scene scene-0103: 100%|██████████| 50/50 [47:57<00:00, 57.56s/it]
+MDetector info: Causal: MDetector not ready (min sweeps)
+MDetector info: Causal: MDetector not ready (min sweeps)
+MDetector info: Causal: MDetector not ready (min sweeps)
+MDetector info: Causal: MDetector not ready (min sweeps)
+Saving M-Detector results for scene 'scene-0103' to /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output_adapt/mdet_results_scene-0103.h5 (HDF5)...
+Successfully saved HDF5 results for 46 frames for scene 'scene-0103'.
+
+Main M-Detector processing and HDF5 saving complete for all selected scenes.
+Tue May 27 14:15:22 2025    mdetector_profile.prof
+
+         1708512872 function calls (1689731148 primitive calls) in 2879.974 seconds
+
+   Ordered by: cumulative time
+   List reduced from 807 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000 2879.974 2879.974 {built-in method builtins.exec}
+        1    0.060    0.060 2879.974 2879.974 <string>:1(<module>)
+        1    0.074    0.074 2879.914 2879.914 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/scripts/run_mdetector_and_save.py:34(main)
+        1    0.902    0.902 2878.889 2878.889 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/data_utils/nuscenes_helper.py:131(process_scene)
+       50    0.001    0.000 2870.653   57.413 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:280(decide_and_process_frame)
+       46    0.005    0.000 2870.648   62.405 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/base.py:263(_process_causal_di_wrapper)
+       46   13.102    0.285 2870.643   62.405 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/processing.py:43(process_and_label_di)
+   359574  188.704    0.001 2524.902    0.007 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/map_consistency.py:16(is_map_consistent)
+  1530275  270.504    0.000 1128.000    0.001 /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/core/m_detector/interpolation_utils.py:12(interpolate_surface_depth_at_angle)
+  6259792   12.867    0.000  951.528    0.000 /home/drugge/miniconda3/envs/mdet_env_py/lib/python3.9/site-packages/numpy/core/arrayprint.py:1595(_array_str_implementation)
+  6259792   25.048    0.000  938.661    0.000 /home/drugge/miniconda3/envs/mdet_env_py/lib/python3.9/site-packages/numpy/core/arrayprint.py:561(array2string)
+  6259792   20.085    0.000  866.378    0.000 /home/drugge/miniconda3/envs/mdet_env_py/lib/python3.9/site-packages/numpy/core/arrayprint.py:506(wrapper)
+  6259792   39.251    0.000  837.971    0.000 /home/drugge/miniconda3/envs/mdet_env_py/lib/python3.9/site-packages/numpy/core/arrayprint.py:523(_array2string)
+  6259792   34.254    0.000  584.514    0.000 /home/drugge/miniconda3/envs/mdet_env_py/lib/python3.9/site-packages/numpy/core/arrayprint.py:452(_get_format_function)
+  6259792   11.933    0.000  532.931    0.000 /home/drugge/miniconda3/envs/mdet_env_py/lib/python3.9/site-packages/numpy/core/arrayprint.py:411(<lambda>)
+  6259792   21.655    0.000  520.998    0.000 /home/drugge/miniconda3/envs/mdet_env_py/lib/python3.9/site-packages/numpy/core/arrayprint.py:907(__init__)
+  6259792  207.736    0.000  495.674    0.000 /home/drugge/miniconda3/envs/mdet_env_py/lib/python3.9/site-packages/numpy/core/arrayprint.py:934(fillFormat)
+  1530275    6.753    0.000  331.926    0.000 /home/drugge/miniconda3/envs/mdet_env_py/lib/python3.9/site-packages/numpy/lib/arraysetops.py:766(isin)
+  1530275  235.551    0.000  321.878    0.000 /home/drugge/miniconda3/envs/mdet_env_py/lib/python3.9/site-packages/numpy/lib/arraysetops.py:524(in1d)
+ 36631176   60.110    0.000  255.579    0.000 /home/drugge/miniconda3/envs/mdet_env_py/lib/python3.9/site-packages/numpy/core/fromnumeric.py:71(_wrapreduction)
+
+
+

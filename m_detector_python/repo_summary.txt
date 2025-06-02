@@ -11,6 +11,7 @@ class MDetectorConfigAccessor:
         try:
             with open(config_path, 'r') as f:
                 self._config_data: Dict[str, Any] = yaml.safe_load(f)
+
         except FileNotFoundError:
             raise FileNotFoundError(f"Configuration file not found at: {config_path}")
         except yaml.YAMLError as e:
@@ -24,7 +25,8 @@ class MDetectorConfigAccessor:
         return self._config_data.get('nuscenes', {})
 
     def get_processing_settings(self) -> Dict[str, Any]:
-        return self._config_data.get('processing_settings', {})
+        settings = self._config_data.get('processing_settings', {})
+        return settings
         
     def get_mdetector_output_paths(self) -> Dict[str, Any]:
         return self._config_data.get('mdetector_output_paths', {})
@@ -104,6 +106,12 @@ class MDetectorConfigAccessor:
     def get_library_size(self, default: int = 20) -> int:
         di_params = self.get_depth_image_params()
         return di_params.get('library_size', default)
+    
+    def get_raw_config(self) -> Dict[str, Any]:
+        """
+        Returns the entire configuration dictionary as loaded from the YAML file.
+        """
+        return self._config_data
 
 ############################
 FILE: src/__init__.py
@@ -463,6 +471,12 @@ class DepthImage:
         self.matrix_local_from_global: np.ndarray = np.linalg.inv(self.image_pose_global)
         self.total_points_added_to_di_arrays: int = 0
 
+        # For caching static points references
+        self.static_points_mask: Optional[np.ndarray] = None
+        self._static_labels_for_mask_generation: Optional[List[int]] = None
+
+        
+
     def is_prepared_for_projection(self) -> bool:
         """
         Checks if the DepthImage has the necessary data populated for projection operations
@@ -605,6 +619,8 @@ class DepthImage:
             self.mdet_scores_for_points = np.empty(0, dtype=np.float32)
             self.local_sph_coords_for_points = np.empty((0,3), dtype=np.float32)
             self.total_points_added_to_di_arrays = 0
+            self.static_points_mask = None
+            self._static_labels_used_for_cache = None
             return 0
 
         # 1. Store Original Data & Initialize Label/Score Arrays
@@ -656,6 +672,9 @@ class DepthImage:
             self.pixel_min_depth[v_idx, h_idx] = min(self.pixel_min_depth[v_idx, h_idx], depth)
             self.pixel_max_depth[v_idx, h_idx] = max(self.pixel_max_depth[v_idx, h_idx], depth)
             self.pixel_count[v_idx, h_idx] += 1
+
+        self.static_points_mask = None
+        self._static_labels_used_for_cache = None
             
         return batch_size # Returns total points added to the main arrays
 
@@ -783,6 +802,28 @@ class DepthImage:
             # This case should ideally not happen if we are visualizing in a global context
             logger.warning("DepthImage has no image_pose_global. Returning pixel corners in sensor frame.")
             return cartesian_corners_sensor_frame
+        
+    def get_static_points_mask(self, static_config_values: List[int]) -> Optional[np.ndarray]:
+        """
+        Returns a boolean mask indicating static points in this DepthImage.
+        Uses a cache to avoid recomputing the mask if labels and config haven't changed.
+        """
+        if self.mdet_labels_for_points is None:
+            # This case should ideally be prevented by is_prepared_for_projection() checks
+            # before calling functions that need this mask.
+            logger.warning(f"Attempted to get static_points_mask for DI TS={self.timestamp} but mdet_labels_for_points is None.")
+            return None 
+
+        # Check if cache is valid
+        if self.static_points_mask is not None and \
+           self._static_labels_used_for_cache == static_config_values:
+            return self.static_points_mask # Cache hit
+        
+        # Cache miss or config changed: Recompute
+        # logger.debug(f"Recomputing static_points_mask for DI TS={self.timestamp}") # Optional: for debugging cache behavior
+        self.static_points_mask = np.isin(self.mdet_labels_for_points, static_config_values)
+        self._static_labels_used_for_cache = static_config_values # Store the config used for this cache
+        return self.static_points_mask
 
 ############################
 FILE: src/core/m_detector/event_tests.py
@@ -802,141 +843,194 @@ logger_et = logging.getLogger(__name__) # Logger for this module
 
 def execute_test2_parallel_motion(
     mdetector_instance: 'MDetector',
-    point_global_P: np.ndarray,
-    current_di_timestamp: float, # Timestamp of the DI containing point_global_P
-    current_di_idx_in_lib: int,
+    point_global_P: np.ndarray,          # The initial point from current_di being evaluated for Test 2
+    current_di_of_P: 'DepthImage',       # The DI from which point_global_P originates
+    original_pt_idx_of_P_in_current_di: int, # Index of point_global_P in current_di_of_P
+    current_di_timestamp: float,         # Timestamp of current_di_of_P
+    current_di_idx_in_lib: int,          # Library index of current_di_of_P
     return_debug_info: bool = False
 ) -> Any: # Returns bool or Tuple[bool, List[Dict[str, Any]]]
     """
     Implements Test 2 (Parallel Motion / Event by Disappearance).
     P is occluded by P1 (in H1), P1 by P2 (in H2), ..., P(M2-1) by PM2 (in HM2).
     MCC is on P1, P2, ..., PM2 (the occluders in historical frames).
+    Adaptive epsilon is used for the detailed occlusion check.
     """
-    # Ensure logger level is set to DEBUG in the notebook if you want to see these logs
-    logger_et.debug(f"Executing Test 2 for P: {point_global_P.tolist()} from DI @ ts {current_di_timestamp:.2f} (lib_idx {current_di_idx_in_lib})")
+    if logger_et.isEnabledFor(logging.DEBUG):
+        logger_et.debug(f"Executing Test 2 for P idx {original_pt_idx_of_P_in_current_di} ({point_global_P.tolist()}) "
+                        f"from DI @ ts {current_di_timestamp:.2f} (lib_idx {current_di_idx_in_lib})")
     
-    debug_steps = []
+    # --- Initialize Final Debug Info ---
+    test2_final_debug_info: Dict[str, Any] = {
+        "point_global_P_initial": point_global_P.tolist(),
+        "original_pt_idx_of_P": original_pt_idx_of_P_in_current_di,
+        "current_timestamp_of_P": current_di_timestamp,
+        "current_di_idx_in_lib_of_P": current_di_idx_in_lib,
+        "test_passed": False, 
+        "reason_for_fail_or_pass": "Test did not meet all conditions.", 
+        "num_historical_DIs_M2": mdetector_instance.test2_M2_depth_images,
+        "steps_debug": [] 
+    }
+    debug_steps_list = test2_final_debug_info["steps_debug"]
+
     if mdetector_instance.test2_M2_depth_images <= 0:
-        if return_debug_info:
-            return False, [{"step": 0, "status": "Test disabled (M2 <= 0)", "details": "N/A"}]
+        test2_final_debug_info["reason_for_fail_or_pass"] = "Test disabled (M2 <= 0)"
+        debug_steps_list.append({"step": 0, "status": "Test disabled (M2 <= 0)", "details": "N/A"})
+        if return_debug_info: return False, test2_final_debug_info
         return False
 
-    # This point is the one that needs to be occluded in the current step of the chain
+    # --- Initialize variables for the chain ---
+    # point_to_be_occluded_in_step: The point that needs to be occluded in the current step of the chain.
+    # Starts as the initial point_global_P.
     point_to_be_occluded_in_step = point_global_P
-    # Timestamp of the DI from which point_to_be_occluded_in_step originated
-    timestamp_of_origin_di_for_point_to_be_occluded = current_di_timestamp
+    
+    # d_anchor_for_pto: The depth of point_to_be_occluded_in_step in its *originating* DI's sensor frame.
+    d_anchor_for_pto: Optional[float] = None
+    if current_di_of_P.local_sph_coords_for_points is not None and \
+       original_pt_idx_of_P_in_current_di < current_di_of_P.local_sph_coords_for_points.shape[0]:
+        d_anchor_for_pto = current_di_of_P.local_sph_coords_for_points[original_pt_idx_of_P_in_current_di, 2]
+    
+    # timestamp_of_origin_di_for_pto: Timestamp of the DI from which point_to_be_occluded_in_step originated.
+    timestamp_of_origin_di_for_pto = current_di_timestamp
+    
+    # original_idx_of_pto_in_origin_di: Original index of point_to_be_occluded_in_step in its originating DI.
+    # This is used for detailed tracing if the point being evaluated is the initial P.
+    original_idx_of_pto_in_origin_di = original_pt_idx_of_P_in_current_di
+
+    test2_final_debug_info["initial_d_anchor_of_P"] = d_anchor_for_pto
 
     for k_step in range(mdetector_instance.test2_M2_depth_images): # k_step from 0 to M2-1
         step_debug_info: Dict[str, Any] = {
             "step": k_step,
             "point_to_be_occluded_global": point_to_be_occluded_in_step.tolist(),
-            "origin_di_timestamp_of_pto": timestamp_of_origin_di_for_point_to_be_occluded,
+            "d_anchor_of_pto": d_anchor_for_pto,
+            "origin_di_timestamp_of_pto": timestamp_of_origin_di_for_pto,
             "status": "pending",
             "historical_di_checked_idx_in_lib": None,
             "historical_di_checked_timestamp": None,
             "projection_in_hist_successful": False,
-            "occlusion_check_details": []
+            "occlusion_check_details": [] # List to store details for each candidate in the pixel
         }
 
-        # Determine the historical DI to check against.
-        
         historical_di_to_check_idx_in_lib = current_di_idx_in_lib - 1 - k_step
         step_debug_info["historical_di_checked_idx_in_lib"] = historical_di_to_check_idx_in_lib
 
         if historical_di_to_check_idx_in_lib < 0:
             step_debug_info["status"] = f"Failed: Not enough historical DIs (needed idx {historical_di_to_check_idx_in_lib})."
-            debug_steps.append(step_debug_info)
-            if return_debug_info: return False, debug_steps
+            test2_final_debug_info["reason_for_fail_or_pass"] = step_debug_info["status"]
+            debug_steps_list.append(step_debug_info)
+            if return_debug_info: return False, test2_final_debug_info
             return False
         
         historical_di_k = mdetector_instance.depth_image_library.get_image_by_index(historical_di_to_check_idx_in_lib)
         if not historical_di_k or not historical_di_k.is_prepared_for_projection():
-            ts_val = historical_di_k.timestamp if historical_di_k else "N/A"
-            step_debug_info["historical_di_checked_timestamp"] = ts_val
-            step_debug_info["status"] = f"Failed: Historical DI {historical_di_to_check_idx_in_lib} (TS: {ts_val}) not found or not prepared."
-            debug_steps.append(step_debug_info)
-            if return_debug_info: return False, debug_steps
+            ts_val_str = str(historical_di_k.timestamp) if historical_di_k and hasattr(historical_di_k, 'timestamp') else "N/A"
+            step_debug_info["historical_di_checked_timestamp"] = ts_val_str
+            step_debug_info["status"] = f"Failed: Historical DI {historical_di_to_check_idx_in_lib} (TS: {ts_val_str}) not found or not prepared."
+            test2_final_debug_info["reason_for_fail_or_pass"] = step_debug_info["status"]
+            debug_steps_list.append(step_debug_info)
+            if return_debug_info: return False, test2_final_debug_info
             return False
         step_debug_info["historical_di_checked_timestamp"] = historical_di_k.timestamp
 
-        _, _, px_indices_in_hist_k = historical_di_k.project_point_to_pixel_indices(point_to_be_occluded_in_step)
-        if px_indices_in_hist_k is None:
+        # Project point_to_be_occluded_in_step into historical_di_k
+        _, _, px_indices_pto_in_hist_k = historical_di_k.project_point_to_pixel_indices(point_to_be_occluded_in_step)
+        if px_indices_pto_in_hist_k is None:
             step_debug_info["status"] = f"Failed: Point to be occluded did not project into historical DI {historical_di_to_check_idx_in_lib}."
-            debug_steps.append(step_debug_info)
-            if return_debug_info: return False, debug_steps
+            test2_final_debug_info["reason_for_fail_or_pass"] = step_debug_info["status"]
+            debug_steps_list.append(step_debug_info)
+            if return_debug_info: return False, test2_final_debug_info
             return False
         step_debug_info["projection_in_hist_successful"] = True
-        step_debug_info["projected_pixel_in_hist"] = list(px_indices_in_hist_k)
+        step_debug_info["projected_pixel_of_pto_in_hist"] = list(px_indices_pto_in_hist_k)
 
-        v_proj, h_proj = px_indices_in_hist_k
+        v_proj, h_proj = px_indices_pto_in_hist_k
         found_valid_occluder_for_this_step = False
-        next_point_for_chain = None # This will be the occluder from historical_di_k
+        next_point_for_chain_global: Optional[np.ndarray] = None 
+        d_anchor_for_next_pto_step: Optional[float] = None
+        timestamp_of_origin_di_for_next_pto: Optional[float] = None
+        original_idx_of_next_pto_in_origin_di: Optional[int] = None
 
-        # Simplified neighborhood: just the projected pixel. Expand if needed.
+
         pixel_info_hist_k = historical_di_k.get_pixel_info(v_proj, h_proj)
         if pixel_info_hist_k and pixel_info_hist_k.get('original_indices_in_pixel'):
             step_debug_info["num_candidates_in_projected_pixel"] = len(pixel_info_hist_k['original_indices_in_pixel'])
+            
             for original_idx_hist_cand in pixel_info_hist_k['original_indices_in_pixel']:
-                occlusion_cand_debug: Dict[str, Any] = {"hist_candidate_original_idx": original_idx_hist_cand}
+                occlusion_cand_debug: Dict[str, Any] = {
+                    "hist_candidate_original_idx": original_idx_hist_cand,
+                    "detailed_occlusion_check_inputs": {
+                        "d_anchor_of_point_eval": d_anchor_for_pto, # Use current d_anchor of PTO
+                        "origin_di_of_point_eval_ts": timestamp_of_origin_di_for_pto
+                    },
+                    "detailed_occlusion_check_results": {} # To be filled by the call
+                }
+
                 if original_idx_hist_cand >= len(historical_di_k.original_points_global_coords):
-                    occlusion_cand_debug["error"] = "Index out of bounds"
+                    occlusion_cand_debug["error"] = "Index out of bounds for hist_candidate"
                     step_debug_info["occlusion_check_details"].append(occlusion_cand_debug)
                     continue
                 
                 point_hist_cand_global = historical_di_k.original_points_global_coords[original_idx_hist_cand]
                 occlusion_cand_debug["hist_candidate_global"] = point_hist_cand_global.tolist()
 
-                is_occluded_by_cand = mdetector_instance.check_occlusion_point_level_detailed(
+                # Determine if point_to_be_occluded_in_step is being traced for detailed check debug
+                pt_idx_for_tracing_detailed_check = None
+                if mdetector_instance.debug_collector and \
+                   timestamp_of_origin_di_for_pto == current_di_timestamp: # Only trace if PTO is the original P
+                    if mdetector_instance.debug_collector.is_tracing(original_idx_of_pto_in_origin_di):
+                        pt_idx_for_tracing_detailed_check = original_idx_of_pto_in_origin_di
+
+                is_pto_occluded_by_hist_cand = mdetector_instance.check_occlusion_point_level_detailed(
                     point_eval_global=point_to_be_occluded_in_step,
+                    d_anchor_of_point_eval=d_anchor_for_pto,
+                    origin_di_of_point_eval_ts=timestamp_of_origin_di_for_pto,
                     point_hist_cand_global=point_hist_cand_global,
                     historical_di=historical_di_k,
-                    occlusion_type_to_check="OCCLUDED_BY"
+                    occlusion_type_to_check="OCCLUDED_BY",
+                    pt_idx_eval_if_tracing=pt_idx_for_tracing_detailed_check,
+                    debug_dict_for_caller=occlusion_cand_debug["detailed_occlusion_check_results"]
                 )
-                occlusion_cand_debug["detailed_occlusion_result"] = is_occluded_by_cand
+                occlusion_cand_debug["is_pto_occluded_by_hist_cand"] = is_pto_occluded_by_hist_cand
 
                 mcc_rejects_this_occluder = False
-                if is_occluded_by_cand: # If P is occluded by H_cand
+                if is_pto_occluded_by_hist_cand: 
                     occlusion_cand_debug["mcc_applied_on_point"] = "historical_candidate_occluder"
                     occlusion_cand_debug["mcc_point_coords"] = point_hist_cand_global.tolist()
-                    occlusion_cand_debug["mcc_timestamp"] = historical_di_k.timestamp # Timestamp of the DI where hist_cand lives
+                    occlusion_cand_debug["mcc_timestamp"] = historical_di_k.timestamp
                     
                     if mdetector_instance.map_consistency_enabled:
-                        # MCC on the occluder (point_hist_cand_global). 
-                        # If it's static, this link is invalid for Test 2.
-                        
-                        # Determine if we need to request debug info from is_map_consistent
-                        request_mcc_debug = False
-                        if return_debug_info: # Check if the outer function wants debug info
-                            request_mcc_debug = True 
-                            # Could also be more specific, e.g., if a specific pt_idx is being traced
-                            # For now, if execute_test2 is in debug mode, get MCC debug too.
-
+                        request_mcc_debug = return_debug_info # Simplified: if outer wants debug, get MCC debug
                         mcc_result_package_test2 = mdetector_instance.is_map_consistent(
-                            point_hist_cand_global,           # point_global
-                            historical_di_k,                  # origin_di_of_point_global
-                            original_idx_hist_cand,           # original_idx_of_point_global_in_origin_di
-                            historical_di_k.timestamp,        # current_timestamp (of origin_di)
-                            check_direction='past',
+                            point_hist_cand_global, historical_di_k, original_idx_hist_cand,
+                            historical_di_k.timestamp, check_direction='past',
                             return_debug_info=request_mcc_debug
                         )
-
                         mcc_is_consistent_bool: bool
                         if request_mcc_debug:
                             mcc_is_consistent_bool, mcc_t2_link_debug_data = mcc_result_package_test2
-                            # Store this nested debug info if needed
                             occlusion_cand_debug["mcc_on_hist_cand_full_debug"] = mcc_t2_link_debug_data
                         else:
                             mcc_is_consistent_bool = mcc_result_package_test2
-                        
-                        if mcc_is_consistent_bool: # If point_hist_cand_global IS map consistent (static)
-                            mcc_rejects_this_occluder = True
+                        if mcc_is_consistent_bool: mcc_rejects_this_occluder = True
                             
-                    occlusion_cand_debug["mcc_result_is_consistent_with_map"] = mcc_rejects_this_occluder # True if static
+                    occlusion_cand_debug["mcc_result_is_consistent_with_map"] = mcc_rejects_this_occluder
                     occlusion_cand_debug["mcc_rejects_this_link"] = mcc_rejects_this_occluder
                 
-                if is_occluded_by_cand and not mcc_rejects_this_occluder:
+                if is_pto_occluded_by_hist_cand and not mcc_rejects_this_occluder:
                     found_valid_occluder_for_this_step = True
-                    next_point_for_chain = point_hist_cand_global
+                    next_point_for_chain_global = point_hist_cand_global
+                    
+                    # Prepare d_anchor and origin info for the next step's PTO
+                    if historical_di_k.local_sph_coords_for_points is not None and \
+                       original_idx_hist_cand < historical_di_k.local_sph_coords_for_points.shape[0]:
+                        d_anchor_for_next_pto_step = historical_di_k.local_sph_coords_for_points[original_idx_hist_cand, 2]
+                    else:
+                        d_anchor_for_next_pto_step = None 
+                        logger_et.warning(f"Test2: Could not get d_anchor for next link: hist_cand_idx {original_idx_hist_cand} in DI TS {historical_di_k.timestamp}")
+                    timestamp_of_origin_di_for_next_pto = historical_di_k.timestamp
+                    original_idx_of_next_pto_in_origin_di = original_idx_hist_cand
+
                     occlusion_cand_debug["forms_next_link_in_chain"] = True
                     step_debug_info["occlusion_check_details"].append(occlusion_cand_debug)
                     break # Found a valid occluder for this step
@@ -944,26 +1038,34 @@ def execute_test2_parallel_motion(
                     occlusion_cand_debug["forms_next_link_in_chain"] = False
                 step_debug_info["occlusion_check_details"].append(occlusion_cand_debug)
             
-            if found_valid_occluder_for_this_step:
-                point_to_be_occluded_in_step = next_point_for_chain # This occluder becomes the point to be occluded in the next step
-                timestamp_of_origin_di_for_point_to_be_occluded = historical_di_k.timestamp
+            if found_valid_occluder_for_this_step and next_point_for_chain_global is not None:
+                point_to_be_occluded_in_step = next_point_for_chain_global
+                d_anchor_for_pto = d_anchor_for_next_pto_step
+                timestamp_of_origin_di_for_pto = timestamp_of_origin_di_for_next_pto
+                original_idx_of_pto_in_origin_di = original_idx_of_next_pto_in_origin_di # type: ignore
+                
                 step_debug_info["status"] = "Success: Valid occluder found, chain continues."
-                step_debug_info["selected_occluder_for_next_step"] = next_point_for_chain.tolist()
+                step_debug_info["selected_occluder_for_next_step"] = next_point_for_chain_global.tolist()
+                step_debug_info["d_anchor_for_next_pto_step"] = d_anchor_for_pto # Log the d_anchor that will be used
             else:
                 step_debug_info["status"] = "Failed: No valid (non-MCC-rejected) occluder found in historical DI pixel."
-                debug_steps.append(step_debug_info)
-                if return_debug_info: return False, debug_steps
+                test2_final_debug_info["reason_for_fail_or_pass"] = step_debug_info["status"]
+                debug_steps_list.append(step_debug_info)
+                if return_debug_info: return False, test2_final_debug_info
                 return False
         else: # No points in projected pixel of historical_di_k
             step_debug_info["num_candidates_in_projected_pixel"] = 0
-            step_debug_info["status"] = "Failed: Projected pixel in historical DI is empty."
-            debug_steps.append(step_debug_info)
-            if return_debug_info: return False, debug_steps
+            step_debug_info["status"] = "Failed: Projected pixel (of PTO) in historical DI is empty."
+            test2_final_debug_info["reason_for_fail_or_pass"] = step_debug_info["status"]
+            debug_steps_list.append(step_debug_info)
+            if return_debug_info: return False, test2_final_debug_info
             return False
-        debug_steps.append(step_debug_info)
+        debug_steps_list.append(step_debug_info)
 
     # If loop completes, all M2 steps were successful
-    if return_debug_info: return True, debug_steps
+    test2_final_debug_info["test_passed"] = True
+    test2_final_debug_info["reason_for_fail_or_pass"] = "All Test 2 chain conditions met."
+    if return_debug_info: return True, test2_final_debug_info
     return True
 
 def execute_test3_perpendicular_motion(
@@ -982,8 +1084,9 @@ def execute_test3_perpendicular_motion(
     Initial MCC is on point_global_P.
     This version adds more debug info to help analyze adaptive epsilon post-hoc.
     """
-    logger_et.debug(f"Executing Test 3 for P idx {original_pt_idx_of_P_in_current_di} ({point_global_P.tolist()}) "
-                    f"from DI @ ts {current_di_timestamp:.0f} (lib_idx {current_di_idx_in_lib})")
+    if logger_et.isEnabledFor(logging.DEBUG):
+        logger_et.debug(f"Executing Test 3 for P idx {original_pt_idx_of_P_in_current_di} ({point_global_P.tolist()}) "
+                        f"from DI @ ts {current_di_timestamp:.0f} (lib_idx {current_di_idx_in_lib})")
 
     # --- Initialize Final Debug Info ---
     test3_final_debug_info: Dict[str, Any] = {
@@ -1103,9 +1206,13 @@ def execute_test3_perpendicular_motion(
                     occlusion_cand_debug["depth_hist_cand_native_to_hist_frame"] = depth_hist_cand_native_to_hist
                     
                     current_test3_epsilon = calculate_adaptive_epsilon(
-                        d_anchor_for_current_occluder_point, # d_anchor of the point *doing the occluding*
+                        d_anchor_for_current_occluder_point,
                         mdetector_instance.epsilon_depth_occlusion, # di_base
-                        mdetector_instance.adaptive_eps_config_occ_depth # The config for general occlusion
+                        mdetector_instance.adaptive_eps_config_occ_depth.get('enabled'),
+                        mdetector_instance.adaptive_eps_config_occ_depth.get('dthr'),
+                        mdetector_instance.adaptive_eps_config_occ_depth.get('kthr'),
+                        mdetector_instance.adaptive_eps_config_occ_depth.get('dmax'),
+                        mdetector_instance.adaptive_eps_config_occ_depth.get('dmin')
                     )
                     occlusion_cand_debug["epsilon_used_for_check"] = current_test3_epsilon # Log it
                     occlusion_cand_debug["d_anchor_for_this_check"] = d_anchor_for_current_occluder_point
@@ -1164,65 +1271,98 @@ def execute_test3_perpendicular_motion(
 FILE: src/core/m_detector/adaptive_epsilon_utils.py
 ############################
 
-# src/core/m_detector/adaptive_epsilon_utils.py (NEW FILE)
+# src/core/m_detector/adaptive_epsilon_utils.py
 import numpy as np
 from typing import Optional, Dict, Any
+import numba 
 
+# def calculate_adaptive_epsilon(
+#     d_anchor: Optional[float],        # Depth of the point for which epsilon is being adapted, in its own sensor frame
+#     di_base: float,                   # The base epsilon value from the config (e.g., 0.5m)
+#     adaptive_config: Dict[str, Any]   # The specific adaptive config block for this epsilon
+# ) -> float:
+#     """
+#     Calculates an adaptive epsilon based on the anchor depth and a config dictionary.
+
+#     Args:
+#         d_anchor: Depth of the anchor point. If None or invalid, di_base is returned.
+#         di_base: The base epsilon value (e.g., from config's epsilon_depth).
+#         adaptive_config: Dictionary containing 'enabled', 'dthr', 'kthr', 'dmax', 'dmin'.
+
+#     Returns:
+#         The calculated adaptive epsilon, or di_base if adaptation is disabled or d_anchor is invalid.
+#     """
+#     if not adaptive_config.get('enabled', False) or d_anchor is None or d_anchor < 0:
+#         return di_base
+
+#     # Get parameters from the specific config, with fallbacks to common defaults if not present
+#     dthr = adaptive_config.get('dthr', 30.0)
+#     kthr = adaptive_config.get('kthr', 0.05)
+#     # Ensure dmax and dmin are sensible relative to di_base if not perfectly configured
+#     dmax_default = max(di_base * 4, di_base + 1.0) # Ensure dmax is at least di_base + 1 (or 4x)
+#     dmax = adaptive_config.get('dmax', dmax_default)
+    
+#     dmin_default = min(di_base * 0.2, max(0.01, di_base - 0.5)) # Ensure dmin is small but positive
+#     dmin = adaptive_config.get('dmin', dmin_default)
+
+
+#     # Core adaptive formula: di_base + kthr * (d_anchor - dthr)
+#     # This formula allows kthr to be negative for decreasing epsilon.
+    
+#     adjustment = 0.0
+#     if d_anchor > dthr:
+#         adjustment = kthr * (d_anchor - dthr)
+#     # If kthr is positive, and d_anchor <= dthr, adjustment is 0 (or negative if max(0,...) wasn't used, but we want it to only increase if d_anchor > dthr)
+#     # If kthr is negative, and d_anchor <= dthr, adjustment is 0 (we only want it to decrease if d_anchor > dthr)
+    
+#     # Refined logic based on kthr sign for clarity
+#     if kthr >= 0: # Epsilon increases (or stays same) for d_anchor > dthr
+#         if d_anchor > dthr:
+#             calculated_epsilon = di_base + adjustment
+#         else:
+#             calculated_epsilon = di_base
+#     else: # kthr < 0, Epsilon decreases for d_anchor > dthr
+#         if d_anchor > dthr:
+#             calculated_epsilon = di_base + adjustment # adjustment is negative here
+#         else:
+#             calculated_epsilon = di_base # No decrease if not beyond dthr
+
+#     # Apply min/max caps
+#     final_epsilon = np.clip(calculated_epsilon, dmin, dmax)
+    
+#     return float(final_epsilon)
+
+@numba.jit(nopython=True, fastmath=True)
 def calculate_adaptive_epsilon(
-    d_anchor: Optional[float],        # Depth of the point for which epsilon is being adapted, in its own sensor frame
-    di_base: float,                   # The base epsilon value from the config (e.g., 0.5m)
-    adaptive_config: Dict[str, Any]   # The specific adaptive config block for this epsilon
+    d_anchor: Optional[float],
+    di_base: float,
+    enabled: bool,
+    dthr: float,
+    kthr: float,
+    dmax: float,
+    dmin: float
 ) -> float:
-    """
-    Calculates an adaptive epsilon based on the anchor depth and a config dictionary.
-
-    Args:
-        d_anchor: Depth of the anchor point. If None or invalid, di_base is returned.
-        di_base: The base epsilon value (e.g., from config's epsilon_depth).
-        adaptive_config: Dictionary containing 'enabled', 'dthr', 'kthr', 'dmax', 'dmin'.
-
-    Returns:
-        The calculated adaptive epsilon, or di_base if adaptation is disabled or d_anchor is invalid.
-    """
-    if not adaptive_config.get('enabled', False) or d_anchor is None or d_anchor < 0:
+    if not enabled: # Simplified d_anchor check for Numba
+        return di_base
+    if d_anchor is None: # Check for None explicitly
+        return di_base
+    if d_anchor < 0:
         return di_base
 
-    # Get parameters from the specific config, with fallbacks to common defaults if not present
-    dthr = adaptive_config.get('dthr', 30.0)
-    kthr = adaptive_config.get('kthr', 0.05)
-    # Ensure dmax and dmin are sensible relative to di_base if not perfectly configured
-    dmax_default = max(di_base * 4, di_base + 1.0) # Ensure dmax is at least di_base + 1 (or 4x)
-    dmax = adaptive_config.get('dmax', dmax_default)
-    
-    dmin_default = min(di_base * 0.2, max(0.01, di_base - 0.5)) # Ensure dmin is small but positive
-    dmin = adaptive_config.get('dmin', dmin_default)
-
-
-    # Core adaptive formula: di_base + kthr * (d_anchor - dthr)
-    # This formula allows kthr to be negative for decreasing epsilon.
-    
-    adjustment = 0.0
+    calculated_epsilon = di_base
     if d_anchor > dthr:
         adjustment = kthr * (d_anchor - dthr)
-    # If kthr is positive, and d_anchor <= dthr, adjustment is 0 (or negative if max(0,...) wasn't used, but we want it to only increase if d_anchor > dthr)
-    # If kthr is negative, and d_anchor <= dthr, adjustment is 0 (we only want it to decrease if d_anchor > dthr)
-    
-    # Refined logic based on kthr sign for clarity
-    if kthr >= 0: # Epsilon increases (or stays same) for d_anchor > dthr
-        if d_anchor > dthr:
-            calculated_epsilon = di_base + adjustment
-        else:
-            calculated_epsilon = di_base
-    else: # kthr < 0, Epsilon decreases for d_anchor > dthr
-        if d_anchor > dthr:
-            calculated_epsilon = di_base + adjustment # adjustment is negative here
-        else:
-            calculated_epsilon = di_base # No decrease if not beyond dthr
+        calculated_epsilon = di_base + adjustment
 
-    # Apply min/max caps
-    final_epsilon = np.clip(calculated_epsilon, dmin, dmax)
-    
-    return float(final_epsilon)
+    # Clip result
+    if calculated_epsilon < dmin:
+        final_epsilon = dmin
+    elif calculated_epsilon > dmax:
+        final_epsilon = dmax
+    else:
+        final_epsilon = calculated_epsilon
+
+    return float(final_epsilon) # Ensure it returns a standard Python float if needed outside Numba
 
 ############################
 FILE: src/core/m_detector/base.py
@@ -1289,7 +1429,7 @@ class MDetector:
     
     def reset_scene_state(self):
         """Resets internal state for processing a new scene."""
-        self.logger.critical(f"!!!!!! MDetector.reset_scene_state CALLED. Library will be cleared. Current lib size: {len(self.depth_image_library._images)} !!!!!!") # Use CRITICAL to make it stand out
+        self.logger.info(f"MDetector.reset_scene_state CALLED. Library will be cleared. Current lib size: {len(self.depth_image_library._images)}") 
         self.depth_image_library.clear()
         self.timestamp_of_last_processed_di = None
         self.current_lidar_sd_token = None
@@ -1350,11 +1490,13 @@ class MDetector:
                 self.static_labels_for_map_check.append(enum_member)
             except KeyError:
                 self.logger.warning(f"Unknown label '{label_str}' in 'static_labels_for_map_check' config. Skipping.")
-        self.logger.debug(f"Parsed static_labels_for_map_check (enum members): {self.static_labels_for_map_check}")
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f"Parsed static_labels_for_map_check (enum members): {self.static_labels_for_map_check}")
 
         # Then, create a list of *values* for quick lookup, also in __init__ or _load_map_consistency_config
         self.static_labels_for_map_check_values = [label.value for label in self.static_labels_for_map_check]
-        self.logger.debug(f"Parsed static_labels_for_map_check_values (integer enum values): {self.static_labels_for_map_check_values}")
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f"Parsed static_labels_for_map_check_values (integer enum values): {self.static_labels_for_map_check_values}")
 
     def _load_event_tests_config(self):
         test2_params = self.config_accessor.get_test2_parallel_away_params()
@@ -1437,7 +1579,8 @@ class MDetector:
         preliminary_labels = np.full(num_filtered_points, OcclusionResult.UNDETERMINED.value, dtype=np.int8)
 
         for pre_labeler_name, pre_labeler_func, _ in ACTIVE_PRE_LABELERS: # Use _ for default params for now
-            self.logger.debug(f"Applying pre-labeler: {pre_labeler_name}")
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(f"Applying pre-labeler: {pre_labeler_name}")
             # Get specific params for this pre-labeler if configured
             specific_params = self.pre_labeler_params.get(pre_labeler_name, None)
             
@@ -1524,8 +1667,8 @@ class MDetector:
         # Check if this latest DI is newer than the last processed one
         if self.timestamp_of_last_processed_di is None or \
         target_di_candidate.timestamp > self.timestamp_of_last_processed_di:
-            
-            self.logger.debug(f"Processing CAUSAL DI lib_idx: {target_idx_in_deque} (TS: {target_di_candidate.timestamp}), lib_len: {library_len}, last_proc_TS: {self.timestamp_of_last_processed_di}")
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(f"Processing CAUSAL DI lib_idx: {target_idx_in_deque} (TS: {target_di_candidate.timestamp}), lib_len: {library_len}, last_proc_TS: {self.timestamp_of_last_processed_di}")
             self.timestamp_of_last_processed_di = target_di_candidate.timestamp # Update with current DI's timestamp
             return self._process_causal_di_wrapper(target_idx_in_deque)
         else:
@@ -1560,6 +1703,7 @@ from typing import Dict, Optional, Any
 from ..depth_image import DepthImage
 from ..constants import OcclusionResult
 from tqdm import tqdm
+import logging
 
 def extract_mdetector_points(depth_image_output_from_mdetector: Optional[Any]) -> Dict[str, np.ndarray]:
     """
@@ -1607,7 +1751,8 @@ def process_and_label_di(self, # self is MDetector instance
 
     if current_di.original_points_global_coords is None or \
        current_di.original_points_global_coords.shape[0] == 0:
-        self.logger.debug(f"ProcessDI: current_di (TS: {current_di.timestamp}) has no points.")
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f"ProcessDI: current_di (TS: {current_di.timestamp}) has no points.")
         # Convert enum keys to values for the return dict if that's the expected format
         label_counts_val_keys = {k.value: v for k,v in label_counts_enum_keys.items()}
         return {'points_labeled': 0, 'label_counts': label_counts_val_keys, 'success': True,
@@ -1723,17 +1868,27 @@ def process_and_label_di(self, # self is MDetector instance
             final_outcome_tests1_and_4 = outcome_test1_mcc
         
         # --- Test 2 (Parallel Motion) ---
-        test2_passed = self.execute_test2_parallel_motion(
-            point_global_P, current_di.timestamp, current_di_idx_in_lib,
-            return_debug_info=is_tracing_this_point # Pass tracing flag
+        # UPDATED CALL to execute_test2_parallel_motion
+        test2_passed_package = self.execute_test2_parallel_motion(
+            point_global_P,
+            current_di,  # Pass current_di as origin of P
+            pt_idx,      # Pass original index of P in current_di
+            current_di.timestamp,
+            current_di_idx_in_lib,
+            return_debug_info=is_tracing_this_point
         )
+        
+        test2_passed: bool
         outcome_test2 = OcclusionResult.UNDETERMINED
         if is_tracing_this_point:
-            if isinstance(test2_passed, tuple): # Means (bool, debug_dict) was returned
-                test2_bool_result, test2_full_debug = test2_passed
+            if isinstance(test2_passed_package, tuple):
+                test2_passed, test2_full_debug = test2_passed_package
                 current_trace_info["Test2_full_debug"] = test2_full_debug
-                test2_passed = test2_bool_result # Get the boolean part
-            # current_trace_info["Test2_passed"] is added later
+            else: # Should not happen if return_debug_info is True, but handle defensively
+                test2_passed = test2_passed_package 
+        else:
+            test2_passed = test2_passed_package
+
         if test2_passed: outcome_test2 = OcclusionResult.OCCLUDING_IMAGE
 
 
@@ -2148,8 +2303,8 @@ def is_map_consistent(self, # self is MDetector instance
     consistent_matches_across_dis = 0
     num_dis_actually_checked = 0
     total_dis_where_projection_valid = 0
-
-    logger.debug(f"MCC_TRACE: Checking point_global {np.round(point_global[:3],3).tolist()} against {len(relevant_dis)} DIs.")
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"MCC_TRACE: Checking point_global {np.round(point_global[:3],3).tolist()} against {len(relevant_dis)} DIs.")
 
     for di_original_idx_in_deque, di_hist_future in relevant_dis:
         di_debug_details: Dict[str, Any] = {}
@@ -2185,8 +2340,8 @@ def is_map_consistent(self, # self is MDetector instance
             di_debug_details['projection_successful'] = True
             di_debug_details['target_sph_coords_in_di'] = sph_coords_target.tolist()
             di_debug_details['target_pixel_indices_in_di'] = list(pixel_indices_target)
-        
-        logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: P_target projected to sph {np.round(sph_coords_target,3)}, pixel {pixel_indices_target}")
+        if self.logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: P_target projected to sph {np.round(sph_coords_target,3)}, pixel {pixel_indices_target}")
         
         phi_target_in_hist_di, theta_target_in_hist_di, depth_target_in_hist_di = sph_coords_target
         found_consistent_static_point_in_this_di = False
@@ -2201,8 +2356,8 @@ def is_map_consistent(self, # self is MDetector instance
             
             interpolation_was_attempted_for_this_di = True
             if return_debug_info: di_debug_details['attempted_interpolation'] = True
-            
-            logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Attempting interpolation (d_proj={depth_target_in_hist_di:.2f}m).")
+            if self.logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Attempting interpolation (d_proj={depth_target_in_hist_di:.2f}m).")
             interpolated_surface_depth = interpolate_surface_depth_at_angle(
                 target_phi_rad=phi_target_in_hist_di,
                 target_theta_rad=theta_target_in_hist_di,
@@ -2220,12 +2375,22 @@ def is_map_consistent(self, # self is MDetector instance
                 current_epsilon_fwd_interp = calculate_adaptive_epsilon(
                     d_anchor_point_global,
                     self.epsilon_depth_forward_map, # di_base
-                    self.adaptive_eps_config_mc_fwd
+                    self.adaptive_eps_config_mc_fwd.get('enabled'),
+                    self.adaptive_eps_config_mc_fwd.get('dthr'),
+                    self.adaptive_eps_config_mc_fwd.get('kthr'),
+                    self.adaptive_eps_config_mc_fwd.get('dmax'),
+                    self.adaptive_eps_config_mc_fwd.get('dmin')
                 )
+
+                adaptive_config_bwd = self.adaptive_eps_config_mc_bwd
                 current_epsilon_bwd_interp = calculate_adaptive_epsilon(
                     d_anchor_point_global,
                     self.epsilon_depth_backward_map, # di_base
-                    self.adaptive_eps_config_mc_bwd
+                    adaptive_config_bwd.get('enabled'),
+                    adaptive_config_bwd.get('dthr'), 
+                    adaptive_config_bwd.get('kthr'),
+                    adaptive_config_bwd.get('dmax'),
+                    adaptive_config_bwd.get('dmin')
                 )
                 if return_debug_info and di_debug_details.get('attempted_interpolation'):
                     di_debug_details.setdefault('interp_depth_target_vs_surface', {})
@@ -2240,13 +2405,16 @@ def is_map_consistent(self, # self is MDetector instance
                     depth_target_in_hist_di <= interpolated_surface_depth + current_epsilon_fwd_interp
                 )
                 if is_consistent_depth_wise_interp:
-                    logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Match FOUND via interpolation (interp_d={interpolated_surface_depth:.2f}, target_d={depth_target_in_hist_di:.2f}).")
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Match FOUND via interpolation (interp_d={interpolated_surface_depth:.2f}, target_d={depth_target_in_hist_di:.2f}).")
                     found_consistent_static_point_in_this_di = True
                 else:
-                    logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Interpolation successful (interp_d={interpolated_surface_depth:.2f}) but depth_target ({depth_target_in_hist_di:.2f}) NOT consistent.")
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Interpolation successful (interp_d={interpolated_surface_depth:.2f}) but depth_target ({depth_target_in_hist_di:.2f}) NOT consistent.")
             else: # interpolated_surface_depth is None
                 is_consistent_depth_wise_interp = False # Explicitly set to False if no surface
-                logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Interpolation FAILED (returned None).")
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Interpolation FAILED (returned None).")
 
             # Now, populate the debug details for interpolation if return_debug_info is True
             if return_debug_info and interpolation_was_attempted_for_this_di: # Check if interp was attempted
@@ -2291,7 +2459,8 @@ def is_map_consistent(self, # self is MDetector instance
                             'count': pixel_info['count'], 
                             'num_original_indices': len(pixel_info['original_indices_in_pixel'])
                         }
-                    logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Attempting direct comparison (pixel has {len(pixel_info['original_indices_in_pixel'])} points).")
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Attempting direct comparison (pixel has {len(pixel_info['original_indices_in_pixel'])} points).")
                     
                     for static_candidate_original_idx in pixel_info['original_indices_in_pixel']:
                         static_pt_debug_info: Dict[str, Any] = {}
@@ -2308,7 +2477,8 @@ def is_map_consistent(self, # self is MDetector instance
                         if return_debug_info: static_pt_debug_info['label_in_di'] = static_candidate_label_enum.name
 
                         if static_candidate_label_enum not in self.static_labels_for_map_check:
-                            logger.debug(f"MCC_TRACE:    StaticCand (idx {static_candidate_original_idx}, label {static_candidate_label_enum.name}) REJECTED (not static label).")
+                            if self.logger.isEnabledFor(logging.DEBUG):
+                                logger.debug(f"MCC_TRACE:    StaticCand (idx {static_candidate_original_idx}, label {static_candidate_label_enum.name}) REJECTED (not static label).")
                             if return_debug_info:
                                 static_pt_debug_info['reason_skipped_point'] = 'Not a static label.'
                                 di_debug_details['static_points_in_pixel_details'].append(static_pt_debug_info)
@@ -2331,15 +2501,24 @@ def is_map_consistent(self, # self is MDetector instance
                         theta_consistent_direct = theta_diff <= self.epsilon_theta_map_rad 
                         
                         # Calculate adaptive epsilons for direct comparison
+                        adaptive_config_fwd = self.adaptive_eps_config_mc_fwd 
                         current_epsilon_fwd_direct = calculate_adaptive_epsilon(
                             d_anchor_point_global,
-                            self.epsilon_depth_forward_map, # di_base
-                            self.adaptive_eps_config_mc_fwd
+                            self.epsilon_depth_forward_map,
+                            self.adaptive_eps_config_mc_fwd .get('enabled'),
+                            self.adaptive_eps_config_mc_fwd .get('dthr'),
+                            self.adaptive_eps_config_mc_fwd .get('kthr'),
+                            self.adaptive_eps_config_mc_fwd .get('dmax'),
+                            self.adaptive_eps_config_mc_fwd .get('dmin')
                         )
                         current_epsilon_bwd_direct = calculate_adaptive_epsilon(
                             d_anchor_point_global,
-                            self.epsilon_depth_backward_map, # di_base
-                            self.adaptive_eps_config_mc_bwd
+                            self.epsilon_depth_backward_map,
+                            self.adaptive_eps_config_mc_bwd.get('enabled'),
+                            self.adaptive_eps_config_mc_bwd.get('dthr'),
+                            self.adaptive_eps_config_mc_bwd.get('kthr'),
+                            self.adaptive_eps_config_mc_bwd.get('dmax'),
+                            self.adaptive_eps_config_mc_bwd.get('dmin')
                         )
                         if return_debug_info:
                             static_pt_debug_info['adaptive_epsilon_fwd_used'] = current_epsilon_fwd_direct
@@ -2352,11 +2531,11 @@ def is_map_consistent(self, # self is MDetector instance
                             depth_target_in_hist_di >= depth_static_cand - current_epsilon_bwd_direct and
                             depth_target_in_hist_di <= depth_static_cand + current_epsilon_fwd_direct
                         )
-
-                        logger.debug(f"MCC_TRACE:    StaticCand (idx {static_candidate_original_idx}, label {static_candidate_label_enum.name}, sph {np.round(static_sph_coords_in_di_hist_future,3)}):")
-                        logger.debug(f"MCC_TRACE:      Phi_target={phi_target_in_hist_di:.3f}, Phi_static={phi_static_cand:.3f}, Diff={phi_diff:.3f}, Eps_phi={self.epsilon_phi_map_rad:.3f}, Consistent={phi_consistent_direct}")
-                        logger.debug(f"MCC_TRACE:      Theta_target={theta_target_in_hist_di:.3f}, Theta_static={theta_static_cand:.3f}, Diff={theta_diff:.3f}, Eps_theta={self.epsilon_theta_map_rad:.3f}, Consistent={theta_consistent_direct}")
-                        logger.debug(f"MCC_TRACE:      Depth_target={depth_target_in_hist_di:.3f}, Depth_static={depth_static_cand:.3f}, Eps_fwd={self.epsilon_depth_forward_map:.3f}, Eps_back={self.epsilon_depth_backward_map:.3f}, Consistent={depth_consistent_direct}")
+                        if self.logger.isEnabledFor(logging.DEBUG):
+                            logger.debug(f"MCC_TRACE:    StaticCand (idx {static_candidate_original_idx}, label {static_candidate_label_enum.name}, sph {np.round(static_sph_coords_in_di_hist_future,3)}):")
+                            logger.debug(f"MCC_TRACE:      Phi_target={phi_target_in_hist_di:.3f}, Phi_static={phi_static_cand:.3f}, Diff={phi_diff:.3f}, Eps_phi={self.epsilon_phi_map_rad:.3f}, Consistent={phi_consistent_direct}")
+                            logger.debug(f"MCC_TRACE:      Theta_target={theta_target_in_hist_di:.3f}, Theta_static={theta_static_cand:.3f}, Diff={theta_diff:.3f}, Eps_theta={self.epsilon_theta_map_rad:.3f}, Consistent={theta_consistent_direct}")
+                            logger.debug(f"MCC_TRACE:      Depth_target={depth_target_in_hist_di:.3f}, Depth_static={depth_static_cand:.3f}, Eps_fwd={self.epsilon_depth_forward_map:.3f}, Eps_back={self.epsilon_depth_backward_map:.3f}, Consistent={depth_consistent_direct}")
 
                         if return_debug_info:
                             static_pt_debug_info.update({
@@ -2366,17 +2545,20 @@ def is_map_consistent(self, # self is MDetector instance
                             })
 
                         if phi_consistent_direct and theta_consistent_direct and depth_consistent_direct:
-                            logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Match FOUND (direct) for StaticCand idx {static_candidate_original_idx}.")
+                            if self.logger.isEnabledFor(logging.DEBUG):
+                                logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Match FOUND (direct) for StaticCand idx {static_candidate_original_idx}.")
                             found_consistent_static_point_in_this_di = True
                             if return_debug_info: static_pt_debug_info['match_found'] = True
                             if return_debug_info: di_debug_details['static_points_in_pixel_details'].append(static_pt_debug_info)
                             break 
                         else:
-                            logger.debug(f"MCC_TRACE:    NO MATCH for StaticCand idx {static_candidate_original_idx}.")
+                            if self.logger.isEnabledFor(logging.DEBUG):
+                                logger.debug(f"MCC_TRACE:    NO MATCH for StaticCand idx {static_candidate_original_idx}.")
                         
                         if return_debug_info: di_debug_details['static_points_in_pixel_details'].append(static_pt_debug_info)
                 else: 
-                    logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Direct comparison skipped (target pixel empty).")
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(f"MCC_TRACE:  DI TS {di_hist_future.timestamp:.0f}: Direct comparison skipped (target pixel empty).")
                     if return_debug_info:
                         di_debug_details['direct_comparison_pixel_had_content'] = False
                         di_debug_details['reason_skipped_direct_comp'] = 'Direct pixel empty.'
@@ -2446,13 +2628,16 @@ FILE: src/core/m_detector/occlusion_checks.py
 # This file is imported into MDetector class
 
 import numpy as np
-from typing import Tuple, Optional, List, Dict, Any
-
-from ..depth_image import DepthImage
+from typing import Tuple, Optional, List, Dict, Any, TYPE_CHECKING 
 from ..constants import OcclusionResult
+from .adaptive_epsilon_utils import calculate_adaptive_epsilon 
+from ..depth_image import DepthImage 
 
 import logging
-logger_oc = logging.getLogger(__name__) # Logger for this module
+logger_oc = logging.getLogger(__name__)
+
+if TYPE_CHECKING: # To avoid circular import issues for type hinting
+    from .base import MDetector
 
 def check_occlusion_pixel_level(self,
                                current_point_global: np.ndarray,
@@ -2586,85 +2771,123 @@ def check_occlusion_batch(self,
     return np.array([OcclusionResult(int(r)) for r in results])
 
 def check_occlusion_point_level_detailed(
-    self, # MDetector instance
-    point_eval_global: np.ndarray,      # The point whose occlusion status relative to point_hist_cand_global is being checked
-    point_hist_cand_global: np.ndarray, # A candidate point from a historical DI's neighborhood
-    historical_di: DepthImage,          # The historical DI where point_hist_cand_global originated
-    occlusion_type_to_check: str        # "OCCLUDING" (eval occludes hist_cand) or "OCCLUDED_BY" (eval occluded by hist_cand)
+    self: 'MDetector', # MDetector instance
+    point_eval_global: np.ndarray,
+    # ADDED: d_anchor for point_eval_global and its origin DI timestamp for logging
+    d_anchor_of_point_eval: Optional[float],
+    origin_di_of_point_eval_ts: Optional[float], # Timestamp of DI where point_eval originated
+    point_hist_cand_global: np.ndarray,
+    historical_di: 'DepthImage', # Type hint for historical_di
+    occlusion_type_to_check: str,
+    # ADDED: For debug trace, if point_eval_global is being traced by PointDebugCollector
+    pt_idx_eval_if_tracing: Optional[int] = None,
+    # ADDED: For debug trace, to store details if needed by the caller (like Test 2)
+    debug_dict_for_caller: Optional[Dict[str, Any]] = None
 ) -> bool:
     """
     Performs a detailed occlusion check between two specific global points,
-    considering their projection into the historical_di.
-
-    Args:
-        self (MDetector): The MDetector instance (for config params).
-        point_eval_global: Global coordinates of the point being evaluated.
-        point_hist_cand_global: Global coordinates of the historical candidate point.
-        historical_di: The DepthImage object for the historical frame.
-        occlusion_type_to_check: 
-            - "OCCLUDING": Checks if point_eval_global occludes point_hist_cand_global.
-            - "OCCLUDED_BY": Checks if point_eval_global is occluded by point_hist_cand_global.
-
-    Returns:
-        bool: True if the specified occlusion condition is met, False otherwise.
+    considering their projection into the historical_di. Uses adaptive epsilon.
     """
     if not historical_di.is_prepared_for_projection():
-        logger_oc.warning(f"DetailedCheck: Historical DI (TS {historical_di.timestamp}) not prepared for projection. Cannot perform check.")
+        logger_oc.warning(f"DetailedCheck: Historical DI (TS {historical_di.timestamp}) not prepared. Cannot check.")
+        if debug_dict_for_caller is not None:
+            debug_dict_for_caller['error'] = "Historical DI not prepared"
         return False
 
-    # 1. Project point_eval_global into historical_di to get its spherical coordinates
-    #    relative to the historical_di's sensor frame.
     _, sph_coords_eval_in_hist, px_indices_eval_in_hist = \
         historical_di.project_point_to_pixel_indices(point_eval_global)
 
     if sph_coords_eval_in_hist is None or px_indices_eval_in_hist is None:
-        # point_eval_global is outside the FoV of historical_di
-        logger_oc.debug(f"DetailedCheck: point_eval_global projects outside historical_di (TS {historical_di.timestamp}).")
+        if logger_oc.isEnabledFor(logging.DEBUG):
+            logger_oc.debug(f"DetailedCheck: point_eval_global projects outside historical_di (TS {historical_di.timestamp}).")
+        if debug_dict_for_caller is not None:
+            debug_dict_for_caller['error'] = "point_eval_global projects outside historical_di"
         return False
     
     phi_eval_in_hist, theta_eval_in_hist, d_eval_in_hist = sph_coords_eval_in_hist
 
-    # 2. Get spherical coordinates of point_hist_cand_global.
-    #    These should be pre-calculated and stored in historical_di.local_sph_coords_for_points.
-    #    We need to find the original index of point_hist_cand_global within historical_di.
-    #    This is a bit tricky if only global coords are passed.
-    #    A robust way is if point_hist_cand_global was identified by its original_index in historical_di.
-    #    For now, let's assume we can find it or we pass its original_index.
-    #    Let's modify the signature or assume point_hist_cand_global is an index.
-    #    
-    #    Alternative: Project point_hist_cand_global also into historical_di. This ensures both are in
-    #    the same spherical coordinate system relative to historical_di.
     _, sph_coords_hist_cand_in_hist, px_indices_hist_cand_in_hist = \
         historical_di.project_point_to_pixel_indices(point_hist_cand_global)
 
     if sph_coords_hist_cand_in_hist is None or px_indices_hist_cand_in_hist is None:
-        logger_oc.debug(f"DetailedCheck: point_hist_cand_global projects outside historical_di (TS {historical_di.timestamp}). Should not happen if it's from this DI.")
+        if logger_oc.isEnabledFor(logging.DEBUG):
+            logger_oc.debug(f"DetailedCheck: point_hist_cand_global projects outside historical_di (TS {historical_di.timestamp}).")
+        if debug_dict_for_caller is not None:
+            debug_dict_for_caller['error'] = "point_hist_cand_global projects outside historical_di"
         return False
         
     phi_hist_cand_in_hist, theta_hist_cand_in_hist, d_hist_cand_in_hist = sph_coords_hist_cand_in_hist
 
-    # 3. Check angular proximity
     angular_phi_match = abs(phi_eval_in_hist - phi_hist_cand_in_hist) <= self.detailed_check_angular_threshold_h_rad
     angular_theta_match = abs(theta_eval_in_hist - theta_hist_cand_in_hist) <= self.detailed_check_angular_threshold_v_rad
 
     if not (angular_phi_match and angular_theta_match):
-        logger_oc.debug(f"DetailedCheck: Angular mismatch. Eval_sph({phi_eval_in_hist:.3f},{theta_eval_in_hist:.3f}) vs "
-                        f"HistCand_sph({phi_hist_cand_in_hist:.3f},{theta_hist_cand_in_hist:.3f}).")
+        if logger_oc.isEnabledFor(logging.DEBUG):
+            logger_oc.debug(f"DetailedCheck: Angular mismatch. Eval_sph({phi_eval_in_hist:.3f},{theta_eval_in_hist:.3f}) vs "
+                            f"HistCand_sph({phi_hist_cand_in_hist:.3f},{theta_hist_cand_in_hist:.3f}).")
+        if debug_dict_for_caller is not None:
+            debug_dict_for_caller['angular_match'] = False
+            debug_dict_for_caller['phi_eval_in_hist'] = phi_eval_in_hist
+            debug_dict_for_caller['theta_eval_in_hist'] = theta_eval_in_hist
+            debug_dict_for_caller['phi_hist_cand_in_hist'] = phi_hist_cand_in_hist
+            debug_dict_for_caller['theta_hist_cand_in_hist'] = theta_hist_cand_in_hist
         return False
+    
+    if debug_dict_for_caller is not None:
+        debug_dict_for_caller['angular_match'] = True
 
-    # 4. Check depth condition based on occlusion_type_to_check
+
+    # Calculate adaptive epsilon using self.detailed_check_epsilon_depth as di_base
+    # and the general adaptive config for occlusion depth.
+    current_detailed_epsilon = calculate_adaptive_epsilon(
+        d_anchor_of_point_eval,
+        self.detailed_check_epsilon_depth, # di_base
+        self.adaptive_eps_config_occ_depth.get('enabled', False),
+        self.adaptive_eps_config_occ_depth.get('dthr'),  
+        self.adaptive_eps_config_occ_depth.get('kthr'),
+        self.adaptive_eps_config_occ_depth.get('dmax'),
+        self.adaptive_eps_config_occ_depth.get('dmin')
+    )
+
+    if logger_oc.isEnabledFor(logging.DEBUG):
+        log_msg_prefix = (f"DetailedCheck (Adaptive, {occlusion_type_to_check}): "
+                        f"EvalPt(d_anchor={d_anchor_of_point_eval if d_anchor_of_point_eval is not None else 'N/A'}m, "
+                        f"d_in_hist={d_eval_in_hist:.3f}m) vs "
+                        f"HistCand(d_in_hist={d_hist_cand_in_hist:.3f}m). "
+                        f"BaseEps={self.detailed_check_epsilon_depth:.3f}, AdapEps={current_detailed_epsilon:.3f}. ")
+
     depth_condition_met = False
-    if occlusion_type_to_check == "OCCLUDING": # point_eval occludes point_hist_cand
-        depth_condition_met = d_eval_in_hist < d_hist_cand_in_hist - self.detailed_check_epsilon_depth
-        logger_oc.debug(f"DetailedCheck (OCCLUDING): d_eval={d_eval_in_hist:.3f}, d_hist_cand={d_hist_cand_in_hist:.3f}, "
-                        f"eps={self.detailed_check_epsilon_depth:.3f}. Condition met: {depth_condition_met}")
-    elif occlusion_type_to_check == "OCCLUDED_BY": # point_eval is occluded by point_hist_cand
-        depth_condition_met = d_eval_in_hist > d_hist_cand_in_hist + self.detailed_check_epsilon_depth
-        logger_oc.debug(f"DetailedCheck (OCCLUDED_BY): d_eval={d_eval_in_hist:.3f}, d_hist_cand={d_hist_cand_in_hist:.3f}, "
-                        f"eps={self.detailed_check_epsilon_depth:.3f}. Condition met: {depth_condition_met}")
+    if occlusion_type_to_check == "OCCLUDING": 
+        depth_condition_met = d_eval_in_hist < d_hist_cand_in_hist - current_detailed_epsilon
+    elif occlusion_type_to_check == "OCCLUDED_BY": 
+        depth_condition_met = d_eval_in_hist > d_hist_cand_in_hist + current_detailed_epsilon
     else:
         raise ValueError(f"Invalid occlusion_type_to_check: {occlusion_type_to_check}")
+    if logger_oc.isEnabledFor(logging.DEBUG):
+        logger_oc.debug(log_msg_prefix + f"Condition met: {depth_condition_met}")
 
+    if debug_dict_for_caller is not None:
+        debug_dict_for_caller['d_anchor_of_point_eval'] = d_anchor_of_point_eval
+        debug_dict_for_caller['d_eval_in_hist_frame'] = d_eval_in_hist
+        debug_dict_for_caller['d_hist_cand_in_hist_frame'] = d_hist_cand_in_hist
+        debug_dict_for_caller['base_epsilon_used'] = self.detailed_check_epsilon_depth
+        debug_dict_for_caller['adaptive_epsilon_calculated'] = current_detailed_epsilon
+        debug_dict_for_caller['depth_condition_met'] = depth_condition_met
+        debug_dict_for_caller['occlusion_type_checked'] = occlusion_type_to_check
+
+    # If tracing this specific point_eval_global, add to MDetector's debug_collector
+    if pt_idx_eval_if_tracing is not None and self.debug_collector and self.debug_collector.is_tracing(pt_idx_eval_if_tracing):
+        trace_key_prefix = f"Test2_Step_DetailedCheck_{historical_di.timestamp:.0f}"
+        self.debug_collector.trace(pt_idx_eval_if_tracing, **{
+            f"{trace_key_prefix}_d_anchor_eval": d_anchor_of_point_eval,
+            f"{trace_key_prefix}_d_eval_in_hist": d_eval_in_hist,
+            f"{trace_key_prefix}_d_hist_cand_in_hist": d_hist_cand_in_hist,
+            f"{trace_key_prefix}_base_eps": self.detailed_check_epsilon_depth,
+            f"{trace_key_prefix}_adaptive_eps": current_detailed_epsilon,
+            f"{trace_key_prefix}_type": occlusion_type_to_check,
+            f"{trace_key_prefix}_outcome": depth_condition_met
+        })
+        
     return depth_condition_met
 
 ############################
@@ -2708,12 +2931,14 @@ def interpolate_surface_depth_at_angle(
     Returns:
         Optional[float]: Interpolated depth, or None if interpolation fails.
     """
-    logger_interp.debug(f"MCC_Interp: Attempting interpolation at phi={target_phi_rad:.3f}, theta={target_theta_rad:.3f} in DI TS={historical_di.timestamp:.2f}")
+    if logger_interp.isEnabledFor(logging.DEBUG):
+        logger_interp.debug(f"MCC_Interp: Attempting interpolation at phi={target_phi_rad:.3f}, theta={target_theta_rad:.3f} in DI TS={historical_di.timestamp:.2f}")
 
     if not historical_di.is_prepared_for_projection() or \
        historical_di.local_sph_coords_for_points is None or \
        historical_di.mdet_labels_for_points is None:
-        logger_interp.debug("MCC_Interp: Historical DI not fully prepared (missing sph_coords or labels). Cannot interpolate.")
+        if logger_interp.isEnabledFor(logging.DEBUG):
+            logger_interp.debug("MCC_Interp: Historical DI not fully prepared (missing sph_coords or labels). Cannot interpolate.")
         return None
 
     all_sph_coords_hist = historical_di.local_sph_coords_for_points
@@ -2726,31 +2951,38 @@ def interpolate_surface_depth_at_angle(
     angular_mask_theta = np.abs(all_sph_coords_hist[:, 1] - target_theta_rad) <= epsilon_theta_rad_search
     angular_mask = angular_mask_phi & angular_mask_theta
     
-    static_mask = np.isin(all_labels_hist, static_labels_for_map_check_values)
+    static_mask = historical_di.get_static_points_mask(static_labels_for_map_check_values)
+
+    if static_mask is None: # Check if the mask could be retrieved/generated
+        if logger_interp.isEnabledFor(logging.DEBUG): # Check logging level
+            logger_interp.debug(f"MCC_Interp: Could not get static_mask for DI TS={historical_di.timestamp:.2f}. Cannot interpolate.")
+        return None
     
     valid_neighbor_indices = np.where(angular_mask & static_mask)[0]
-
-    logger_interp.debug(f"MCC_Interp: Target phi={target_phi_rad:.3f}, theta={target_theta_rad:.3f}")
-    logger_interp.debug(f"MCC_Interp: Epsilon_phi_search={epsilon_phi_rad_search:.3f}, Epsilon_theta_search={epsilon_theta_rad_search:.3f}")
+    if logger_interp.isEnabledFor(logging.DEBUG):
+        logger_interp.debug(f"MCC_Interp: Target phi={target_phi_rad:.3f}, theta={target_theta_rad:.3f}")
+        logger_interp.debug(f"MCC_Interp: Epsilon_phi_search={epsilon_phi_rad_search:.3f}, Epsilon_theta_search={epsilon_theta_rad_search:.3f}")
     # Log a few of the all_sph_coords_hist and all_labels_hist to see what's there
     # For example, points around the target pixel in the historical DI
 
-    # What are the labels of points that ARE in the angular mask?
-    indices_in_angular_window = np.where(angular_mask)[0]
-    if len(indices_in_angular_window) > 0:
-        labels_in_angular_window = all_labels_hist[indices_in_angular_window]
-        unique_labels_in_window, counts_in_window = np.unique(labels_in_angular_window, return_counts=True)
-        logger_interp.debug(f"MCC_Interp: Points within angular window ({len(indices_in_angular_window)} total): Unique labels and counts: {dict(zip(unique_labels_in_window, counts_in_window))}")
-        logger_interp.debug(f"MCC_Interp: Static labels we are looking for (values): {static_labels_for_map_check_values}")
-    else:
-        logger_interp.debug(f"MCC_Interp: NO points found within the angular search window at all.")
+    if logger_interp.isEnabledFor(logging.DEBUG):
+        # What are the labels of points that ARE in the angular mask?
+        indices_in_angular_window = np.where(angular_mask)[0]
+        if len(indices_in_angular_window) > 0:
+            labels_in_angular_window = all_labels_hist[indices_in_angular_window]
+            unique_labels_in_window, counts_in_window = np.unique(labels_in_angular_window, return_counts=True)
+            logger_interp.debug(f"MCC_Interp: Points within angular window ({len(indices_in_angular_window)} total): Unique labels and counts: {dict(zip(unique_labels_in_window, counts_in_window))}")
+            logger_interp.debug(f"MCC_Interp: Static labels we are looking for (values): {static_labels_for_map_check_values}")
+        else:
+            logger_interp.debug(f"MCC_Interp: NO points found within the angular search window at all.")
 
-    logger_interp.debug(f"MCC_Interp: Number of points in angular neighborhood: {np.sum(angular_mask)}")
-    logger_interp.debug(f"MCC_Interp: Number of static points in entire Depth Image: {np.sum(static_mask)}")
-    logger_interp.debug(f"MCC_Interp: Number of valid_neighbor_indices (angular AND static): {len(valid_neighbor_indices)}")
+        logger_interp.debug(f"MCC_Interp: Number of points in angular neighborhood: {np.sum(angular_mask)}")
+        logger_interp.debug(f"MCC_Interp: Number of static points in entire Depth Image: {np.sum(static_mask)}")
+        logger_interp.debug(f"MCC_Interp: Number of valid_neighbor_indices (angular AND static): {len(valid_neighbor_indices)}")
 
     if len(valid_neighbor_indices) < 3:
-        logger_interp.debug(f"MCC_Interp: Not enough static neighbors ({len(valid_neighbor_indices)}) within angular window. Need at least 3.")
+        if logger_interp.isEnabledFor(logging.DEBUG):
+            logger_interp.debug(f"MCC_Interp: Not enough static neighbors ({len(valid_neighbor_indices)}) within angular window. Need at least 3.")
         return None
 
     # Collect data for these neighbors: (phi, theta, depth, original_index)
@@ -2765,19 +2997,23 @@ def interpolate_surface_depth_at_angle(
 
     if len(neighbor_data_tuples) > max_neighbors_to_consider:
         neighbor_data_tuples = neighbor_data_tuples[:max_neighbors_to_consider]
-        logger_interp.debug(f"MCC_Interp: Limited neighbors to consider to {max_neighbors_to_consider}.")
+        if logger_interp.isEnabledFor(logging.DEBUG):
+            logger_interp.debug(f"MCC_Interp: Limited neighbors to consider to {max_neighbors_to_consider}.")
     
     if len(neighbor_data_tuples) < 3:
-        logger_interp.debug(f"MCC_Interp: Not enough static neighbors after limiting ({len(neighbor_data_tuples)}). Need at least 3.")
+        if logger_interp.isEnabledFor(logging.DEBUG):
+            logger_interp.debug(f"MCC_Interp: Not enough static neighbors after limiting ({len(neighbor_data_tuples)}). Need at least 3.")
         return None
 
     # 2. Iterate through triplets to find one satisfying convex hull condition
     triplet_count = 0
-    logger_interp.debug(f"MCC_Interp: Found {len(neighbor_data_tuples)} candidate static neighbors. Will try up to {max_triplets_to_try} triplets.")
+    if logger_interp.isEnabledFor(logging.DEBUG):
+        logger_interp.debug(f"MCC_Interp: Found {len(neighbor_data_tuples)} candidate static neighbors. Will try up to {max_triplets_to_try} triplets.")
 
     for p1_data, p2_data, p3_data in combinations(neighbor_data_tuples, 3):
         if triplet_count >= max_triplets_to_try:
-            logger_interp.debug(f"MCC_Interp: Reached max triplets to try ({max_triplets_to_try}). Stopping triplet search.")
+            if logger_interp.isEnabledFor(logging.DEBUG):
+                logger_interp.debug(f"MCC_Interp: Reached max triplets to try ({max_triplets_to_try}). Stopping triplet search.")
             break
         triplet_count += 1
 
@@ -2800,14 +3036,15 @@ def interpolate_surface_depth_at_angle(
             interpolated_depth = weights[0] * p1_data[2] + \
                                  weights[1] * p2_data[2] + \
                                  weights[2] * p3_data[2]
-            logger_interp.debug(f"MCC_Interp: Success! Triplet (orig_indices: {p1_data[3]},{p2_data[3]},{p3_data[3]}), "
-                                f"Weights: {np.round(weights,3)}, Interp_Depth: {interpolated_depth:.3f}")
+            if logger_interp.isEnabledFor(logging.DEBUG):
+                logger_interp.debug(f"MCC_Interp: Success! Triplet (orig_indices: {p1_data[3]},{p2_data[3]},{p3_data[3]}), "
+                                    f"Weights: {np.round(weights,3)}, Interp_Depth: {interpolated_depth:.3f}")
             return float(interpolated_depth)
         # else:
             # logger_interp.debug(f"MCC_Interp: Triplet (orig_indices: {p1_data[3]},{p2_data[3]},{p3_data[3]}) "
             #                     f"weights {np.round(weights,3)} not all >= 0 (convex hull fail).")
-            
-    logger_interp.debug("MCC_Interp: Failed to find a valid triplet for interpolation after trying allowed combinations.")
+    if logger_interp.isEnabledFor(logging.DEBUG):
+        logger_interp.debug("MCC_Interp: Failed to find a valid triplet for interpolation after trying allowed combinations.")
     return None
 
 ############################
@@ -3524,93 +3761,6 @@ import h5py
 
 from ..core.constants import POINT_LABEL_DTYPE 
 
-# def get_gt_dynamic_points_for_sweep(
-#     nusc: NuScenes,
-#     sweep_data_dict: Dict,
-#     all_points_global: np.ndarray,
-#     gt_labels_scene_hdf5_path: str,
-#     velocity_threshold: float
-# ) -> Dict[str, np.ndarray]:
-#     lidar_sd_token = sweep_data_dict['lidar_sd_token']
-#     # print(f"    DEBUG (get_gt_dynamic): Getting GT for token: {lidar_sd_token}, HDF5: {gt_labels_scene_hdf5_path}") # DEBUG
-#     empty_result = {'dynamic': np.empty((0, 3)), 'static': np.empty((0,3)), 'unlabeled': all_points_global if all_points_global is not None else np.empty((0,3))}
-
-#     if not os.path.exists(gt_labels_scene_hdf5_path):
-#         tqdm.write(f"    DEBUG (get_gt_dynamic): GT Label HDF5 file NOT FOUND: {gt_labels_scene_hdf5_path}") # DEBUG
-#         return empty_result
-
-#     point_labels_for_sweep: Optional[np.ndarray] = None
-#     try:
-#         with h5py.File(gt_labels_scene_hdf5_path, 'r') as hf:
-#             # print(f"    DEBUG (get_gt_dynamic): Opened GT HDF5: {gt_labels_scene_hdf5_path}") # DEBUG
-#             all_tokens_bytes = hf['sweep_lidar_sd_tokens'][:]
-#             target_token_bytes = lidar_sd_token.encode('utf-8') if isinstance(lidar_sd_token, str) else lidar_sd_token
-            
-#             matches = np.array([]) # Initialize
-#             try:
-#                 matches = np.where(all_tokens_bytes == target_token_bytes)[0]
-#                 if not matches.size > 0:
-#                     all_tokens_str_decoded = [t.decode('utf-8', 'ignore') for t in all_tokens_bytes]
-#                     matches = np.where(np.array(all_tokens_str_decoded) == (target_token_bytes.decode('utf-8', 'ignore') if isinstance(target_token_bytes, bytes) else target_token_bytes) )[0]
-#             except TypeError:
-#                  matches = np.where(all_tokens_bytes == (target_token_bytes.decode('utf-8', 'ignore') if isinstance(target_token_bytes, bytes) else target_token_bytes) )[0]
-
-
-#             if not matches.size > 0:
-#                 # print(f"    DEBUG (get_gt_dynamic): Sweep token {lidar_sd_token} NOT FOUND in GT HDF5.") # DEBUG
-#                 return empty_result
-#             idx_in_token_list = matches[0]
-#             # print(f"    DEBUG (get_gt_dynamic): Token {lidar_sd_token} found at GT HDF5 index {idx_in_token_list}.") # DEBUG
-
-
-#             indices_array = hf['gt_point_labels_indices'][:]
-#             start_idx = indices_array[idx_in_token_list]
-#             if idx_in_token_list + 1 >= len(indices_array):
-#                 tqdm.write(f"    DEBUG (get_gt_dynamic): Index issue for token {lidar_sd_token} in GT HDF5 indices.") # DEBUG
-#                 return empty_result
-#             end_idx = indices_array[idx_in_token_list + 1]
-#             # print(f"    DEBUG (get_gt_dynamic): For token {lidar_sd_token}, GT point indices: {start_idx} to {end_idx}") # DEBUG
-
-#             point_labels_for_sweep = hf['all_gt_point_labels'][start_idx:end_idx]
-#             # print(f"    DEBUG (get_gt_dynamic): Loaded 'all_gt_point_labels' for token {lidar_sd_token}, shape: {point_labels_for_sweep.shape}, dtype: {point_labels_for_sweep.dtype}") # DEBUG
-
-
-#             if point_labels_for_sweep.dtype != POINT_LABEL_DTYPE:
-#                 # print(f"    DEBUG (get_gt_dynamic): Dtype mismatch for GT labels. Expected {POINT_LABEL_DTYPE}, got {point_labels_for_sweep.dtype}. Attempting cast.") # DEBUG
-#                 try:
-#                     point_labels_for_sweep = point_labels_for_sweep.astype(POINT_LABEL_DTYPE)
-#                 except ValueError as ve:
-#                     tqdm.write(f"    DEBUG (get_gt_dynamic): CRITICAL DTYPE cast failed for GT labels. Error: {ve}.") # DEBUG
-#                     return empty_result
-                    
-#     except Exception as e:
-#         tqdm.write(f"    DEBUG (get_gt_dynamic): Error loading GT labels from HDF5 {gt_labels_scene_hdf5_path} for sweep {lidar_sd_token}: {e}") # DEBUG
-#         import traceback
-#         traceback.print_exc()
-#         return empty_result
-
-#     if point_labels_for_sweep is None or point_labels_for_sweep.shape[0] == 0 :
-#         # print(f"    DEBUG (get_gt_dynamic): No GT point labels loaded for sweep {lidar_sd_token} (empty slice or None).") # DEBUG
-#         return empty_result
-        
-#     points_with_gt_labels_global = np.stack((
-#         point_labels_for_sweep['x'], point_labels_for_sweep['y'], point_labels_for_sweep['z']
-#     ), axis=-1)
-
-#     gt_speed_sq = point_labels_for_sweep['velocity_x']**2 + point_labels_for_sweep['velocity_y']**2
-#     is_valid_instance_mask = (point_labels_for_sweep['instance_token'] != b'')
-#     dynamic_mask = (gt_speed_sq >= velocity_threshold**2) & is_valid_instance_mask
-#     static_mask = (~dynamic_mask) & is_valid_instance_mask
-#     unlabeled_mask = ~is_valid_instance_mask
-    
-#     # print(f"    DEBUG (get_gt_dynamic): Token {lidar_sd_token} - GT Dynamic pts: {np.sum(dynamic_mask)}, Static pts: {np.sum(static_mask)}, Unlabeled: {np.sum(unlabeled_mask)}") # DEBUG
-
-#     return {
-#         'dynamic': points_with_gt_labels_global[dynamic_mask],
-#         'static': points_with_gt_labels_global[static_mask],
-#         'unlabeled': points_with_gt_labels_global[unlabeled_mask]
-#     }
-
 def get_gt_dynamic_points_for_sweep(
     nusc: NuScenes, # Not strictly used if only relying on HDF5 and sweep_data_dict for token
     sweep_data_dict: Dict, # Primarily for lidar_sd_token
@@ -3831,109 +3981,108 @@ def calculate_metrics_for_scene_hdf5(
     mdet_scene_hdf5_path: str,    
     eval_params: Dict[str, Any]
 ) -> Optional[Dict[str, Any]]:
-    scene_name_for_log = os.path.basename(mdet_scene_hdf5_path) # Use hdf5 path for logging
-    # print(f"\nDEBUG SCENE START (HDF5): {os.path.basename(gt_scene_hdf5_path)} vs {scene_name_for_log}")
-
+    scene_name_for_log = os.path.basename(mdet_scene_hdf5_path)
     gt_data_h5_file: Optional[h5py.File] = None
     mdet_data_h5_file: Optional[h5py.File] = None
 
+    # Get the keyframe evaluation flag from eval_params 
+    evaluate_only_keyframes = eval_params.get('evaluate_only_keyframes')
+
     try:
+        mdet_config_loaded_dict = load_config_from_hdf5(mdet_scene_hdf5_path)
         gt_data_h5_file = h5py.File(gt_scene_hdf5_path, 'r')
         mdet_data_h5_file = h5py.File(mdet_scene_hdf5_path, 'r')
 
-        # --- Pre-load all necessary arrays from HDF5 files ---
-        # Slicing with [:] loads the data into a NumPy array in memory.
-        # For scalar datasets (like scene_token or _config_json_str if saved as scalar), use [()]
-        
         # GT arrays
         gt_sweep_lidar_sd_tokens_arr = gt_data_h5_file['sweep_lidar_sd_tokens'][:]
         gt_point_labels_indices_arr = gt_data_h5_file['gt_point_labels_indices'][:]
         all_gt_point_labels_arr = gt_data_h5_file['all_gt_point_labels'][:]
-        # scene_token_gt = gt_data_h5_file['scene_token'][()] # Example if needed
+        
+        # Load keyframe flags from GT HDF5 
+        gt_sweep_is_key_frame_arr: Optional[np.ndarray] = None
+        if 'sweep_is_key_frame' in gt_data_h5_file:
+            gt_sweep_is_key_frame_arr = gt_data_h5_file['sweep_is_key_frame'][:]
+        elif evaluate_only_keyframes:
+            # If we need to evaluate only keyframes but the flag isn't in HDF5, we can't proceed.
+            print(f"  Error: 'evaluate_only_keyframes' is True, but 'sweep_is_key_frame' dataset "
+                  f"not found in GT HDF5: {gt_scene_hdf5_path}")
+            # Close files before returning
+            if gt_data_h5_file: gt_data_h5_file.close()
+            if mdet_data_h5_file: mdet_data_h5_file.close()
+            return {"scene_name": scene_name_for_log, "processed_sweeps": 0, "error": "Missing sweep_is_key_frame in GT HDF5"}
 
         # MDet arrays
         mdet_sweep_lidar_sd_tokens_arr = mdet_data_h5_file['sweep_lidar_sd_tokens'][:]
         points_predictions_indices_arr = mdet_data_h5_file['points_predictions_indices'][:]
         all_points_predictions_arr = mdet_data_h5_file['all_points_predictions'][:]
-        # scene_token_mdet = mdet_data_h5_file['scene_token'][()] # Example if needed
 
-        mdet_config_loaded_dict = None
-        if '_config_json_str' in mdet_data_h5_file:
-            config_str_data = mdet_data_h5_file['_config_json_str'][()]
-            if isinstance(config_str_data, bytes):
-                config_str = config_str_data.decode('utf-8')
-            else: # Assumed to be str
-                config_str = str(config_str_data)
-            mdet_config_loaded_dict = json.loads(config_str)
-        # --- End pre-loading arrays ---
-
-        # --- Determine M-Detector's range parameters ---
-        default_min_range = eval_params.get('mdet_min_point_range_meters', 1.0)
-        default_max_range = eval_params.get('mdet_max_point_range_meters', 80.0)
+        # ... (Determine M-Detector's range parameters ...
+        default_min_range = eval_params.get('mdet_min_point_range_meters')
+        default_max_range = eval_params.get('mdet_max_point_range_meters')
         mdet_min_range = default_min_range
         mdet_max_range = default_max_range
-        loaded_from_config_successfully = False # Renamed for clarity
-
+        loaded_from_config_successfully = False
         if mdet_config_loaded_dict:
-            try:
-                filtering_config = mdet_config_loaded_dict.get('filtering')
-                if filtering_config and isinstance(filtering_config, dict):
-                    min_r_from_cfg = filtering_config.get('min_point_range_meters')
-                    max_r_from_cfg = filtering_config.get('max_point_range_meters')
-                    if min_r_from_cfg is not None and max_r_from_cfg is not None:
-                        mdet_min_range = float(min_r_from_cfg)
-                        mdet_max_range = float(max_r_from_cfg)
-                        # print(f"  Successfully loaded MDet range params from HDF5 config: min={mdet_min_range:.2f}m, max={mdet_max_range:.2f}m")
-                        loaded_from_config_successfully = True
-                    # else:
-                        # print(f"  MDet config in HDF5 found, but 'min_point_range_meters' or 'max_point_range_meters' missing in 'filtering' dict.")
-                # else:
-                    # print(f"  MDet config in HDF5 found, but 'filtering' key missing or not a dictionary.")
-            except Exception as e_cfg: # Catch any error during parsing of the loaded dict
-                print(f"  Warning: Error processing MDet config dict from HDF5 for '{scene_name_for_log}'. Error: {e_cfg}")
-        # else:
-            # print(f"  Info: MDet HDF5 for '{scene_name_for_log}' does not contain '_config_json_str' or failed to parse.")
-
+            if not mdet_config_loaded_dict.get("error_while_saving_config"):
+                try:
+                    m_detector_cfg = mdet_config_loaded_dict.get('m_detector', {})
+                    filtering_config = m_detector_cfg.get('point_pre_filtering')
+                    if filtering_config and isinstance(filtering_config, dict):
+                        min_r_from_cfg = filtering_config.get('min_range_meters')
+                        max_r_from_cfg = filtering_config.get('max_range_meters')
+                        if min_r_from_cfg is not None and max_r_from_cfg is not None:
+                            mdet_min_range = float(min_r_from_cfg)
+                            mdet_max_range = float(max_r_from_cfg)
+                            loaded_from_config_successfully = True
+                except Exception as e_cfg:
+                    print(f"  Warning: Error processing MDet config dict from HDF5 for '{scene_name_for_log}'. Error: {e_cfg}")
         if not loaded_from_config_successfully:
-            mdet_min_range = default_min_range
-            mdet_max_range = default_max_range
-            # print(f"  INFO: Using fallback/default MDet range params from eval_params: min={mdet_min_range:.2f}m, max={mdet_max_range:.2f}m")
-        # --- End range parameter determination ---
+            # print(f"  INFO: Using fallback/default MDet range params from eval_params: min={mdet_min_range:.2f}m, max={mdet_max_range:.2f}m for {scene_name_for_log}")
+            pass
+
 
         # --- Find common sweeps based on lidar_sd_token ---
-        # Ensure tokens are bytes for set operations if they were loaded as bytes
         gt_token_to_idx: Dict[bytes, int] = {token: i for i, token in enumerate(gt_sweep_lidar_sd_tokens_arr)}
         mdet_token_to_idx: Dict[bytes, int] = {token: i for i, token in enumerate(mdet_sweep_lidar_sd_tokens_arr)}
         common_sd_tokens_bytes = set(gt_token_to_idx.keys()) & set(mdet_token_to_idx.keys())
 
         if not common_sd_tokens_bytes:
-            # print(f"  No common sweep tokens found between GT and MDet for scene '{scene_name_for_log}'. Skipping.")
-            return None # Or an error dict
+            if gt_data_h5_file: gt_data_h5_file.close()
+            if mdet_data_h5_file: mdet_data_h5_file.close()
+            return None
 
         common_sweep_indices: List[Tuple[int, int]] = []
         for token_bytes in common_sd_tokens_bytes:
-            common_sweep_indices.append((gt_token_to_idx[token_bytes], mdet_token_to_idx[token_bytes]))
-        common_sweep_indices.sort(key=lambda x: x[0]) # Sort by GT index
-        # print(f"  Found {len(common_sweep_indices)} common sweeps for scene '{scene_name_for_log}'.")
+            gt_idx = gt_token_to_idx[token_bytes]
+            mdet_idx = mdet_token_to_idx[token_bytes]
+
+            # Filter for keyframes if requested 
+            if evaluate_only_keyframes:
+                if gt_sweep_is_key_frame_arr is not None and gt_idx < len(gt_sweep_is_key_frame_arr):
+                    if not gt_sweep_is_key_frame_arr[gt_idx]:
+                        continue # Skip this sweep if it's not a keyframe
+                else: # Should have been caught if gt_sweep_is_key_frame_arr was None and evaluate_only_keyframes was True
+                    print(f"  Warning: Keyframe flag missing for GT sweep index {gt_idx} but evaluate_only_keyframes is True. Skipping sweep.")
+                    continue
+            common_sweep_indices.append((gt_idx, mdet_idx))
+
+        common_sweep_indices.sort(key=lambda x: x[0])
 
         scene_tp, scene_fp, scene_fn, scene_tn = 0, 0, 0, 0
         scene_total_gt_points_in_range = 0
-        scene_total_mdet_points = 0 # Renamed for clarity
+        scene_total_mdet_points = 0
         processed_sweeps_count_scene = 0
+
+        desc_suffix = " (Keyframes Only)" if evaluate_only_keyframes else " (All Sweeps)"
         for sweep_idx_gt, sweep_idx_mdet in tqdm(
             common_sweep_indices,
-            desc=f"  Sweeps ({scene_name_for_log})",
-            position=1, 
-            leave=True,
-            unit="sweep"
+            desc=f"  Sweeps ({scene_name_for_log}{desc_suffix})",
+            position=1, leave=True, unit="sweep"
         ):
             gt_start, gt_end = gt_point_labels_indices_arr[sweep_idx_gt], gt_point_labels_indices_arr[sweep_idx_gt + 1]
             mdet_start, mdet_end = points_predictions_indices_arr[sweep_idx_mdet], points_predictions_indices_arr[sweep_idx_mdet + 1]
-
             gt_sweep_labels_structured_full = all_gt_point_labels_arr[gt_start:gt_end]
             mdet_sweep_preds_structured = all_points_predictions_arr[mdet_start:mdet_end]
-            
-            # current_sweep_sd_token_str = gt_sweep_lidar_sd_tokens_arr[sweep_idx_gt].decode('utf-8', 'ignore')
 
             if gt_sweep_labels_structured_full.shape[0] > 0:
                 try:
@@ -3942,9 +4091,8 @@ def calculate_metrics_for_scene_hdf5(
                         gt_sweep_labels_structured_full['y_sensor'],
                         gt_sweep_labels_structured_full['z_sensor']
                     ), axis=-1)
-                except ValueError: # Missing keys
-                    # print(f"      ERROR for sweep {current_sweep_sd_token_str}: Missing 'x_sensor'/'y_sensor'/'z_sensor' in GT labels. Cannot filter.")
-                    continue
+                except ValueError:
+                    continue # Skip sweep if sensor coords are missing
                 gt_ranges = np.linalg.norm(gt_points_sensor_for_filter, axis=1)
                 gt_range_mask = (gt_ranges >= mdet_min_range) & (gt_ranges <= mdet_max_range)
                 filtered_gt_labels_for_comparison = gt_sweep_labels_structured_full[gt_range_mask]
@@ -3954,7 +4102,7 @@ def calculate_metrics_for_scene_hdf5(
             sweep_metrics_results = calculate_point_metrics_for_sweep(
                 gt_sweep_labels=filtered_gt_labels_for_comparison,
                 pred_sweep_labels=mdet_sweep_preds_structured,
-                eval_params=eval_params
+                eval_params=eval_params # Pass the full eval_params
             )
 
             if sweep_metrics_results and not sweep_metrics_results.get("Error_Msg"):
@@ -3965,14 +4113,11 @@ def calculate_metrics_for_scene_hdf5(
                 scene_total_gt_points_in_range += sweep_metrics_results.get('num_gt_points', 0)
                 scene_total_mdet_points += sweep_metrics_results.get('num_pred_points', 0)
                 processed_sweeps_count_scene += 1
-            # else: # Error logging already in your original, can be kept or simplified
-                # error_msg = sweep_metrics_results.get("Error_Msg", "Unknown error") if sweep_metrics_results else "calc_point_metrics returned None"
-                # print(f"      Skipping metrics for sweep {current_sweep_sd_token_str}: {error_msg}")
-
 
         if processed_sweeps_count_scene == 0:
-            # print(f"  No sweeps successfully processed for scene '{scene_name_for_log}'. Cannot calculate scene metrics.")
-            return {"scene_name": scene_name_for_log, "processed_sweeps": 0, "error": "No sweeps processed"}
+            if gt_data_h5_file: gt_data_h5_file.close()
+            if mdet_data_h5_file: mdet_data_h5_file.close()
+            return {"scene_name": scene_name_for_log, "processed_sweeps": 0, "error": "No sweeps processed (check keyframe filter or data)"}
 
         precision = scene_tp / (scene_tp + scene_fp) if (scene_tp + scene_fp) > 0 else 0.0
         recall = scene_tp / (scene_tp + scene_fn) if (scene_tp + scene_fn) > 0 else 0.0
@@ -3980,11 +4125,7 @@ def calculate_metrics_for_scene_hdf5(
         accuracy = (scene_tp + scene_tn) / (scene_tp + scene_fp + scene_fn + scene_tn) if (scene_tp + scene_fp + scene_fn + scene_tn) > 0 else 0.0
         scene_denominator_iou = scene_tp + scene_fp + scene_fn
         scene_iou_dynamic = scene_tp / scene_denominator_iou if scene_denominator_iou > 0 else 0.0
-
-        # if scene_total_gt_points_in_range != scene_total_mdet_points and scene_total_gt_points_in_range > 0 :
-        #     print(f"  Warning for scene '{scene_name_for_log}': Total filtered GT points ({scene_total_gt_points_in_range}) "
-        #           f"does not match total MDet points ({scene_total_mdet_points}) across processed sweeps.")
-
+        
         scene_summary_stats = {
             "scene_name": scene_name_for_log,
             "tp": scene_tp, "fp": scene_fp, "fn": scene_fn, "tn": scene_tn,
@@ -3994,9 +4135,9 @@ def calculate_metrics_for_scene_hdf5(
             "total_mdet_points_processed": scene_total_mdet_points,
             "processed_sweeps": processed_sweeps_count_scene,
             "mdet_min_range_used": mdet_min_range,
-            "mdet_max_range_used": mdet_max_range
+            "mdet_max_range_used": mdet_max_range,
+            "evaluated_only_keyframes": evaluate_only_keyframes 
         }
-        # print(f"  Scene Summary (HDF5) for '{scene_name_for_log}': P={precision:.3f}, R={recall:.3f}, F1={f1_score:.3f}, IoU_dyn={scene_iou_dynamic:.3f} ({processed_sweeps_count_scene} sweeps)")
         return scene_summary_stats
 
     except FileNotFoundError:
@@ -4007,14 +4148,10 @@ def calculate_metrics_for_scene_hdf5(
         return None
     except Exception as e:
         print(f"  Error processing scene '{scene_name_for_log}' with HDF5: {e}")
-        # import traceback
-        # traceback.print_exc() # For more detailed errors during debugging
         return None
     finally:
-        if gt_data_h5_file:
-            gt_data_h5_file.close()
-        if mdet_data_h5_file:
-            mdet_data_h5_file.close()
+        if gt_data_h5_file: gt_data_h5_file.close()
+        if mdet_data_h5_file: mdet_data_h5_file.close()
 
 
 def calculate_metrics_for_experiment_hdf5(
@@ -4648,7 +4785,7 @@ def _get_points_in_box_mask_global_coords(
 
 
     
-def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
+def generate_and_save_point_labels_for_scene_hdf5(
     nusc: NuScenes,
     scene_token: str,
     output_hdf5_dir: str,
@@ -4663,14 +4800,13 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
     scene_name = scene_record['name']
 
     os.makedirs(output_hdf5_dir, exist_ok=True)
-    output_hdf5_filename = f"gt_point_labels_{scene_name}.h5" # Changed extension
+    output_hdf5_filename = f"gt_point_labels_{scene_name}.h5"
     output_hdf5_filepath = os.path.join(output_hdf5_dir, output_hdf5_filename)
 
     if verbose:
         tqdm.write(f"Processing scene for GT point labels: {scene_name} ({scene_token})")
         tqdm.write(f"Output will be saved to: {output_hdf5_filepath}")
 
-    # --- Data gathering  ---
     all_sweep_data_dicts = list(get_scene_sweep_data_sequence(nusc, scene_token))
     if not all_sweep_data_dicts:
         if verbose: tqdm.write(f"No LiDAR sweeps found for scene {scene_name}. Skipping.")
@@ -4693,8 +4829,9 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
         all_instances_boxes_at_sweeps[inst_token] = boxes_at_sweeps
     if verbose: tqdm.write("All instance GT box states generated. Now creating point labels per sweep...")
 
-    hdf5_sweep_lidar_sd_tokens: List[bytes] = [] # Store as bytes for 'S36'
+    hdf5_sweep_lidar_sd_tokens: List[bytes] = []
     hdf5_sweep_timestamps_us: List[int] = []
+    hdf5_sweep_is_key_frame: List[bool] = []
     hdf5_all_point_labels_list: List[np.ndarray] = []
     hdf5_point_labels_indices: List[int] = [0]
 
@@ -4702,18 +4839,19 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
 
     for sweep_idx, sweep_data in sweep_iterator:
         lidar_sd_token_str = sweep_data['lidar_sd_token']
-        # Ensure lidar_sd_token is bytes if it's coming as str from dummy or real function
         if isinstance(lidar_sd_token_str, str):
             lidar_sd_token_bytes = lidar_sd_token_str.encode('utf-8')
-        else: # Assuming it's already bytes
+        else:
             lidar_sd_token_bytes = lidar_sd_token_str
 
         points_sensor_frame = sweep_data['points_sensor_frame']
         T_global_lidar = sweep_data['T_global_lidar']
         timestamp = sweep_data['timestamp']
+        is_key_frame = sweep_data['is_key_frame'] 
 
         hdf5_sweep_lidar_sd_tokens.append(lidar_sd_token_bytes)
         hdf5_sweep_timestamps_us.append(timestamp)
+        hdf5_sweep_is_key_frame.append(is_key_frame)
 
         if points_sensor_frame.shape[0] == 0:
             current_sweep_point_labels = np.zeros(0, dtype=POINT_LABEL_DTYPE)
@@ -4724,13 +4862,19 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
 
         points_global = transform_points_numpy(points_sensor_frame, T_global_lidar)
 
-        if points_global.shape[0] == 0:
+        if points_sensor_frame.shape[0] == 0:
+            current_sweep_point_labels = np.zeros(0, dtype=POINT_LABEL_DTYPE)
+            hdf5_all_point_labels_list.append(current_sweep_point_labels)
+            hdf5_point_labels_indices.append(hdf5_point_labels_indices[-1])
+            if verbose: tqdm.write(f"    No points in LiDAR sweep {lidar_sd_token_str}. Recorded empty labels.")
+            continue
+        points_global = transform_points_numpy(points_sensor_frame, T_global_lidar)
+        if points_global.shape[0] == 0: # Should be redundant if points_sensor_frame check is there, but safe
             current_sweep_point_labels = np.zeros(0, dtype=POINT_LABEL_DTYPE)
             hdf5_all_point_labels_list.append(current_sweep_point_labels)
             hdf5_point_labels_indices.append(hdf5_point_labels_indices[-1])
             if verbose: tqdm.write(f"    No points after transformation for {lidar_sd_token_str}. Recorded empty labels.")
             continue
-
         current_sweep_point_labels = np.zeros(points_global.shape[0], dtype=POINT_LABEL_DTYPE)
         current_sweep_point_labels['instance_token'] = b''
         current_sweep_point_labels['category_name'] = b''
@@ -4741,14 +4885,11 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
             current_sweep_point_labels['x_sensor'] = points_sensor_frame[:, 0]
             current_sweep_point_labels['y_sensor'] = points_sensor_frame[:, 1]
             current_sweep_point_labels['z_sensor'] = points_sensor_frame[:, 2]
-
         for inst_token, list_of_boxes_for_instance in all_instances_boxes_at_sweeps.items():
             box_object = list_of_boxes_for_instance[sweep_idx]
             if box_object is not None:
                 try:
-                    mask_points_in_obb = _get_points_in_box_mask_global_coords(
-                        points_global, box_object
-                    )
+                    mask_points_in_obb = _get_points_in_box_mask_global_coords(points_global, box_object)
                     if np.any(mask_points_in_obb):
                         unassigned_mask_for_current_obb_points = (current_sweep_point_labels['instance_token'][mask_points_in_obb] == b'')
                         indices_in_obb_and_unassigned = np.where(mask_points_in_obb)[0][unassigned_mask_for_current_obb_points]
@@ -4761,9 +4902,9 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
                 except Exception as e_gen:
                     if verbose: tqdm.write(f"Error processing instance {inst_token[:6]} in sweep {lidar_sd_token_str}: {e_gen}")
                     continue
-
         hdf5_all_point_labels_list.append(current_sweep_point_labels)
         hdf5_point_labels_indices.append(hdf5_point_labels_indices[-1] + len(current_sweep_point_labels))
+
 
     if not hdf5_sweep_lidar_sd_tokens:
         if verbose: tqdm.write(f"No sweep data was processed to generate labels for scene {scene_name}. No HDF5 file created.")
@@ -4771,25 +4912,17 @@ def generate_and_save_point_labels_for_scene_hdf5( # Renamed function
 
     final_all_point_labels = np.concatenate(hdf5_all_point_labels_list, axis=0) if hdf5_all_point_labels_list else np.empty(0, dtype=POINT_LABEL_DTYPE)
 
-    # --- Save to HDF5 ---
     try:
         with h5py.File(output_hdf5_filepath, 'w') as hf:
-            # Store scene token as a scalar dataset of fixed-length string
-            # h5py can create scalar datasets from 0-dim numpy arrays or directly from python strings/bytes
-            hf.create_dataset('scene_token', data=scene_token.encode('utf-8')) # Save as bytes
-
+            hf.create_dataset('scene_token', data=scene_token.encode('utf-8'))
             hf.create_dataset('sweep_lidar_sd_tokens', data=np.array(hdf5_sweep_lidar_sd_tokens, dtype='S36'))
             hf.create_dataset('sweep_timestamps_us', data=np.array(hdf5_sweep_timestamps_us, dtype=np.int64))
-            
-            # For the structured array, h5py handles it directly.
-            # Check if final_all_point_labels is truly empty (shape (0,) or (0, num_fields))
+            hf.create_dataset('sweep_is_key_frame', data=np.array(hdf5_sweep_is_key_frame, dtype=bool)) # <<< SAVE THE FLAGS
+
             if final_all_point_labels.size == 0 and final_all_point_labels.shape[0] == 0 :
-                 # Create an empty dataset with the correct dtype if the array is empty.
-                 # This is important if the dtype has fields, h5py needs to know them.
                  hf.create_dataset('all_gt_point_labels', shape=(0,), dtype=POINT_LABEL_DTYPE)
             else:
                  hf.create_dataset('all_gt_point_labels', data=final_all_point_labels)
-
             hf.create_dataset('gt_point_labels_indices', data=np.array(hdf5_point_labels_indices, dtype=np.int64))
 
         if verbose: tqdm.write(f"Successfully saved GT point labels for scene {scene_name} to {output_hdf5_filepath}")
@@ -4948,10 +5081,23 @@ class NuScenesProcessor:
         # Get config params
         processing_settings = self.config_accessor.get_processing_settings()
         skip_frames_config = processing_settings.get('skip_frames', 0)
-        max_frames_config = processing_settings.get('max_frames', None)
+        max_frames_config = processing_settings.get('max_frames', -1) 
+        
+        # Ensure it's an integer; if not, default to -1 (process all) and log warning
+        if not isinstance(max_frames_config, int):
+            self.logger.warning(
+                f"Invalid type for 'max_frames' in config: {type(max_frames_config)} "
+                f"(value: '{max_frames_config}'). Defaulting to process all frames (-1)."
+            )
+            max_frames_to_process = -1
+        else:
+            max_frames_to_process = max_frames_config
+
+        self.logger.critical(f"DEBUG: scene_idx={scene_index}, max_frames_config RAW FROM GETTER: {max_frames_config}, TYPE: {type(max_frames_config)}")
         nuscenes_params = self.config_accessor.get_nuscenes_params()
         lidar_name_to_use = nuscenes_params.get('lidar_sensor_name', 'LIDAR_TOP')
-        logger.info(f"Skipping first {skip_frames_config} frames. Processing max: {max_frames_config} frames for LiDAR: {lidar_name_to_use}.")
+        log_max_frames_msg = "all (due to -1 or default)" if max_frames_to_process < 0 else str(max_frames_to_process)
+        self.logger.info(f"Skipping first {skip_frames_config} frames. Processing max: {log_max_frames_msg} frames for LiDAR: {lidar_name_to_use}.")
 
         #  Get all sweeps
         all_scene_sweep_data_dicts = list(get_scene_sweep_data_sequence(self.nusc, scene_rec['token'], lidar_name=lidar_name_to_use))
@@ -4962,15 +5108,18 @@ class NuScenesProcessor:
 
         # Limit sequences as configured
         start_idx = min(skip_frames_config, len(all_scene_sweep_data_dicts))
-        end_idx = len(all_scene_sweep_data_dicts)
-        if max_frames_config is not None:
-            end_idx = min(start_idx + max_frames_config, len(all_scene_sweep_data_dicts))
+        end_idx = len(all_scene_sweep_data_dicts) # Default to all
+
+        # If max_frames_to_process is a non-negative integer, apply the limit
+        if max_frames_to_process >= 0: # Check for non-negative (0 or more)
+            end_idx = min(start_idx + max_frames_to_process, len(all_scene_sweep_data_dicts))
+        # If max_frames_to_process is negative (e.g., -1), end_idx remains len(all_scene_sweep_data_dicts)
         
         sweeps_to_feed_list = all_scene_sweep_data_dicts[start_idx:end_idx]
         num_sweeps_to_feed = len(sweeps_to_feed_list)
 
         if num_sweeps_to_feed == 0:
-            tqdm.write(f"No sweeps selected to feed to M-Detector for scene {scene_rec['name']} based on skip/max frames.")
+            self.logger.warning(f"No sweeps selected to feed to M-Detector for scene {scene_rec['name']} based on skip/max frames.")
             return None
 
         collected_mdetector_outputs = [] 
@@ -4979,25 +5128,21 @@ class NuScenesProcessor:
         if hasattr(detector, 'reset_scene_state') and callable(detector.reset_scene_state):
             detector.reset_scene_state()
         else:
-            tqdm.write("Warning: MDetector does not have a 'reset_scene_state' method. State might carry over.")
+            self.logger.warning("MDetector does not have a 'reset_scene_state' method. State might carry over.")
 
         desc = f"Feeding sweeps to M-Detector for Scene {scene_rec['name']}"
-        iterator_for_feeding = tqdm(sweeps_to_feed_list, total=num_sweeps_to_feed, desc=desc) if with_progress else sweeps_to_feed_list
+        iterator_for_feeding = tqdm(sweeps_to_feed_list, total=num_sweeps_to_feed, desc=desc, disable=not with_progress)
         
-        # --- Phase 1: Feed sweeps and collect M-Detector outputs ---
         for sweep_data in iterator_for_feeding:
-            # 1. Store a reference to the full sweep_data, keyed by its unique timestamp
             fed_sweep_data_by_timestamp[sweep_data['timestamp']] = sweep_data
             
-            # 2. Add sweep to MDetector's internal library
             detector.add_sweep_and_create_depth_image(
                 points_lidar_frame=sweep_data['points_sensor_frame'], 
                 T_global_lidar=sweep_data['T_global_lidar'], 
                 lidar_timestamp=sweep_data['timestamp'],
-                lidar_sd_token=sweep_data['lidar_sd_token'] # Pass token if your MDetector uses it
+                lidar_sd_token=sweep_data['lidar_sd_token']
             )
             
-            # 3. Ask MDetector to process whatever frame it deems ready now
             mdet_result = detector.decide_and_process_frame(is_end_of_sequence=False)
             
             if mdet_result and mdet_result.get('success'):
@@ -5014,74 +5159,15 @@ class NuScenesProcessor:
                             'processed_di_object_ref': processed_di_object
                         })
                     else:
-                        tqdm.write(f"Warning (Main Loop): Timestamp/data mismatch. Processed TS: {processed_timestamp}. Original sweep found: {'Yes' if original_sweep_for_this_output else 'No'}. DI TS: {processed_di_object.timestamp if processed_di_object else 'N/A'}. Output skipped.")
+                        self.logger.warning(f"Timestamp/data mismatch. Processed TS: {processed_timestamp}. Original sweep found: {'Yes' if original_sweep_for_this_output else 'No'}. DI TS: {processed_di_object.timestamp if processed_di_object else 'N/A'}. Output skipped.")
                 else:
-                    tqdm.write(f"Warning (Main Loop): MDetector success but missing processed_di or timestamp. Output skipped. Result: {mdet_result}")
-            elif mdet_result:
-                if with_progress: tqdm.write(f"MDetector info: {mdet_result.get('reason', 'No specific reason given by MDetector')}")
-        
-        # # --- Phase 2: Flush MDetector's buffer --- bidirectional only!
-        # if hasattr(detector, 'use_bidirectional') and detector.use_bidirectional:
-        #     if with_progress: tqdm.write("Flushing MDetector bidirectional buffer...")
-        #     flush_counter = 0
-        #     max_flush_attempts = len(detector.depth_image_library._images) + detector.bidirectional_window_size + 5 # Adjusted safety break
-            
-        #     while flush_counter < max_flush_attempts:
-        #         flush_counter += 1
-        #         mdet_result = detector.decide_and_process_frame(is_end_of_sequence=True)
-                
-        #         if mdet_result and mdet_result.get('success'):
-        #             processed_di_object = mdet_result.get('processed_di')
-        #             processed_timestamp = mdet_result.get('timestamp')
+                    self.logger.warning(f"MDetector success but missing processed_di or timestamp. Output skipped. Result: {mdet_result}")
+            elif mdet_result and not mdet_result.get('success'):
+                pass # self.logger.info(f"MDetector info for scene {scene_rec['name']}: {mdet_result.get('reason', 'No specific reason given by MDetector')}")
 
-        #             if processed_di_object and processed_timestamp is not None:
-        #                 original_sweep_for_this_output = fed_sweep_data_by_timestamp.get(processed_timestamp)
-        #                 if original_sweep_for_this_output and processed_di_object.timestamp == processed_timestamp:
-        #                     collected_mdetector_outputs.append({
-        #                         'original_sweep_data': original_sweep_for_this_output,
-        #                         'mdet_success_flag': True,
-        #                         'processed_di_object_ref': processed_di_object
-        #                     })
-        #                 else:
-        #                     tqdm.write(f"Warning (Flush): Timestamp/data mismatch. Processed TS: {processed_timestamp}. Original sweep found: {'Yes' if original_sweep_for_this_output else 'No'}. DI TS: {processed_di_object.timestamp if processed_di_object else 'N/A'}. Output skipped.")
-        #             else:
-        #                 tqdm.write(f"Warning (Flush): MDetector success but missing processed_di or timestamp. Output skipped. Result: {mdet_result}")
-        #         elif mdet_result and not mdet_result.get('success'):
-        #             if with_progress: tqdm.write(f"MDetector info (flush): {mdet_result.get('reason', 'Failed or nothing more to process during flush')}")
-        #             if mdet_result.get('reason') != 'Bidirectional buffer not full yet': # Break if it's not just waiting for more frames (which it won't get)
-        #                 break 
-        #         elif not mdet_result: 
-        #             if with_progress: tqdm.write("MDetector flush complete (returned None).")
-        #             break
-        #         if flush_counter >= max_flush_attempts:
-        #             tqdm.write("Warning: Max flush attempts reached. Breaking flush loop.")
-        #             break
-        # self.logger.debug(f"--- INSPECTING collected_mdetector_outputs (count: {len(collected_mdetector_outputs)}) ---")
-        # for idx, output_item_debug in enumerate(collected_mdetector_outputs):
-        #     original_sweep_ref_debug = output_item_debug['original_sweep_data']
-        #     processed_di_debug = output_item_debug.get('processed_di_object_ref')
-        #     self.logger.debug(f"Item {idx}, Sweep Token: {original_sweep_ref_debug['lidar_sd_token']}, Timestamp: {original_sweep_ref_debug['timestamp']}")
-        #     if processed_di_debug:
-        #         points_arr = processed_di_debug.original_points_global_coords
-        #         labels_arr = processed_di_debug.mdet_labels_for_points
-        #         scores_arr = processed_di_debug.mdet_scores_for_points if hasattr(processed_di_debug, 'mdet_scores_for_points') else None
 
-        #         points_info = "None" if points_arr is None else f"Shape {points_arr.shape}"
-        #         labels_info = "None" if labels_arr is None else f"Shape {labels_arr.shape}"
-        #         scores_info = "None" if scores_arr is None else f"Shape {scores_arr.shape}"
-        #         self.logger.debug(f"  DI Valid: True. Points: {points_info}, Labels: {labels_info}, Scores: {scores_info}")
-        #         if points_arr is not None and labels_arr is not None and points_arr.shape[0] != labels_arr.shape[0] and points_arr.shape[0] > 0 : # Only warn if points exist but shapes mismatch
-        #              self.logger.error(f"  CRITICAL SHAPE MISMATCH for sweep {original_sweep_ref_debug['lidar_sd_token']}")
-        #         if points_arr is not None and points_arr.shape[0] > 0 and labels_arr is None:
-        #             self.logger.error(f"  CRITICAL LABELS ARE NONE for sweep {original_sweep_ref_debug['lidar_sd_token']} but points exist.")
-
-        #     else:
-        #         self.logger.debug(f"  DI Valid: False (processed_di_object_ref is None)")
-        # self.logger.debug("--- END INSPECTION ---")
-
-         # --- Phase 3: Assemble data from collected outputs ---
         if not collected_mdetector_outputs:
-            tqdm.write(f"No successful M-Detector outputs collected for scene {scene_rec['name']} to save to hdf5.")
+            self.logger.warning(f"No successful M-Detector outputs collected for scene {scene_rec['name']} to save to hdf5.")
             return None
 
         collected_mdetector_outputs.sort(key=lambda x: x['original_sweep_data']['timestamp'])
@@ -5110,31 +5196,38 @@ class NuScenesProcessor:
                 elif processed_di.original_points_global_coords.shape[0] > 0 and \
                      processed_di.mdet_labels_for_points.shape[0] == processed_di.original_points_global_coords.shape[0]:
                     valid_di = True
+            
             if valid_di:
                 points_xyz_sweep = processed_di.original_points_global_coords
                 labels_sweep_numeric = processed_di.mdet_labels_for_points
                 num_points_in_sweep = points_xyz_sweep.shape[0]
+                
                 sweep_structured_array = np.empty(num_points_in_sweep, dtype=structured_array_dtype)
                 if num_points_in_sweep > 0:
                     sweep_structured_array['x'] = points_xyz_sweep[:, 0]
                     sweep_structured_array['y'] = points_xyz_sweep[:, 1]
                     sweep_structured_array['z'] = points_xyz_sweep[:, 2]
                     sweep_structured_array['mdet_label'] = labels_sweep_numeric
+                    
                     if hasattr(processed_di, 'mdet_scores_for_points') and \
                        processed_di.mdet_scores_for_points is not None and \
                        processed_di.mdet_scores_for_points.shape[0] == num_points_in_sweep:
                         sweep_structured_array['mdet_score'] = processed_di.mdet_scores_for_points
                     else:
-                        sweep_structured_array['mdet_score'] = 0.0
+                        sweep_structured_array['mdet_score'] = 0.0 
+                
                 all_points_predictions_list.append(sweep_structured_array)
                 points_predictions_indices.append(points_predictions_indices[-1] + num_points_in_sweep)
-            else:
+            else: 
+                self.logger.warning(f"Scene {scene_rec['name']}, sweep {original_sweep_ref['lidar_sd_token']}: DI data inconsistent, skipping sweep output. Points: {processed_di.original_points_global_coords.shape[0] if processed_di and processed_di.original_points_global_coords is not None else 'N/A'}, Labels: {processed_di.mdet_labels_for_points.shape[0] if processed_di and processed_di.mdet_labels_for_points is not None else 'N/A'}")
                 points_predictions_indices.append(points_predictions_indices[-1])
+
+
         final_all_points_predictions = np.concatenate(all_points_predictions_list) if all_points_predictions_list else \
                                        np.empty(0, dtype=structured_array_dtype)
         output_data = {
             'scene_token': np.array([scene_rec['token']], dtype='S36'),
-            'sweep_lidar_sd_tokens': np.array(sweep_lidar_sd_tokens_list, dtype='S36'),
+            'sweep_lidar_sd_tokens': np.array([s.encode('utf-8') for s in sweep_lidar_sd_tokens_list], dtype='S36'),
             'sweep_timestamps_us': np.array(sweep_timestamps_us_list, dtype=np.int64),
             'all_points_predictions': final_all_points_predictions,
             'points_predictions_indices': np.array(points_predictions_indices, dtype=np.int64)
