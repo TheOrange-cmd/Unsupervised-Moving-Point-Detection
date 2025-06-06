@@ -1,19 +1,139 @@
 # src/core/m_detector/map_consistency.py
 # This file is imported into MDetector class
 
+from __future__ import annotations # for safe type checking without writing as strings
 import numpy as np
 from typing import Any, Dict, Tuple, List, Optional, TYPE_CHECKING
 from ..constants import OcclusionResult
 from .interpolation_utils import interpolate_surface_depth_at_angle
 import logging # Import logging
 from .adaptive_epsilon_utils import calculate_adaptive_epsilon
+import torch
 
-if TYPE_CHECKING:
-    from ..depth_image import DepthImage 
+# if TYPE_CHECKING:
+#     from ..depth_image_legacy import DepthImage 
 
 logger = logging.getLogger(__name__) # This will use 'src.core.m_detector.map_consistency'
 
-def is_map_consistent(self, # self is MDetector instance
+def is_map_consistent(self,
+                      points_global_batch: torch.Tensor,
+                      origin_di: DepthImage, # The DI where the points originated
+                      # We no longer need original_idx if we pass the whole batch
+                      current_timestamp: float,
+                      check_direction: str = 'past') -> torch.Tensor:
+    """
+    Checks if a BATCH of global points is consistent with static points in relevant DIs.
+    This version processes all points simultaneously against each relevant historical DI.
+
+    Args:
+        points_global_batch (torch.Tensor): (N, 3) tensor of points to check.
+        origin_di (DepthImage): The tensor-based DepthImage where the points originated.
+        current_timestamp (float): The timestamp of the origin_di.
+        check_direction (str): Currently only 'past' is supported.
+
+    Returns:
+        torch.Tensor: A boolean tensor of shape (N,) where True means the point is
+                      consistent with the static map.
+    """
+    batch_size = points_global_batch.shape[0]
+    device = self.device
+
+    if not self.map_consistency_enabled or batch_size == 0:
+        return torch.zeros(batch_size, dtype=torch.bool, device=device)
+
+    # 1. Get Relevant Historical DIs (this part remains a small Python loop)
+    if check_direction == 'past':
+        relevant_dis = self.depth_image_library.get_relevant_past_images(
+            current_timestamp, self.map_consistency_time_window_past_s
+        )
+    else: # 'future' or 'both' not implemented for batch yet
+        return torch.zeros(batch_size, dtype=torch.bool, device=device)
+
+    if not relevant_dis:
+        return torch.zeros(batch_size, dtype=torch.bool, device=device)
+
+    # 2. Prepare for aggregation
+    # This tensor will store the count of consistent matches for each point.
+    consistent_matches_count = torch.zeros(batch_size, dtype=torch.int32, device=device)
+    # This tensor tracks how many DIs were actually checked for each point.
+    dis_checked_count = torch.zeros(batch_size, dtype=torch.int32, device=device)
+    
+    # Get d_anchor for all points in the batch for adaptive epsilon
+    d_anchors = origin_di.local_sph_coords_for_points[:, 2] # Assuming all points are from this DI
+
+    # 3. Loop over relevant DIs and process points in a batch
+    for _, di_hist in relevant_dis:
+        # Project the entire batch of points into the historical DI
+        _, sph_coords_target, _, valid_mask = di_hist.project_point_to_pixel_indices(points_global_batch)
+        
+        if not torch.any(valid_mask):
+            continue # Skip this DI if no points project into it
+
+        # --- Vectorized Consistency Check within this DI ---
+        # We only work with the points that were validly projected
+        active_indices = torch.where(valid_mask)[0]
+        
+        # Increment the checked count for these points
+        dis_checked_count[active_indices] += 1
+        
+        active_sph_coords = sph_coords_target[active_indices]
+        phi_target, theta_target, depth_target = active_sph_coords.T
+        
+        # Get all static points from the historical DI
+        static_mask_hist = di_hist.get_static_points_mask(self.static_labels_for_map_check_values)
+        if static_mask_hist is None or not torch.any(static_mask_hist):
+            continue # No static points in this historical DI to compare against
+            
+        static_points_sph_hist = di_hist.local_sph_coords_for_points[static_mask_hist]
+        phi_static, theta_static, depth_static = static_points_sph_hist.T
+        
+        # Use broadcasting to find neighbors for all active points at once
+        # Shape: (num_active_points, num_static_points)
+        phi_diff = torch.abs(phi_target.unsqueeze(1) - phi_static)
+        theta_diff = torch.abs(theta_target.unsqueeze(1) - theta_static)
+        
+        # Find static points that are angular neighbors for each active point
+        is_angular_neighbor = (phi_diff <= self.epsilon_phi_map_rad) & (theta_diff <= self.epsilon_theta_map_rad)
+        
+        # Calculate adaptive epsilons for the active points
+        active_d_anchors = d_anchors[active_indices]
+        eps_fwd = calculate_adaptive_epsilon(active_d_anchors, self.epsilon_depth_forward_map, ...) # Simplified
+        eps_bwd = calculate_adaptive_epsilon(active_d_anchors, self.epsilon_depth_backward_map, ...) # Simplified
+
+        # Check depth consistency against all angular neighbors
+        # Shape: (num_active_points, num_static_points)
+        depth_lower_bound = depth_static - eps_bwd.unsqueeze(1)
+        depth_upper_bound = depth_static + eps_fwd.unsqueeze(1)
+        
+        is_depth_consistent = (depth_target.unsqueeze(1) >= depth_lower_bound) & \
+                              (depth_target.unsqueeze(1) <= depth_upper_bound)
+                              
+        # A match is found if it's both an angular and depth neighbor
+        is_consistent_match = is_angular_neighbor & is_depth_consistent
+        
+        # For each active point, check if ANY consistent match was found
+        found_match_in_di = torch.any(is_consistent_match, dim=1)
+        
+        # Increment the match count for the points that found a match
+        consistent_matches_count[active_indices[found_match_in_di]] += 1
+
+    # 4. Final Decision based on aggregated counts
+    final_map_consistent_result = torch.zeros(batch_size, dtype=torch.bool, device=device)
+    if self.mc_threshold_mode == 'count':
+        # Check only where at least one DI was checked to avoid false positives
+        can_be_consistent = dis_checked_count > 0
+        passes_threshold = consistent_matches_count >= self.mc_threshold_value_count
+        final_map_consistent_result = passes_threshold & can_be_consistent
+    elif self.mc_threshold_mode == 'ratio':
+        # Avoid division by zero
+        ratio = torch.zeros_like(consistent_matches_count, dtype=torch.float32)
+        valid_ratio_mask = dis_checked_count > 0
+        ratio[valid_ratio_mask] = consistent_matches_count[valid_ratio_mask].float() / dis_checked_count[valid_ratio_mask].float()
+        final_map_consistent_result = ratio >= self.mc_threshold_value_ratio
+        
+    return final_map_consistent_result
+
+def is_map_consistent_legacy(self, # self is MDetector instance
                       point_global: np.ndarray,
                       # ADDED: Parameters to determine d_anchor for point_global
                       origin_di_of_point_global: 'DepthImage', 

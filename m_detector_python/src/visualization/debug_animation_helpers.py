@@ -13,7 +13,7 @@ from nuscenes.nuscenes import NuScenes
 
 from ..data_utils.nuscenes_helper import get_lidar_sweep_data
 from ..utils.transformations import transform_points_numpy
-from ..core.depth_image import DepthImage # To create historical DI for context points
+from ..core.depth_image_legacy import DepthImage # To create historical DI for context points
 from ..core.m_detector.base import MDetector # For type hinting and accessing config
 
 # Define some default colors for debug animation (can be moved to constants or config)

@@ -6,7 +6,7 @@ from .adaptive_epsilon_utils import calculate_adaptive_epsilon
 
 if TYPE_CHECKING:
     from .base import MDetector
-    from ..depth_image import DepthImage 
+    from ..depth_image_legacy import DepthImage 
 
 logger_et = logging.getLogger(__name__) # Logger for this module
 
@@ -170,7 +170,7 @@ def execute_test2_parallel_motion(
                     
                     if mdetector_instance.map_consistency_enabled:
                         request_mcc_debug = return_debug_info # Simplified: if outer wants debug, get MCC debug
-                        mcc_result_package_test2 = mdetector_instance.is_map_consistent(
+                        mcc_result_package_test2 = mdetector_instance.is_map_consistent_legacy(
                             point_hist_cand_global, historical_di_k, original_idx_hist_cand,
                             historical_di_k.timestamp, check_direction='past',
                             return_debug_info=request_mcc_debug

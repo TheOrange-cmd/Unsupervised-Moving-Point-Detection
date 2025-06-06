@@ -2,7 +2,7 @@ import numpy as np
 from typing import Tuple, Optional, Dict, List, Any
 
 # Assuming these are in src.core...
-from ..core.depth_image import DepthImage
+from ..core.depth_image_legacy import DepthImage
 from ..core.m_detector.base import MDetector # For MDetector type hint
 from ..core.constants import OcclusionResult
 from ..core.debug_collector import PointDebugCollector
@@ -254,7 +254,7 @@ def debug_point_m_detector_logic(
     recheck_is_consistent_mcc = None
     if should_mcc_run_calculated:
         print("    Performing direct MCC call for verification:")
-        recheck_is_consistent_mcc, mcc_direct_debug_info = detector_instance.is_map_consistent(
+        recheck_is_consistent_mcc, mcc_direct_debug_info = detector_instance.is_map_consistent_legacy(
             point_global, current_di.timestamp, check_direction='past', return_debug_info=True
         )
         print(f"      Direct MCC Call Result: {'MAP CONSISTENT (Static)' if recheck_is_consistent_mcc else 'MAP INCONSISTENT (Dynamic)'}")

@@ -10,7 +10,7 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple, Any
 import logging 
 
-from ..depth_image import DepthImage
+from ..depth_image_legacy import DepthImage
 from ..depth_image_library import DepthImageLibrary
 from ..constants import OcclusionResult
 from ..debug_collector import PointDebugCollector
@@ -248,6 +248,7 @@ class MDetector:
     from .occlusion_checks import (
         check_occlusion_pixel_level, 
         check_occlusion_batch,
+        check_occlusion_batch_legacy,
         check_occlusion_point_level_detailed
     )
     

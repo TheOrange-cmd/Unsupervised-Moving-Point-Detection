@@ -5,7 +5,8 @@ import numpy as np
 from typing import Tuple, Optional, List, Dict, Any, TYPE_CHECKING 
 from ..constants import OcclusionResult
 from .adaptive_epsilon_utils import calculate_adaptive_epsilon 
-from ..depth_image import DepthImage 
+from ..depth_image_legacy import DepthImage 
+import torch
 
 import logging
 logger_oc = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ def check_occlusion_pixel_level(self,
 
     return OcclusionResult.UNDETERMINED, pixel_indices_in_hist_di, sph_coords_curr
 
-def check_occlusion_batch(self, 
+def check_occlusion_batch_legacy(self, 
                          points_global_batch: np.ndarray,
                          historical_depth_image: DepthImage) -> np.ndarray:
     """
@@ -143,6 +144,116 @@ def check_occlusion_batch(self,
     
     # Convert to enum values
     return np.array([OcclusionResult(int(r)) for r in results])
+
+def check_occlusion_batch(self,
+                            points_global_batch: torch.Tensor,
+                            historical_depth_image: DepthImage) -> torch.Tensor:
+    """
+    Batch occlusion check using pure PyTorch tensor operations.
+
+    Args:
+        points_global_batch (torch.Tensor): (N, 3) tensor of points.
+        historical_depth_image (DepthImage): The new tensor-based DepthImage.
+
+    Returns:
+        torch.Tensor: (N,) tensor of OcclusionResult integer values.
+    """
+    batch_size = points_global_batch.shape[0]
+    device = self.device # Assuming MDetector has a self.device attribute
+
+    # Ensure input is a tensor on the correct device
+    if not isinstance(points_global_batch, torch.Tensor):
+        points_global_batch = torch.from_numpy(points_global_batch).float()
+    points_global_batch = points_global_batch.to(device)
+
+    # 1. Project all points at once using the refactored method
+    _, sph_coords, pixel_indices, valid_mask = historical_depth_image.project_points_batch(points_global_batch)
+
+    # Initialize results as UNDETERMINED
+    results = torch.full((batch_size,), OcclusionResult.UNDETERMINED.value, dtype=torch.int32, device=device)
+
+    valid_indices = torch.where(valid_mask)[0]
+    if valid_indices.numel() == 0:
+        return results
+
+    # 2. Gather data for valid points
+    valid_pixels = pixel_indices[valid_indices]
+    valid_depths = sph_coords[valid_indices, 2]
+
+    # 3. Vectorized Neighborhood Lookup
+    # Create neighborhood offsets
+    n_v, n_h = self.neighbor_search_pixels_v, self.neighbor_search_pixels_h
+    dv = torch.arange(-n_v, n_v + 1, device=device)
+    dh = torch.arange(-n_h, n_h + 1, device=device)
+    grid_dv, grid_dh = torch.meshgrid(dv, dh, indexing='ij')
+    offsets = torch.stack([grid_dv.flatten(), grid_dh.flatten()], dim=1) # Shape: (neighborhood_size, 2)
+
+    # Expand dims to broadcast offsets to all valid pixels
+    # New shape: (num_valid_points, neighborhood_size, 2)
+    neighborhood_pixels = valid_pixels.unsqueeze(1) + offsets
+
+    # Clamp coordinates to be within image bounds
+    neighborhood_pixels[:, :, 0].clamp_(0, historical_depth_image.num_pixels_v - 1)
+    neighborhood_pixels[:, :, 1].clamp_(0, historical_depth_image.num_pixels_h - 1)
+
+    # Flatten pixel coordinates for gathering
+    v_coords = neighborhood_pixels[:, :, 0]
+    h_coords = neighborhood_pixels[:, :, 1]
+    flat_indices = v_coords * historical_depth_image.num_pixels_h + h_coords
+
+    # 4. Gather data from historical DI grids
+    hist_counts_flat = historical_depth_image.pixel_count.view(-1)
+    hist_min_depth_flat = historical_depth_image.pixel_min_depth.view(-1)
+    hist_max_depth_flat = historical_depth_image.pixel_max_depth.view(-1)
+
+    # Gather values for each point's neighborhood
+    # Shape: (num_valid_points, neighborhood_size)
+    neighborhood_counts = hist_counts_flat[flat_indices]
+    neighborhood_min_depths = hist_min_depth_flat[flat_indices]
+    neighborhood_max_depths = hist_max_depth_flat[flat_indices]
+
+    # 5. Aggregate neighborhood stats and apply logic
+    # Mask where neighborhood has no data
+    has_data_mask = neighborhood_counts > 0
+    
+    # For each point, check if any pixel in its neighborhood has data
+    any_data_in_neighborhood = torch.any(has_data_mask, dim=1)
+    
+    # Set result to EMPTY_IN_IMAGE for points with no data in their neighborhood
+    results[valid_indices[~any_data_in_neighborhood]] = OcclusionResult.EMPTY_IN_IMAGE.value
+
+    # Continue only with points that have data in their neighborhood
+    if torch.any(any_data_in_neighborhood):
+        # Filter to only points with data
+        points_with_data_mask = any_data_in_neighborhood
+        
+        # Use a large value where there's no data so it doesn't affect min/max
+        min_depths_clean = torch.where(has_data_mask, neighborhood_min_depths, float('inf'))
+        max_depths_clean = torch.where(has_data_mask, neighborhood_max_depths, float('-inf'))
+
+        # Get min/max depth over the neighborhood dimension
+        min_depth_in_region = torch.min(min_depths_clean[points_with_data_mask], dim=1).values
+        max_depth_in_region = torch.max(max_depths_clean[points_with_data_mask], dim=1).values
+        
+        # Get the corresponding depths and indices for these points
+        active_depths = valid_depths[points_with_data_mask]
+        active_indices = valid_indices[points_with_data_mask]
+
+        # Apply occlusion logic using torch.where for conditional assignment
+        current_results = results[active_indices]
+        
+        # Condition for OCCLUDED_BY_IMAGE
+        occluded_mask = active_depths > max_depth_in_region + self.epsilon_depth_occlusion
+        current_results = torch.where(occluded_mask, OcclusionResult.OCCLUDED_BY_IMAGE.value, current_results)
+
+        # Condition for OCCLUDING_IMAGE
+        occluding_mask = active_depths < min_depth_in_region - self.epsilon_depth_occlusion
+        current_results = torch.where(occluding_mask, OcclusionResult.OCCLUDING_IMAGE.value, current_results)
+
+        results[active_indices] = current_results
+
+    return results
+
 
 def check_occlusion_point_level_detailed(
     self: 'MDetector', # MDetector instance

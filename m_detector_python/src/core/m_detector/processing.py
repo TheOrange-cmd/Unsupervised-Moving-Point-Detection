@@ -3,7 +3,7 @@
 
 import numpy as np
 from typing import Dict, Optional, Any
-from ..depth_image import DepthImage
+from ..depth_image_legacy import DepthImage
 from ..constants import OcclusionResult
 from tqdm import tqdm
 import logging
@@ -85,7 +85,7 @@ def process_and_label_di(self, # self is MDetector instance
             if actual_historical_di_index_in_lib < 0: break
             historical_di_k = self.depth_image_library.get_image_by_index(actual_historical_di_index_in_lib)
             if historical_di_k and historical_di_k.is_prepared_for_projection():
-                raw_occlusion_enums_vs_hist_k = self.check_occlusion_batch(
+                raw_occlusion_enums_vs_hist_k = self.check_occlusion_batch_legacy(
                     points_global_batch_current, historical_di_k
                 )
                 current_di.raw_occlusion_results_vs_history[:, k_hist_idx] = [
@@ -132,7 +132,7 @@ def process_and_label_di(self, # self is MDetector instance
 
         if raw_occ_P_vs_imm_hist == OcclusionResult.OCCLUDING_IMAGE and self.map_consistency_enabled:
             mcc1_performed = True
-            mcc_result_package_t1 = self.is_map_consistent(
+            mcc_result_package_t1 = self.is_map_consistent_legacy(
                 point_global_P,
                 current_di,                             # origin_di_of_point_global
                 pt_idx,                                 # original_idx_of_point_global_in_origin_di
@@ -202,7 +202,7 @@ def process_and_label_di(self, # self is MDetector instance
         mcc_for_test3_result_bool = None
 
         if self.map_consistency_enabled:
-            mcc_result_package_t3 = self.is_map_consistent(
+            mcc_result_package_t3 = self.is_map_consistent_legacy(
                 point_global_P,
                 current_di,                             # origin_di_of_point_global
                 pt_idx,                                 # original_idx_of_point_global_in_origin_di
@@ -275,7 +275,7 @@ def process_and_label_di(self, # self is MDetector instance
         if preliminary_is_dynamic and self.map_consistency_enabled:
             mcc_refinement_performed = True
             # CORRECTED CALL for MCC Refinement
-            mcc_package_refinement = self.is_map_consistent(
+            mcc_package_refinement = self.is_map_consistent_legacy(
                 point_global_P,
                 current_di,                             # origin_di_of_point_global
                 pt_idx,                                 # original_idx_of_point_global_in_origin_di
