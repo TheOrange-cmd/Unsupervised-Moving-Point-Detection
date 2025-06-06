@@ -257,7 +257,7 @@ def generate_tuning_experiments_v2(target_count=116):
         
     return experiments[:target_count] # Ensure we don't exceed the target
 
-# --- (Your existing imports and setup for PROJECT_ROOT, progress_logger) ---
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 if PROJECT_ROOT not in sys.path:
@@ -279,6 +279,22 @@ progress_logger.addHandler(progress_file_handler)
 from src.core.m_detector.base import MDetector
 from src.data_utils.nuscenes_helper import NuScenesProcessor
 from src.config_loader import MDetectorConfigAccessor
+
+# Global for workers
+worker_nusc_instance = None
+worker_nusc_version = None
+worker_nusc_dataroot = None
+
+def init_worker(version, dataroot, verbose_load):
+    global worker_nusc_instance, worker_nusc_version, worker_nusc_dataroot
+    # Only load if it's not already loaded or if params changed (less likely with imap)
+    if worker_nusc_instance is None or worker_nusc_version != version or worker_nusc_dataroot != dataroot:
+        logging.info(f"Worker {os.getpid()}: Initializing NuScenes {version} from {dataroot}")
+        worker_nusc_instance = NuScenes(version=version, dataroot=dataroot, verbose=verbose_load)
+        worker_nusc_version = version
+        worker_nusc_dataroot = dataroot
+    else:
+        logging.info(f"Worker {os.getpid()}: Reusing existing NuScenes instance.")
 
 def represent_none(dumper, _):
     return dumper.represent_scalar('tag:yaml.org,2002:null', 'null')
@@ -313,7 +329,7 @@ def process_single_scene_worker(scene_idx: int,
                                 output_dir_for_tuning: str):
     try:
         config_accessor = MDetectorConfigAccessor(tuned_config_file_path)
-        nusc_worker = NuScenes(version=nuscenes_version, dataroot=nuscenes_dataroot, verbose=nuscenes_verbose_load)
+        nusc_worker = worker_nusc_instance 
         detector_worker = MDetector(config_accessor=config_accessor)
         processor_worker = NuScenesProcessor(nusc_worker, config_accessor=config_accessor)
         scene_record = nusc_worker.scene[scene_idx]
@@ -335,12 +351,13 @@ def process_single_scene_worker(scene_idx: int,
         return scene_idx, scene_name, dict_of_arrays_for_scene, output_dir_for_tuning, tuned_config_file_path # Added tuned_config_file_path
     except Exception as e:
         logging.error(f"Error processing scene_idx {scene_idx} in worker with config {tuned_config_file_path}: {e}", exc_info=True)
-        try:
-            temp_nusc = NuScenes(version=nuscenes_version, dataroot=nuscenes_dataroot, verbose=False)
-            failed_scene_name = temp_nusc.scene[scene_idx]['name']
-        except:
-            failed_scene_name = f"scene_idx_{scene_idx}"
-        return scene_idx, failed_scene_name, None, output_dir_for_tuning, tuned_config_file_path # Added tuned_config_file_path
+        failed_scene_name = f"scene_idx_{scene_idx}" # Default
+        if worker_nusc_instance: # Check if the global instance exists
+            try:
+                failed_scene_name = worker_nusc_instance.scene[scene_idx]['name']
+            except Exception as e_name:
+                logging.error(f"Could not get scene name for failed idx {scene_idx} from worker nusc instance: {e_name}")
+        return scene_idx, failed_scene_name, None, output_dir_for_tuning, tuned_config_file_path
 
 def global_worker_wrapper(task_info_tuple):
     scene_idx, tuned_config_path, output_dir, base_nuscenes_version, base_nuscenes_dataroot = task_info_tuple
@@ -417,21 +434,12 @@ def main():
     tqdm.write(f"Loading BASE config from: {base_config_file_path_absolute}")
     base_config_dict = load_base_config(base_config_file_path_absolute)
 
-    # ---  tunings to try ---
-    # tuning_experiments = [
-    #     {"name": "current_adaptive_settings", "overrides": {}},
-    #     {"name": "static_epsilons_0.5_1.0_0.3", "overrides": {"m_detector": {"occlusion_determination": {"epsilon_depth": 0.5, "adaptive_epsilon_depth_config": {"enabled": False}},"map_consistency": {"epsilon_depth_forward_m": 1.0, "adaptive_epsilon_forward_config": {"enabled": False},"epsilon_depth_backward_m": 0.3, "adaptive_epsilon_backward_config": {"enabled": False}}}}},
-    #     {"name": "adaptive_occ_dmin_tighter", "overrides": {"m_detector": {"occlusion_determination": {"adaptive_epsilon_depth_config": {"dmin": 0.025}}}}},
-    #     {"name": "adaptive_occ_dmax_looser", "overrides": {"m_detector": {"occlusion_determination": {"adaptive_epsilon_depth_config": {"dmax": 0.75}}}}},
-    #     {"name": "adaptive_occ_dthr_more_aggressive", "overrides": {"m_detector": {"occlusion_determination": {"adaptive_epsilon_depth_config": {"dthr": 3.0}}}}},
-    #     {"name": "adaptive_mcc_fwd_dmin_tighter", "overrides": {"m_detector": {"map_consistency": {"adaptive_epsilon_forward_config": {"dmin": 0.1}}}}},
-    #     {"name": "adaptive_mcc_fwd_dthr_less_aggressive", "overrides": {"m_detector": {"map_consistency": {"adaptive_epsilon_forward_config": {"dthr": 30.0}}}}},
-    #     {"name": "adaptive_mcc_bwd_dmin_tighter", "overrides": {"m_detector": {"map_consistency": {"adaptive_epsilon_backward_config": {"dmin": 0.025}}}}},
-    #     {"name": "adaptive_mcc_bwd_kthr_stricter", "overrides": {"m_detector": {"map_consistency": {"adaptive_epsilon_backward_config": {"kthr": 0.05}}}}},
-    #     {"name": "adaptive_occ_disabled_mcc_enabled", "overrides": {"m_detector": {"occlusion_determination": {"adaptive_epsilon_depth_config": {"enabled": False}}}}},
-    #     {"name": "adaptive_mcc_disabled_occ_enabled", "overrides": {"m_detector": {"map_consistency": {"adaptive_epsilon_forward_config": {"enabled": False},"adaptive_epsilon_backward_config": {"enabled": False}}}}},
-    # ]
-    tuning_experiments = generate_tuning_experiments_v2(target_count=116)
+    tuning_experiments = generate_tuning_experiments_v2(target_count=2)
+    # tuning_experiments = [] # don't try any tunings, just use the config as is. 
+
+    if not tuning_experiments:
+        tuning_experiments = [{"name": "baseline_best_config", "overrides": {}}]
+        print("No tuning experiments specified. Running with base config only.")
 
     temp_base_config_accessor = MDetectorConfigAccessor(base_config_file_path_absolute)
     mdet_output_cfg_base = temp_base_config_accessor.get_mdetector_output_paths()
@@ -440,7 +448,18 @@ def main():
     if not os.path.isabs(main_save_path) and PROJECT_ROOT:
         main_save_path = os.path.join(PROJECT_ROOT, main_save_path)
 
+    try:
+        tqdm.write("Loading main NuScenes object for task preparation...")
+        nusc_main = NuScenes(version=base_nuscenes_cfg.get('version'), 
+                             dataroot=base_nuscenes_cfg.get('dataroot'), 
+                             verbose=False)
+        tqdm.write("NuScenes object loaded.")
+    except Exception as e_nusc_main_load:
+        tqdm.write(f"FATAL: Could not load main NuScenes object. Exiting. Error: {e_nusc_main_load}")
+        return
+
     all_processing_tasks = []
+
     progress_logger.info(f"Preparing {len(tuning_experiments)} tuning configurations...")
     tqdm.write("Preparing tuning configurations and output directories...")
     for i, tuning_experiment in enumerate(tqdm(tuning_experiments, desc="Preparing Tunings")):
@@ -461,30 +480,29 @@ def main():
             progress_logger.error(f"Error saving tuned YAML for '{tuning_name}': {e_yaml_save}. Skipping.")
             continue
         
-        tuned_nuscenes_cfg = current_tuned_config_dict.get('nuscenes', {})
-        nusc_version_for_list = tuned_nuscenes_cfg.get('version', base_nuscenes_cfg.get('version'))
-        nusc_dataroot_for_list = tuned_nuscenes_cfg.get('dataroot', base_nuscenes_cfg.get('dataroot'))
-        try:
-            nusc_temp_for_list = NuScenes(version=nusc_version_for_list, dataroot=nusc_dataroot_for_list, verbose=False)
-        except Exception as e_nusc_load:
-            tqdm.write(f"Error loading NuScenes for tuning '{tuning_name}' to get scene list: {e_nusc_load}. Skipping.")
-            progress_logger.error(f"Error loading NuScenes for tuning '{tuning_name}': {e_nusc_load}. Skipping.")
-            continue
+        # tuned_nuscenes_cfg = current_tuned_config_dict.get('nuscenes', {})
+        # nusc_version_for_list = tuned_nuscenes_cfg.get('version', base_nuscenes_cfg.get('version'))
+        # nusc_dataroot_for_list = tuned_nuscenes_cfg.get('dataroot', base_nuscenes_cfg.get('dataroot'))
+        # try:
+        #     nusc_temp_for_list = NuScenes(version=nusc_version_for_list, dataroot=nusc_dataroot_for_list, verbose=False)
+        # except Exception as e_nusc_load:
+        #     tqdm.write(f"Error loading NuScenes for tuning '{tuning_name}' to get scene list: {e_nusc_load}. Skipping.")
+        #     progress_logger.error(f"Error loading NuScenes for tuning '{tuning_name}': {e_nusc_load}. Skipping.")
+        #     continue
 
         tuned_mdet_output_cfg = current_tuned_config_dict.get('mdetector_output_paths', {})
-        scene_indices_to_process_config = tuned_mdet_output_cfg.get('scene_indices_to_run', 'all')
-        current_scene_indices_list = []
+        scene_indices_to_process_config = current_tuned_config_dict.get('mdetector_output_paths', {}).get('scene_indices_to_run', 'all')
         if isinstance(scene_indices_to_process_config, str) and scene_indices_to_process_config.lower() == 'all':
-            current_scene_indices_list = list(range(len(nusc_temp_for_list.scene)))
+            current_scene_indices_list = list(range(len(nusc_main.scene)))
         elif isinstance(scene_indices_to_process_config, list):
             current_scene_indices_list = scene_indices_to_process_config
         else:
             tqdm.write(f"Invalid 'scene_indices_to_run' for '{tuning_name}'. Defaulting to all.")
             progress_logger.warning(f"Invalid 'scene_indices_to_run' for '{tuning_name}'. Defaulting to all.")
-            current_scene_indices_list = list(range(len(nusc_temp_for_list.scene)))
+            current_scene_indices_list = list(range(len(nusc_main.scene)))
 
         for scene_idx in current_scene_indices_list:
-            if isinstance(scene_idx, int) and 0 <= scene_idx < len(nusc_temp_for_list.scene):
+            if isinstance(scene_idx, int) and 0 <= scene_idx < len(nusc_main.scene):
                 all_processing_tasks.append(
                     (scene_idx, tuned_config_filepath, output_dir_for_this_tuning,
                      base_nuscenes_cfg.get('version'), base_nuscenes_cfg.get('dataroot'))
@@ -505,12 +523,12 @@ def main():
     progress_logger.info(f"Using up to {num_cores_to_use} parallel processes.")
     tqdm.write(f"Total tasks to process: {len(all_processing_tasks)}. Using up to {num_cores_to_use} parallel processes.")
 
-    # <<< MODIFIED SECTION for Incremental Saving >>>
     total_saved_scenes = 0
     total_failed_tasks = 0
     tasks_processed_count = 0 # Renamed from tasks_completed_count for clarity
+    pool_initargs = (base_nuscenes_cfg.get('version'), base_nuscenes_cfg.get('dataroot'), False)
 
-    with multiprocessing.Pool(processes=num_cores_to_use) as pool:
+    with multiprocessing.Pool(processes=num_cores_to_use, initializer=init_worker, initargs=pool_initargs) as pool:
         with tqdm(total=len(all_processing_tasks), desc="Overall Task Progress") as pbar:
             for worker_result_tuple in pool.imap_unordered(global_worker_wrapper, all_processing_tasks):
                 # Unpack the result from the worker
@@ -530,10 +548,7 @@ def main():
                 tasks_processed_count += 1
                 if tasks_processed_count % 10 == 0 or tasks_processed_count == len(all_processing_tasks):
                     progress_logger.info(f"Task processing progress: {tasks_processed_count}/{len(all_processing_tasks)} tasks processed (saved/failed).")
-    # <<< END MODIFIED SECTION >>>
 
-    # The old loop for saving is now removed as saving happens incrementally.
-    # The final summary can remain.
     progress_logger.info("All worker processes and incremental saving finished.")
     tqdm.write("\nAll worker processes and incremental saving finished.") # Keep for console
 

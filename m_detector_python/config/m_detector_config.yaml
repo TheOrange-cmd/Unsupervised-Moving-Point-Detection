@@ -8,14 +8,14 @@ nuscenes:
   # Or use the omni dataset Ted (Teddy) de Vries Lentsch is working on. 
 processing_settings: 
   skip_frames: 0
-  max_frames: 500 # provide an int, or None to process the entire sequence
+  max_frames: 30 # provide an int, or None to process the entire sequence
   # max_frames: 50 
 mdetector_output_paths: # Renamed
-  save_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_tuning_30_05_25" # Directory where M-Detector outputs will be saved
+  save_path: "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/output/test06_06_25" # Directory where M-Detector outputs will be saved
   # scene_indices_to_run: 'all' # 'all' or a list, e.g.: [1,] or [0, 3, 5]
   # scene_indices_to_run: [0, 1, 2, 3, 4, ]
-  scene_indices_to_run: [1,]
-  max_parallel_scenes: 58 # How many sequences to process in parallel - will use one core and approx 0.6 GB RAM per job for nuscenes. 
+  scene_indices_to_run: [1, 2, 3, 4, 5]
+  max_parallel_scenes: 26 # How many sequences to process in parallel - will use one core and approx 0.6 GB RAM per job for nuscenes. 
 
 validation_params: # Renamed
   gt_velocity_threshold: 1.0 # For comparing against GT
@@ -54,10 +54,10 @@ m_detector:
     adaptive_epsilon_depth_config:
       <<: *adaptive_epsilon_defaults # Use the defaults
       enabled: true                 
-      dthr: 5.0       # <--- NEW (was 30.0 via defaults) Start adapting much earlier
-      kthr: 0.01      # <--- NEW (was 0.05 via defaults) Slower increase
-      dmax: 0.5       # <--- NEW (was 2.0 via defaults) Lower cap
-      dmin: 0.05      # <--- NEW (was 0.1 via defaults) Lower min
+      dthr: 5.0    
+      kthr: 0.01   
+      dmax: 0.5   
+      dmin: 0.05   
     # For pixel-summary based check (currently used by check_occlusion_batch for Test 1 history)
     pixel_neighborhood_h: 2 # (nh)
     pixel_neighborhood_v: 1 # (nv)
@@ -79,7 +79,7 @@ m_detector:
         dmax: 2.0               # Maximum cap for the adaptive threshold
     
     test4_perpendicular:
-      num_historical_DIs_N: 10
+      num_historical_DIs_N: 15
       min_occluding_DIs_M4: 4
     # Note: Map consistency is applied *within* each test's logic
 
