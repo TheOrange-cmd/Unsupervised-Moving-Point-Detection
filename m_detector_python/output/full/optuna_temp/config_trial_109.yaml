@@ -1,0 +1,184 @@
+nuscenes:
+  version: v1.0-mini
+  dataroot: /datasets/nuscenes
+  lidar_sensor_name: LIDAR_TOP
+  label_path: /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/nuscenes_labels_interpolated
+processing_settings:
+  device: cuda
+  gpu_ids:
+  - 0
+  - 6
+  skip_frames: 0
+  max_frames: -1
+  workers_per_gpu: 4
+  detailed_log_level: DEBUG
+  random_seed: 42
+mdetector_output_paths:
+  save_path: /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/output/full
+  scene_indices_to_run:
+  - 1
+  save_mode: full
+  labels_to_save:
+  - OCCLUDING_IMAGE
+  max_parallel_scenes: 26
+validation_params:
+  gt_velocity_threshold: 1.0
+adaptive_epsilon_params_schema:
+  enabled: false
+  dthr: 30.0
+  kthr: 0.05
+  dmax: 2.0
+  dmin: 0.1
+m_detector:
+  point_pre_filtering:
+    enabled: true
+    max_range_meters: 50.0
+    min_range_meters: 2.5
+  depth_image:
+    resolution_h_deg: 0.4
+    resolution_v_deg: 1.26
+    phi_min_rad: -3.1415926535
+    phi_max_rad: 3.1415926535
+    theta_min_rad: -0.535
+    theta_max_rad: 0.186
+    library_size: 20
+  occlusion_determination:
+    epsilon_depth: 0.17583301542880395
+    adaptive_epsilon_depth_config:
+      enabled: true
+      dthr: 5.0
+      kthr: 0.01
+      dmax: 0.5
+      dmin: 0.05
+    pixel_neighborhood_h: 2
+    pixel_neighborhood_v: 1
+    angular_neighborhood_h_deg: 0.1047157181640452
+    angular_neighborhood_v_deg: 0.3198219457563964
+  event_detection_logic:
+    test2_parallel_away:
+      num_historical_DIs_M2: 2
+    test3_parallel_towards:
+      num_historical_DIs_M3: 3
+      adaptive_epsilon_simulation_params:
+        enabled_for_simulation: true
+        dthr: 30.0
+        kthr: 0.05
+        dmax: 2.0
+    test4_perpendicular:
+      num_historical_DIs_N: 14
+      min_occluding_DIs_M4: 3
+  map_consistency:
+    enabled: false
+    num_past_sweeps_for_mcc: 10
+    epsilon_phi_deg: 0.57
+    epsilon_theta_deg: 1.72
+    epsilon_depth_forward_m: 1.0
+    adaptive_epsilon_forward_config:
+      enabled: true
+      dthr: 20.0
+      kthr: 0.07
+      dmax: 3.0
+      dmin: 0.1
+    epsilon_depth_backward_m: 0.3
+    adaptive_epsilon_backward_config:
+      enabled: true
+      dthr: 20.0
+      kthr: 0.03
+      dmax: 1.0
+      dmin: 0.05
+    threshold_mode: count
+    threshold_value_count: 2
+    static_labels_for_map_check:
+    - OCCLUDED_BY_IMAGE
+    - UNDETERMINED
+    - PRELABELED_STATIC_GROUND
+    interpolation_enabled: true
+    interpolation_min_depth_m: 15.0
+    interpolation_max_depth_m: 70.0
+    interpolation_max_neighbors_to_consider: 20
+    interpolation_max_triplets_to_try: 100
+    interpolation_fallback_to_direct_comparison: true
+  ransac_ground_params:
+    enabled: true
+    xyradius_threshold: 25.0
+    z_min_threshold: -.inf
+    z_max_threshold: .inf
+    num_trials: 20
+    inlier_threshold: 0.3
+    ground_threshold: 0.3
+    device: cuda
+  frame_refinement:
+    enabled: false
+    clustering:
+      voxel_size_m: 0.3
+      dbscan_eps: 0.5
+      dbscan_min_samples: 3
+    region_growth:
+      expansion_factor_aabb: 2.0
+  initialization_phase:
+    num_sweeps_for_initial_map: 10
+  bidirectional_aggregation:
+    enabled: false
+visualization:
+  video_generation:
+    fps: 20
+    default_scene_index: 1
+    output_directory: /home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output
+    figure_size_side_by_side:
+    - 20
+    - 10
+    bev_range_meters: 50
+    point_size_all_lidar: 0.2
+    point_color_all_lidar: lightgrey
+    point_alpha_all_lidar: 0.5
+    point_size_dynamic_gt: 2.5
+    point_size_dynamic_pred: 2.0
+    point_size_occluded_pred: 1.5
+    show_mdet_occluded_points: false
+    ego_vehicle:
+      marker: o
+      markersize: 8
+      color: darkred
+      arrow_length: 2.0
+      arrow_head_width: 0.8
+      arrow_head_length: 1.0
+      arrow_fc: darkred
+      arrow_ec: darkred
+      arrow_zorder: 10
+  k3d_plot:
+    plot_background_color_hex: 14540253
+    grid_visible: true
+    camera_auto_fit: true
+    point_size: 0.06
+    camera_offset_x: 25
+    camera_offset_y: 25
+    camera_offset_z: 20
+    ransac_ground_color_hex: 25600
+    ransac_ground_point_size_factor: 0.7
+    tp_color_hex: 3329330
+    tp_point_size_factor: 1.1
+    fp_color_hex: 16711680
+    fp_point_size_factor: 1.1
+    fn_color_hex: 16729344
+    fn_point_size_factor: 1.1
+    tn_background_color_hex: 11584734
+    tn_background_point_size_factor: 0.4
+    poi_color_hex: 16776960
+    poi_k3d_point_size: 0.3
+    background_points_color_hex: 11184810
+    background_points_scale_factor: 0.7
+    show_gt_boxes_k3d: true
+    gt_box_line_width: 0.02
+    num_instance_box_colors: 20
+    instance_box_colormap: tab20
+    mdet_dynamic_label_value: 0
+    mdet_occluded_label_value: 1
+    mdet_undetermined_label_value: 3
+    mdet_dynamic_points_color_hex: 65280
+    mdet_dynamic_points_scale_factor: 1.0
+    mdet_occluded_points_color_hex: 16753920
+    mdet_occluded_points_scale_factor: 0.9
+    mdet_undetermined_points_color_hex: 16776960
+    mdet_undetermined_points_scale_factor: 0.7
+    show_mdet_undetermined_points: false
+    downsample_factor_k3d: 1

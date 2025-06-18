@@ -1,0 +1,10 @@
+To run:
+cd ~/Unsupervised-Moving-Point-Detection/m_detector_python
+python -m src.ray_scripts.profile_script
+
+To enable scrolling in tmux:
+tmux set -g mouse on
+
+Optuna setup:
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+python -m src.ray_scripts.run_optuna_experiment --phase 1 --n-trials=10 --study-name optuna_test --n-parallel-trials=1

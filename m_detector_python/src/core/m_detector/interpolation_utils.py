@@ -3,7 +3,7 @@
 import numpy as np
 from typing import Tuple, Optional, List, Dict, Any
 from itertools import combinations
-from src.core.depth_image_legacy import DepthImage 
+from src.core.depth_image import DepthImage 
 from src.core.constants import OcclusionResult 
 import logging
 

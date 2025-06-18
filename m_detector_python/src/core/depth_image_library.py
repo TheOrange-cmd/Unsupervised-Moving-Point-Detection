@@ -4,7 +4,7 @@ import collections
 from typing import List, Optional, Deque, Tuple, Any, Union
 
 # Import both classes and create a Union type
-from .depth_image_legacy import DepthImage as DepthImageLegacy
+from .depth_image import DepthImage as DepthImageLegacy
 from .depth_image import DepthImage as DepthImageTorch
 
 # This tells the type checker that the library can hold either version.
@@ -45,20 +45,27 @@ class DepthImageLibrary:
 
     # --- Methods that need to be careful about the object type ---
     
-    def get_relevant_past_images(self, current_timestamp: float, time_window_s: float) -> List[Tuple[int, Any]]:
+    def get_relevant_past_images(self, num_sweeps: int) -> List[Tuple[int, Any]]:
         """
-        Retrieves past images within a specified time window from the current_timestamp.
+        Retrieves a specified number of the most recent past images from the library.
         Returns a list of (index, DepthImage) tuples.
         """
-        relevant_dis: List[Tuple[int, Any]] = []
-        for i, di_candidate in enumerate(self._images):
-            # All our DI objects will have a .timestamp attribute, so this is safe.
-            if di_candidate.timestamp < current_timestamp and \
-               (current_timestamp - di_candidate.timestamp) <= time_window_s * 1e6:
-                relevant_dis.append((i, di_candidate))
+        if not self._images or num_sweeps <= 0:
+            return []
         
-        relevant_dis.sort(key=lambda x: current_timestamp - x[1].timestamp)
+        num_available = len(self._images)
+        num_to_get = min(num_sweeps, num_available)
+        
+        relevant_dis = []
+        for i in range(num_to_get):
+            # Index from the end: -1 is the last item, -2 is the second to last, etc.
+            image_index_from_end = -1 - i
+            actual_index_in_deque = num_available + image_index_from_end
+            relevant_dis.append((actual_index_in_deque, self._images[image_index_from_end]))
+            
+        # The list is already sorted from most recent to least recent.
         return relevant_dis
+
 
     # ... other methods like get_relevant_future_images, __len__, etc., remain the same ...
     # They operate on the deque and don't need to know the internal details of the DI objects.

@@ -5,7 +5,7 @@ from typing import Dict, Optional, List, Callable, Tuple
 
 from ..constants import OcclusionResult
 
-# --- RANSAC Ground Detection (Adapted from your example) ---
+# --- RANSAC Ground Detection ---
 @torch.no_grad()
 def ransac_ground_prelabeler(
     points_global: np.ndarray, # Nx3 global coordinates
@@ -40,30 +40,12 @@ def ransac_ground_prelabeler(
     pc_lidar_torch = torch.from_numpy(points_lidar_frame).float().to(device)
     ones_col = torch.ones((pc_lidar_torch.shape[0], 1), device=device, dtype=pc_lidar_torch.dtype)
     pc_lidar_torch_h = torch.cat([pc_lidar_torch, ones_col], dim=1)
-
-
-    # Set default hyperparameters (move these to config eventually)
-    default_params = {
-        'xyradius_threshold': 20.0, # Example: Consider points within 20m radius for initial plane fit
-        'z_min_threshold': -2.5,    # Example: Points below sensor (e.g. -2.0m for car-mounted lidar)
-        'z_max_threshold': -0.5,    # Example: Points not too high above sensor
-        'num_trials': 50,           # Increased for potentially more robustness
-        'inlier_threshold': 0.20,   # Stricter for "conservative"
-        'ground_threshold': 0.20,   # Stricter for "conservative"
-    }
-    current_ransac_params = ransac_params if ransac_params is not None else default_params
-
-    # print(f"Using params for RANSAC: {current_ransac_params}")
-
-    # --- Call your RANSAC function (adapted to take Nx4) ---
-    # Assuming your ransac_flatplane is modified or wrapped to accept Nx4
-    # For now, directly embedding the logic:
     assert pc_lidar_torch_h.ndim == 2 and pc_lidar_torch_h.shape[1] == 4, \
         f'pc_lidar must have shape (N,4), got {tuple(pc_lidar_torch_h.shape)}'
     
-    R = current_ransac_params['xyradius_threshold']
-    zmin = current_ransac_params['z_min_threshold']
-    zmax = current_ransac_params['z_max_threshold']
+    R = ransac_params['xyradius_threshold']
+    zmin = ransac_params['z_min_threshold']
+    zmax = ransac_params['z_max_threshold']
 
     # Filter for ground disk in lidar frame
     bool_xyz_disk = ((pc_lidar_torch_h[:, 0]**2 + pc_lidar_torch_h[:, 1]**2 <= R**2) &
@@ -75,14 +57,14 @@ def ransac_ground_prelabeler(
     if grounddisk_pc_lidar.shape[0] < 3: # Not enough points for RANSAC
         return np.zeros(points_lidar_frame.shape[0], dtype=bool)
 
-    T = current_ransac_params['num_trials']
+    T = ransac_params['num_trials']
     # Ensure enough unique points for sampling if grounddisk is small
     num_points_in_disk = grounddisk_pc_lidar.shape[0]
     ids = torch.randint(0, num_points_in_disk, (T, 3), device=device)
     
     triplets = grounddisk_pc_lidar[ids,:3] # Use x,y,z for plane fitting
     v1, v2 = triplets[:,1]-triplets[:,0], triplets[:,2]-triplets[:,0]
-    normals = torch.cross(v1, v2)
+    normals = torch.linalg.cross(v1, v2)
     norm_magnitudes = normals.norm(dim=1, keepdim=True)
     
     # Avoid division by zero for collinear points
@@ -100,7 +82,7 @@ def ransac_ground_prelabeler(
     
     # Compute residuals against all points in the disk (using x,y,z only for distance)
     res = plane_parameters.matmul(torch.cat([grounddisk_pc_lidar[:,:3], torch.ones((num_points_in_disk,1), device=device)], dim=1).T)
-    inliers = (res.abs() <= current_ransac_params['inlier_threshold']).sum(dim=1)
+    inliers = (res.abs() <= ransac_params['inlier_threshold']).sum(dim=1)
     
     if inliers.shape[0] == 0: # No valid planes had inliers (e.g. if all normals were zero)
          return np.zeros(points_lidar_frame.shape[0], dtype=bool)
@@ -114,7 +96,7 @@ def ransac_ground_prelabeler(
         
     # Get boolean mask for ALL original points (pc_lidar_torch_h)
     distances = best_plane.matmul(pc_lidar_torch_h.T) # Distances for all points
-    bool_ground_torch = distances.abs() <= current_ransac_params['ground_threshold'] # Use abs for distance to plane
+    bool_ground_torch = distances.abs() <= ransac_params['ground_threshold'] # Use abs for distance to plane
     
     return bool_ground_torch.cpu().numpy()
 

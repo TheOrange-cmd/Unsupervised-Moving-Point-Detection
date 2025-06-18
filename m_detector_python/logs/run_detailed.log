@@ -1,0 +1,544 @@
+2025-06-16 09:00:13,756 - PID:3503475 - worker_3503475 - INFO - SceneProcessorActor 3 (PID: 3503475) initialized on device: cuda:0
+2025-06-16 09:00:13,757 - PID:3503472 - worker_3503472 - INFO - SceneProcessorActor 4 (PID: 3503472) initialized on device: cuda:0
+2025-06-16 09:00:13,771 - PID:3503476 - worker_3503476 - INFO - SceneProcessorActor 1 (PID: 3503476) initialized on device: cuda:0
+2025-06-16 09:00:13,791 - PID:3503477 - worker_3503477 - INFO - SceneProcessorActor 0 (PID: 3503477) initialized on device: cuda:0
+2025-06-16 09:00:13,839 - PID:3503475 - worker_3503475 - WARNING - PROFILING WORKER 3. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_3.prof
+2025-06-16 09:00:13,839 - PID:3503472 - worker_3503472 - WARNING - PROFILING WORKER 4. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_4.prof
+2025-06-16 09:00:13,839 - PID:3503475 - worker_3503475 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 09:00:13,840 - PID:3503472 - worker_3503472 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 09:00:13,840 - PID:3503476 - worker_3503476 - WARNING - PROFILING WORKER 1. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_1.prof
+2025-06-16 09:00:13,840 - PID:3503477 - worker_3503477 - WARNING - PROFILING WORKER 0. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_0.prof
+2025-06-16 09:00:13,840 - PID:3503476 - worker_3503476 - INFO - Starting task: Scene 2, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 09:00:13,840 - PID:3503477 - worker_3503477 - INFO - Starting task: Scene 1, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 09:00:13,879 - PID:3503471 - worker_3503471 - INFO - SceneProcessorActor 2 (PID: 3503471) initialized on device: cuda:0
+2025-06-16 09:00:13,890 - PID:3503471 - worker_3503471 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 09:00:14,478 - PID:3503476 - worker_3503476 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:00:14,479 - PID:3503475 - worker_3503475 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:00:14,479 - PID:3503477 - worker_3503477 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:00:14,480 - PID:3503471 - worker_3503471 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:00:14,481 - PID:3503472 - worker_3503472 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:00:15,143 - PID:3503476 - worker_3503476 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:00:15,146 - PID:3503476 - worker_3503476 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 09:00:15,201 - PID:3503472 - worker_3503472 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:00:15,203 - PID:3503472 - worker_3503472 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 09:00:15,204 - PID:3503471 - worker_3503471 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:00:15,207 - PID:3503471 - worker_3503471 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 09:00:15,214 - PID:3503477 - worker_3503477 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:00:15,216 - PID:3503477 - worker_3503477 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 09:00:15,241 - PID:3503475 - worker_3503475 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:00:15,244 - PID:3503475 - worker_3503475 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 09:00:17,379 - PID:3503472 - worker_3503472 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13111 points as ground.
+2025-06-16 09:00:17,380 - PID:3503476 - worker_3503476 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12938 points as ground.
+2025-06-16 09:00:17,388 - PID:3503475 - worker_3503475 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12576 points as ground.
+2025-06-16 09:00:17,469 - PID:3503477 - worker_3503477 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13758 points as ground.
+2025-06-16 09:00:17,479 - PID:3503471 - worker_3503471 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13818 points as ground.
+2025-06-16 09:00:30,166 - PID:3503475 - worker_3503475 - INFO - Finished task: Scene 2, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 09:00:30,171 - PID:3503475 - worker_3503475 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 09:00:30,176 - PID:3503475 - worker_3503475 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:00:30,204 - PID:3503475 - worker_3503475 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:00:30,324 - PID:3503476 - worker_3503476 - INFO - Finished task: Scene 2, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 09:00:30,329 - PID:3503476 - worker_3503476 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 09:00:30,335 - PID:3503476 - worker_3503476 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:00:30,335 - PID:3503472 - worker_3503472 - INFO - Finished task: Scene 1, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 09:00:30,340 - PID:3503472 - worker_3503472 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 09:00:30,344 - PID:3503472 - worker_3503472 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:00:30,347 - PID:3503475 - worker_3503475 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:00:30,349 - PID:3503475 - worker_3503475 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 09:00:30,353 - PID:3503475 - worker_3503475 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13766 points as ground.
+2025-06-16 09:00:30,358 - PID:3503476 - worker_3503476 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:00:30,416 - PID:3503471 - worker_3503471 - INFO - Finished task: Scene 1, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 09:00:30,421 - PID:3503471 - worker_3503471 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:00:30,453 - PID:3503477 - worker_3503477 - INFO - Finished task: Scene 1, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 09:00:30,459 - PID:3503477 - worker_3503477 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 09:00:30,463 - PID:3503472 - worker_3503472 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:00:30,464 - PID:3503477 - worker_3503477 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 09:00:30,469 - PID:3503471 - worker_3503471 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:00:30,485 - PID:3503476 - worker_3503476 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:00:30,487 - PID:3503476 - worker_3503476 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 09:00:30,490 - PID:3503476 - worker_3503476 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12894 points as ground.
+2025-06-16 09:00:30,602 - PID:3503472 - worker_3503472 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:00:30,604 - PID:3503472 - worker_3503472 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 09:00:30,608 - PID:3503472 - worker_3503472 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12870 points as ground.
+2025-06-16 09:00:30,633 - PID:3503477 - worker_3503477 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:00:30,645 - PID:3503471 - worker_3503471 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:00:30,647 - PID:3503471 - worker_3503471 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 09:00:30,651 - PID:3503471 - worker_3503471 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12946 points as ground.
+2025-06-16 09:00:30,765 - PID:3503477 - worker_3503477 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:00:30,767 - PID:3503477 - worker_3503477 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 09:00:30,772 - PID:3503477 - worker_3503477 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13012 points as ground.
+2025-06-16 09:00:42,256 - PID:3503475 - worker_3503475 - INFO - Finished task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:00:42,650 - PID:3503476 - worker_3503476 - INFO - Finished task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:00:42,810 - PID:3503472 - worker_3503472 - INFO - Finished task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:00:43,054 - PID:3503471 - worker_3503471 - INFO - Finished task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:00:43,167 - PID:3503477 - worker_3503477 - INFO - Finished task: Scene 2, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 09:01:34,831 - PID:3511657 - worker_3511657 - INFO - SceneProcessorActor 0 (PID: 3511657) initialized on device: cuda:0
+2025-06-16 09:01:34,912 - PID:3511657 - worker_3511657 - WARNING - PROFILING WORKER 0. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_0.prof
+2025-06-16 09:01:34,912 - PID:3511657 - worker_3511657 - INFO - Starting task: Scene 1, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 09:01:34,936 - PID:3511664 - worker_3511664 - INFO - SceneProcessorActor 3 (PID: 3511664) initialized on device: cuda:0
+2025-06-16 09:01:34,946 - PID:3511661 - worker_3511661 - INFO - SceneProcessorActor 1 (PID: 3511661) initialized on device: cuda:0
+2025-06-16 09:01:34,947 - PID:3511664 - worker_3511664 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 09:01:34,955 - PID:3511661 - worker_3511661 - INFO - Starting task: Scene 2, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 09:01:35,039 - PID:3511660 - worker_3511660 - INFO - SceneProcessorActor 4 (PID: 3511660) initialized on device: cuda:0
+2025-06-16 09:01:35,049 - PID:3511660 - worker_3511660 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 09:01:35,203 - PID:3511662 - worker_3511662 - INFO - SceneProcessorActor 2 (PID: 3511662) initialized on device: cuda:0
+2025-06-16 09:01:35,215 - PID:3511662 - worker_3511662 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 09:01:35,855 - PID:3511664 - worker_3511664 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:01:35,856 - PID:3511662 - worker_3511662 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:01:35,856 - PID:3511657 - worker_3511657 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:01:35,857 - PID:3511660 - worker_3511660 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:01:35,858 - PID:3511661 - worker_3511661 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:01:36,332 - PID:3511662 - worker_3511662 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:01:36,336 - PID:3511662 - worker_3511662 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 09:01:36,429 - PID:3511661 - worker_3511661 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:01:36,433 - PID:3511661 - worker_3511661 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 09:01:36,469 - PID:3511660 - worker_3511660 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:01:36,471 - PID:3511660 - worker_3511660 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 09:01:36,503 - PID:3511664 - worker_3511664 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:01:36,505 - PID:3511664 - worker_3511664 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 09:01:36,515 - PID:3511657 - worker_3511657 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:01:36,517 - PID:3511657 - worker_3511657 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 09:01:38,211 - PID:3511662 - worker_3511662 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13767 points as ground.
+2025-06-16 09:01:38,486 - PID:3511657 - worker_3511657 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13110 points as ground.
+2025-06-16 09:01:38,500 - PID:3511664 - worker_3511664 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13105 points as ground.
+2025-06-16 09:01:38,519 - PID:3511661 - worker_3511661 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13181 points as ground.
+2025-06-16 09:01:38,570 - PID:3511660 - worker_3511660 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13113 points as ground.
+2025-06-16 09:01:50,804 - PID:3511657 - worker_3511657 - INFO - Finished task: Scene 1, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 09:01:50,808 - PID:3511657 - worker_3511657 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 09:01:50,813 - PID:3511657 - worker_3511657 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 09:01:50,837 - PID:3511657 - worker_3511657 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:01:50,915 - PID:3511662 - worker_3511662 - INFO - Finished task: Scene 1, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 09:01:50,920 - PID:3511662 - worker_3511662 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:01:50,943 - PID:3511662 - worker_3511662 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:01:50,956 - PID:3511657 - worker_3511657 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:01:50,957 - PID:3511657 - worker_3511657 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 09:01:50,962 - PID:3511657 - worker_3511657 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12954 points as ground.
+2025-06-16 09:01:51,045 - PID:3511662 - worker_3511662 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:01:51,047 - PID:3511662 - worker_3511662 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 09:01:51,053 - PID:3511662 - worker_3511662 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12520 points as ground.
+2025-06-16 09:01:51,070 - PID:3511661 - worker_3511661 - INFO - Finished task: Scene 2, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 09:01:51,076 - PID:3511661 - worker_3511661 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:01:51,098 - PID:3511661 - worker_3511661 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:01:51,225 - PID:3511661 - worker_3511661 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:01:51,226 - PID:3511661 - worker_3511661 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 09:01:51,231 - PID:3511661 - worker_3511661 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13731 points as ground.
+2025-06-16 09:01:51,589 - PID:3511664 - worker_3511664 - INFO - Finished task: Scene 2, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 09:01:51,594 - PID:3511664 - worker_3511664 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:01:51,629 - PID:3511664 - worker_3511664 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:01:51,801 - PID:3511664 - worker_3511664 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:01:51,802 - PID:3511664 - worker_3511664 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 09:01:51,807 - PID:3511664 - worker_3511664 - DEBUG - Sweep 0/50: RANSAC pre-labeled 13032 points as ground.
+2025-06-16 09:01:51,911 - PID:3511660 - worker_3511660 - INFO - Finished task: Scene 1, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 09:01:51,918 - PID:3511660 - worker_3511660 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:01:51,942 - PID:3511660 - worker_3511660 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 09:01:52,118 - PID:3511660 - worker_3511660 - DEBUG - Sweep data prefetching complete.
+2025-06-16 09:01:52,119 - PID:3511660 - worker_3511660 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 09:01:52,124 - PID:3511660 - worker_3511660 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12368 points as ground.
+2025-06-16 09:02:02,991 - PID:3511657 - worker_3511657 - INFO - Finished task: Scene 2, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 09:02:03,375 - PID:3511661 - worker_3511661 - INFO - Finished task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:02:03,890 - PID:3511662 - worker_3511662 - INFO - Finished task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:02:03,908 - PID:3511664 - worker_3511664 - INFO - Finished task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 09:02:04,005 - PID:3511660 - worker_3511660 - INFO - Finished task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:49:37,581 - PID:3555033 - worker_3555033 - INFO - SceneProcessorActor 3 (PID: 3555033) initialized on device: cuda:0
+2025-06-16 10:49:37,604 - PID:3555031 - worker_3555031 - INFO - SceneProcessorActor 4 (PID: 3555031) initialized on device: cuda:0
+2025-06-16 10:49:37,657 - PID:3555030 - worker_3555030 - INFO - SceneProcessorActor 0 (PID: 3555030) initialized on device: cuda:0
+2025-06-16 10:49:37,658 - PID:3555033 - worker_3555033 - WARNING - PROFILING WORKER 3. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_3.prof
+2025-06-16 10:49:37,659 - PID:3555031 - worker_3555031 - WARNING - PROFILING WORKER 4. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_4.prof
+2025-06-16 10:49:37,686 - PID:3555030 - worker_3555030 - INFO - Starting task: Scene 1, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:49:37,687 - PID:3555032 - worker_3555032 - INFO - SceneProcessorActor 2 (PID: 3555032) initialized on device: cuda:0
+2025-06-16 10:49:37,696 - PID:3555031 - worker_3555031 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:49:37,697 - PID:3555033 - worker_3555033 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:49:37,707 - PID:3555027 - worker_3555027 - INFO - SceneProcessorActor 1 (PID: 3555027) initialized on device: cuda:0
+2025-06-16 10:49:37,716 - PID:3555032 - worker_3555032 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:49:37,736 - PID:3555027 - worker_3555027 - INFO - Starting task: Scene 2, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:49:38,564 - PID:3555032 - worker_3555032 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:49:38,564 - PID:3555030 - worker_3555030 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:49:38,566 - PID:3555033 - worker_3555033 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:49:38,566 - PID:3555027 - worker_3555027 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:49:38,567 - PID:3555031 - worker_3555031 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:49:39,005 - PID:3555032 - worker_3555032 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:49:39,008 - PID:3555032 - worker_3555032 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:49:39,169 - PID:3555030 - worker_3555030 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:49:39,171 - PID:3555030 - worker_3555030 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:49:39,255 - PID:3555033 - worker_3555033 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:49:39,259 - PID:3555033 - worker_3555033 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:49:39,292 - PID:3555027 - worker_3555027 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:49:39,294 - PID:3555027 - worker_3555027 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:49:39,309 - PID:3555031 - worker_3555031 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:49:39,313 - PID:3555031 - worker_3555031 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:49:40,933 - PID:3555032 - worker_3555032 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:49:41,192 - PID:3555030 - worker_3555030 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:49:41,266 - PID:3555033 - worker_3555033 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:49:41,338 - PID:3555031 - worker_3555031 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:49:41,350 - PID:3555027 - worker_3555027 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:49:53,398 - PID:3555032 - worker_3555032 - INFO - Finished task: Scene 1, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:49:53,427 - PID:3555032 - worker_3555032 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:49:53,451 - PID:3555032 - worker_3555032 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:49:53,548 - PID:3555030 - worker_3555030 - INFO - Finished task: Scene 1, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:49:53,573 - PID:3555030 - worker_3555030 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:49:53,596 - PID:3555030 - worker_3555030 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:49:53,600 - PID:3555032 - worker_3555032 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:49:53,602 - PID:3555032 - worker_3555032 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:49:53,608 - PID:3555032 - worker_3555032 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:49:53,674 - PID:3555033 - worker_3555033 - INFO - Finished task: Scene 2, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:49:53,679 - PID:3555033 - worker_3555033 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 10:49:53,683 - PID:3555031 - worker_3555031 - INFO - Finished task: Scene 1, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:49:53,689 - PID:3555031 - worker_3555031 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 10:49:53,690 - PID:3555027 - worker_3555027 - INFO - Finished task: Scene 2, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:49:53,704 - PID:3555033 - worker_3555033 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:49:53,704 - PID:3555030 - worker_3555030 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:49:53,706 - PID:3555030 - worker_3555030 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:49:53,709 - PID:3555030 - worker_3555030 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:49:53,716 - PID:3555027 - worker_3555027 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:49:53,719 - PID:3555031 - worker_3555031 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:49:53,728 - PID:3555033 - worker_3555033 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:49:53,821 - PID:3555031 - worker_3555031 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:49:53,822 - PID:3555027 - worker_3555027 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:49:53,841 - PID:3555033 - worker_3555033 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:49:53,843 - PID:3555033 - worker_3555033 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:49:53,847 - PID:3555033 - worker_3555033 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:49:53,993 - PID:3555027 - worker_3555027 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:49:53,996 - PID:3555027 - worker_3555027 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:49:54,002 - PID:3555027 - worker_3555027 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:49:54,029 - PID:3555031 - worker_3555031 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:49:54,033 - PID:3555031 - worker_3555031 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:49:54,040 - PID:3555031 - worker_3555031 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:50:05,418 - PID:3555032 - worker_3555032 - INFO - Finished task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:50:05,595 - PID:3555030 - worker_3555030 - INFO - Finished task: Scene 2, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:50:05,761 - PID:3555033 - worker_3555033 - INFO - Finished task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:50:05,927 - PID:3555027 - worker_3555027 - INFO - Finished task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:50:06,039 - PID:3555031 - worker_3555031 - INFO - Finished task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:51:03,819 - PID:3563229 - worker_3563229 - INFO - SceneProcessorActor 3 (PID: 3563229) initialized on device: cuda:0
+2025-06-16 10:51:03,882 - PID:3563216 - worker_3563216 - INFO - SceneProcessorActor 1 (PID: 3563216) initialized on device: cuda:0
+2025-06-16 10:51:03,905 - PID:3563229 - worker_3563229 - WARNING - PROFILING WORKER 3. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_3.prof
+2025-06-16 10:51:03,906 - PID:3563216 - worker_3563216 - WARNING - PROFILING WORKER 1. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_1.prof
+2025-06-16 10:51:03,920 - PID:3563221 - worker_3563221 - INFO - SceneProcessorActor 2 (PID: 3563221) initialized on device: cuda:0
+2025-06-16 10:51:03,942 - PID:3563229 - worker_3563229 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:51:03,944 - PID:3563216 - worker_3563216 - INFO - Starting task: Scene 2, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:51:03,947 - PID:3563224 - worker_3563224 - INFO - SceneProcessorActor 0 (PID: 3563224) initialized on device: cuda:0
+2025-06-16 10:51:03,952 - PID:3563221 - worker_3563221 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:51:03,976 - PID:3563224 - worker_3563224 - INFO - Starting task: Scene 1, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:51:04,027 - PID:3563207 - worker_3563207 - INFO - SceneProcessorActor 4 (PID: 3563207) initialized on device: cuda:0
+2025-06-16 10:51:04,059 - PID:3563207 - worker_3563207 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:51:04,797 - PID:3563207 - worker_3563207 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:51:04,798 - PID:3563224 - worker_3563224 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:51:04,799 - PID:3563221 - worker_3563221 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:51:04,800 - PID:3563216 - worker_3563216 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:51:04,801 - PID:3563229 - worker_3563229 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:51:05,187 - PID:3563207 - worker_3563207 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:51:05,189 - PID:3563207 - worker_3563207 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:51:05,261 - PID:3563221 - worker_3563221 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:51:05,265 - PID:3563221 - worker_3563221 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:51:05,330 - PID:3563224 - worker_3563224 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:51:05,335 - PID:3563224 - worker_3563224 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:51:05,404 - PID:3563216 - worker_3563216 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:51:05,407 - PID:3563216 - worker_3563216 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:51:05,448 - PID:3563229 - worker_3563229 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:51:05,451 - PID:3563229 - worker_3563229 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:51:07,191 - PID:3563207 - worker_3563207 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:51:07,535 - PID:3563221 - worker_3563221 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:51:07,572 - PID:3563216 - worker_3563216 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:51:07,573 - PID:3563229 - worker_3563229 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:51:07,587 - PID:3563224 - worker_3563224 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:51:07,683 - PID:3563207 - worker_3563207 - ERROR - WORKER FAILED on Scene 1, Tuning 'Occ_BaseEps_0p13...'. Error: 'mdet_dynamic_label_value'
+2025-06-16 10:51:07,684 - PID:3563207 - worker_3563207 - DEBUG - WORKER FAILED on Scene 1, Tuning 'Occ_BaseEps_0p13...'. Error: 'mdet_dynamic_label_value'
+Traceback (most recent call last):
+  File "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/ray_scripts/ray_actors.py", line 148, in _profiled_process
+    dict_of_arrays = processor.process_scene(scene_idx, detector, task_description)
+  File "/tmp/ray/session_2025-06-16_10-50-50_402561_3558904/runtime_resources/working_dir_files/_ray_pkg_bb5905a49b0c3130/src/data_utils/nuscenes_helper.py", line 157, in process_scene
+    dynamic_label_value = self.config_accessor.get_validation_params()['mdet_dynamic_label_value']
+KeyError: 'mdet_dynamic_label_value'
+
+2025-06-16 10:51:07,714 - PID:3563207 - worker_3563207 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:51:07,736 - PID:3563207 - worker_3563207 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:51:07,871 - PID:3563207 - worker_3563207 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:51:07,872 - PID:3563207 - worker_3563207 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:51:07,875 - PID:3563207 - worker_3563207 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:51:08,120 - PID:3563221 - worker_3563221 - ERROR - WORKER FAILED on Scene 1, Tuning 'Occ_BaseEps_0p07...'. Error: 'mdet_dynamic_label_value'
+2025-06-16 10:51:08,122 - PID:3563221 - worker_3563221 - DEBUG - WORKER FAILED on Scene 1, Tuning 'Occ_BaseEps_0p07...'. Error: 'mdet_dynamic_label_value'
+Traceback (most recent call last):
+  File "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/ray_scripts/ray_actors.py", line 148, in _profiled_process
+    dict_of_arrays = processor.process_scene(scene_idx, detector, task_description)
+  File "/tmp/ray/session_2025-06-16_10-50-50_402561_3558904/runtime_resources/working_dir_files/_ray_pkg_bb5905a49b0c3130/src/data_utils/nuscenes_helper.py", line 157, in process_scene
+    dynamic_label_value = self.config_accessor.get_validation_params()['mdet_dynamic_label_value']
+KeyError: 'mdet_dynamic_label_value'
+
+2025-06-16 10:51:08,127 - PID:3563207 - worker_3563207 - ERROR - WORKER FAILED on Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'. Error: 'mdet_dynamic_label_value'
+2025-06-16 10:51:08,127 - PID:3563207 - worker_3563207 - DEBUG - WORKER FAILED on Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'. Error: 'mdet_dynamic_label_value'
+Traceback (most recent call last):
+  File "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/ray_scripts/ray_actors.py", line 148, in _profiled_process
+    dict_of_arrays = processor.process_scene(scene_idx, detector, task_description)
+  File "/tmp/ray/session_2025-06-16_10-50-50_402561_3558904/runtime_resources/working_dir_files/_ray_pkg_bb5905a49b0c3130/src/data_utils/nuscenes_helper.py", line 157, in process_scene
+    dynamic_label_value = self.config_accessor.get_validation_params()['mdet_dynamic_label_value']
+KeyError: 'mdet_dynamic_label_value'
+
+2025-06-16 10:51:08,153 - PID:3563221 - worker_3563221 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:51:08,163 - PID:3563216 - worker_3563216 - ERROR - WORKER FAILED on Scene 2, Tuning 'ref_mccFwdDmin0p1...'. Error: 'mdet_dynamic_label_value'
+2025-06-16 10:51:08,164 - PID:3563216 - worker_3563216 - DEBUG - WORKER FAILED on Scene 2, Tuning 'ref_mccFwdDmin0p1...'. Error: 'mdet_dynamic_label_value'
+Traceback (most recent call last):
+  File "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/ray_scripts/ray_actors.py", line 148, in _profiled_process
+    dict_of_arrays = processor.process_scene(scene_idx, detector, task_description)
+  File "/tmp/ray/session_2025-06-16_10-50-50_402561_3558904/runtime_resources/working_dir_files/_ray_pkg_bb5905a49b0c3130/src/data_utils/nuscenes_helper.py", line 157, in process_scene
+    dynamic_label_value = self.config_accessor.get_validation_params()['mdet_dynamic_label_value']
+KeyError: 'mdet_dynamic_label_value'
+
+2025-06-16 10:51:08,168 - PID:3563229 - worker_3563229 - ERROR - WORKER FAILED on Scene 2, Tuning 'Occ_BaseEps_0p07...'. Error: 'mdet_dynamic_label_value'
+2025-06-16 10:51:08,169 - PID:3563229 - worker_3563229 - DEBUG - WORKER FAILED on Scene 2, Tuning 'Occ_BaseEps_0p07...'. Error: 'mdet_dynamic_label_value'
+Traceback (most recent call last):
+  File "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/ray_scripts/ray_actors.py", line 148, in _profiled_process
+    dict_of_arrays = processor.process_scene(scene_idx, detector, task_description)
+  File "/tmp/ray/session_2025-06-16_10-50-50_402561_3558904/runtime_resources/working_dir_files/_ray_pkg_bb5905a49b0c3130/src/data_utils/nuscenes_helper.py", line 157, in process_scene
+    dynamic_label_value = self.config_accessor.get_validation_params()['mdet_dynamic_label_value']
+KeyError: 'mdet_dynamic_label_value'
+
+2025-06-16 10:51:08,172 - PID:3563216 - worker_3563216 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 10:51:08,176 - PID:3563229 - worker_3563229 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 10:51:08,181 - PID:3563221 - worker_3563221 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:51:08,181 - PID:3563224 - worker_3563224 - ERROR - WORKER FAILED on Scene 1, Tuning 'ref_mccFwdDmin0p1...'. Error: 'mdet_dynamic_label_value'
+2025-06-16 10:51:08,182 - PID:3563224 - worker_3563224 - DEBUG - WORKER FAILED on Scene 1, Tuning 'ref_mccFwdDmin0p1...'. Error: 'mdet_dynamic_label_value'
+Traceback (most recent call last):
+  File "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/ray_scripts/ray_actors.py", line 148, in _profiled_process
+    dict_of_arrays = processor.process_scene(scene_idx, detector, task_description)
+  File "/tmp/ray/session_2025-06-16_10-50-50_402561_3558904/runtime_resources/working_dir_files/_ray_pkg_bb5905a49b0c3130/src/data_utils/nuscenes_helper.py", line 157, in process_scene
+    dynamic_label_value = self.config_accessor.get_validation_params()['mdet_dynamic_label_value']
+KeyError: 'mdet_dynamic_label_value'
+
+2025-06-16 10:51:08,197 - PID:3563229 - worker_3563229 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:51:08,202 - PID:3563216 - worker_3563216 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:51:08,214 - PID:3563224 - worker_3563224 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:51:08,290 - PID:3563229 - worker_3563229 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:51:08,291 - PID:3563216 - worker_3563216 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:51:08,292 - PID:3563224 - worker_3563224 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:51:08,308 - PID:3563221 - worker_3563221 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:51:08,312 - PID:3563221 - worker_3563221 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:51:08,316 - PID:3563221 - worker_3563221 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:51:08,483 - PID:3563221 - worker_3563221 - ERROR - WORKER FAILED on Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'. Error: 'mdet_dynamic_label_value'
+2025-06-16 10:51:08,483 - PID:3563221 - worker_3563221 - DEBUG - WORKER FAILED on Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'. Error: 'mdet_dynamic_label_value'
+Traceback (most recent call last):
+  File "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/ray_scripts/ray_actors.py", line 148, in _profiled_process
+    dict_of_arrays = processor.process_scene(scene_idx, detector, task_description)
+  File "/tmp/ray/session_2025-06-16_10-50-50_402561_3558904/runtime_resources/working_dir_files/_ray_pkg_bb5905a49b0c3130/src/data_utils/nuscenes_helper.py", line 157, in process_scene
+    dynamic_label_value = self.config_accessor.get_validation_params()['mdet_dynamic_label_value']
+KeyError: 'mdet_dynamic_label_value'
+
+2025-06-16 10:51:08,525 - PID:3563229 - worker_3563229 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:51:08,528 - PID:3563229 - worker_3563229 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:51:08,531 - PID:3563229 - worker_3563229 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:51:08,568 - PID:3563216 - worker_3563216 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:51:08,570 - PID:3563216 - worker_3563216 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:51:08,573 - PID:3563216 - worker_3563216 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:51:08,605 - PID:3563224 - worker_3563224 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:51:08,608 - PID:3563224 - worker_3563224 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:51:08,614 - PID:3563224 - worker_3563224 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:51:08,746 - PID:3563229 - worker_3563229 - ERROR - WORKER FAILED on Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'. Error: 'mdet_dynamic_label_value'
+2025-06-16 10:51:08,746 - PID:3563229 - worker_3563229 - DEBUG - WORKER FAILED on Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'. Error: 'mdet_dynamic_label_value'
+Traceback (most recent call last):
+  File "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/ray_scripts/ray_actors.py", line 148, in _profiled_process
+    dict_of_arrays = processor.process_scene(scene_idx, detector, task_description)
+  File "/tmp/ray/session_2025-06-16_10-50-50_402561_3558904/runtime_resources/working_dir_files/_ray_pkg_bb5905a49b0c3130/src/data_utils/nuscenes_helper.py", line 157, in process_scene
+    dynamic_label_value = self.config_accessor.get_validation_params()['mdet_dynamic_label_value']
+KeyError: 'mdet_dynamic_label_value'
+
+2025-06-16 10:51:08,782 - PID:3563216 - worker_3563216 - ERROR - WORKER FAILED on Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'. Error: 'mdet_dynamic_label_value'
+2025-06-16 10:51:08,783 - PID:3563216 - worker_3563216 - DEBUG - WORKER FAILED on Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'. Error: 'mdet_dynamic_label_value'
+Traceback (most recent call last):
+  File "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/ray_scripts/ray_actors.py", line 148, in _profiled_process
+    dict_of_arrays = processor.process_scene(scene_idx, detector, task_description)
+  File "/tmp/ray/session_2025-06-16_10-50-50_402561_3558904/runtime_resources/working_dir_files/_ray_pkg_bb5905a49b0c3130/src/data_utils/nuscenes_helper.py", line 157, in process_scene
+    dynamic_label_value = self.config_accessor.get_validation_params()['mdet_dynamic_label_value']
+KeyError: 'mdet_dynamic_label_value'
+
+2025-06-16 10:51:08,809 - PID:3563224 - worker_3563224 - ERROR - WORKER FAILED on Scene 2, Tuning 'Occ_BaseEps_0p13...'. Error: 'mdet_dynamic_label_value'
+2025-06-16 10:51:08,810 - PID:3563224 - worker_3563224 - DEBUG - WORKER FAILED on Scene 2, Tuning 'Occ_BaseEps_0p13...'. Error: 'mdet_dynamic_label_value'
+Traceback (most recent call last):
+  File "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/src/ray_scripts/ray_actors.py", line 148, in _profiled_process
+    dict_of_arrays = processor.process_scene(scene_idx, detector, task_description)
+  File "/tmp/ray/session_2025-06-16_10-50-50_402561_3558904/runtime_resources/working_dir_files/_ray_pkg_bb5905a49b0c3130/src/data_utils/nuscenes_helper.py", line 157, in process_scene
+    dynamic_label_value = self.config_accessor.get_validation_params()['mdet_dynamic_label_value']
+KeyError: 'mdet_dynamic_label_value'
+
+2025-06-16 10:52:19,097 - PID:3570051 - worker_3570051 - INFO - SceneProcessorActor 1 (PID: 3570051) initialized on device: cuda:0
+2025-06-16 10:52:19,242 - PID:3570051 - worker_3570051 - WARNING - PROFILING WORKER 1. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_1.prof
+2025-06-16 10:52:19,276 - PID:3570059 - worker_3570059 - INFO - SceneProcessorActor 3 (PID: 3570059) initialized on device: cuda:0
+2025-06-16 10:52:19,279 - PID:3570051 - worker_3570051 - INFO - Starting task: Scene 2, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:52:19,304 - PID:3570059 - worker_3570059 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:52:19,362 - PID:3570060 - worker_3570060 - INFO - SceneProcessorActor 2 (PID: 3570060) initialized on device: cuda:0
+2025-06-16 10:52:19,369 - PID:3570055 - worker_3570055 - INFO - SceneProcessorActor 4 (PID: 3570055) initialized on device: cuda:0
+2025-06-16 10:52:19,388 - PID:3570057 - worker_3570057 - INFO - SceneProcessorActor 0 (PID: 3570057) initialized on device: cuda:0
+2025-06-16 10:52:19,391 - PID:3570060 - worker_3570060 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:52:19,398 - PID:3570055 - worker_3570055 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:52:19,418 - PID:3570057 - worker_3570057 - INFO - Starting task: Scene 1, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:52:20,173 - PID:3570055 - worker_3570055 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:52:20,174 - PID:3570059 - worker_3570059 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:52:20,175 - PID:3570057 - worker_3570057 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:52:20,176 - PID:3570060 - worker_3570060 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:52:20,176 - PID:3570051 - worker_3570051 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:52:20,688 - PID:3570055 - worker_3570055 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:52:20,690 - PID:3570055 - worker_3570055 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:52:20,705 - PID:3570059 - worker_3570059 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:52:20,707 - PID:3570059 - worker_3570059 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:52:20,757 - PID:3570057 - worker_3570057 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:52:20,761 - PID:3570057 - worker_3570057 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:52:20,763 - PID:3570060 - worker_3570060 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:52:20,766 - PID:3570060 - worker_3570060 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:52:20,789 - PID:3570051 - worker_3570051 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:52:20,791 - PID:3570051 - worker_3570051 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:52:22,564 - PID:3570055 - worker_3570055 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:52:22,764 - PID:3570059 - worker_3570059 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:52:23,215 - PID:3570060 - worker_3570060 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:52:23,227 - PID:3570057 - worker_3570057 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:52:23,244 - PID:3570051 - worker_3570051 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:52:34,523 - PID:3570055 - worker_3570055 - INFO - Finished task: Scene 1, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:52:34,551 - PID:3570055 - worker_3570055 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:52:34,575 - PID:3570055 - worker_3570055 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:52:34,710 - PID:3570055 - worker_3570055 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:52:34,712 - PID:3570055 - worker_3570055 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:52:34,717 - PID:3570055 - worker_3570055 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:52:34,936 - PID:3570059 - worker_3570059 - INFO - Finished task: Scene 2, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:52:34,961 - PID:3570059 - worker_3570059 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:52:34,984 - PID:3570059 - worker_3570059 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:52:35,092 - PID:3570059 - worker_3570059 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:52:35,094 - PID:3570059 - worker_3570059 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:52:35,099 - PID:3570059 - worker_3570059 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:52:35,579 - PID:3570060 - worker_3570060 - INFO - Finished task: Scene 1, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:52:35,605 - PID:3570060 - worker_3570060 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:52:35,628 - PID:3570060 - worker_3570060 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:52:35,637 - PID:3570057 - worker_3570057 - INFO - Finished task: Scene 1, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:52:35,662 - PID:3570057 - worker_3570057 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:52:35,701 - PID:3570051 - worker_3570051 - INFO - Finished task: Scene 2, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:52:35,706 - PID:3570051 - worker_3570051 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 10:52:35,729 - PID:3570051 - worker_3570051 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:52:35,763 - PID:3570057 - worker_3570057 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:52:35,764 - PID:3570051 - worker_3570051 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:52:35,775 - PID:3570060 - worker_3570060 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:52:35,776 - PID:3570060 - worker_3570060 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:52:35,780 - PID:3570060 - worker_3570060 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:52:35,959 - PID:3570051 - worker_3570051 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:52:35,960 - PID:3570057 - worker_3570057 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:52:35,961 - PID:3570051 - worker_3570051 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:52:35,963 - PID:3570057 - worker_3570057 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:52:35,966 - PID:3570051 - worker_3570051 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:52:35,969 - PID:3570057 - worker_3570057 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:52:46,499 - PID:3570055 - worker_3570055 - INFO - Finished task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:52:46,858 - PID:3570059 - worker_3570059 - INFO - Finished task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:52:47,388 - PID:3570060 - worker_3570060 - INFO - Finished task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:52:47,518 - PID:3570057 - worker_3570057 - INFO - Finished task: Scene 2, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:52:47,736 - PID:3570051 - worker_3570051 - INFO - Finished task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:55:15,639 - PID:3579628 - worker_3579628 - INFO - SceneProcessorActor 2 (PID: 3579628) initialized on device: cuda:0
+2025-06-16 10:55:15,683 - PID:3579626 - worker_3579626 - INFO - SceneProcessorActor 4 (PID: 3579626) initialized on device: cuda:0
+2025-06-16 10:55:15,687 - PID:3579624 - worker_3579624 - INFO - SceneProcessorActor 0 (PID: 3579624) initialized on device: cuda:0
+2025-06-16 10:55:15,741 - PID:3579628 - worker_3579628 - WARNING - PROFILING WORKER 2. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_2.prof
+2025-06-16 10:55:15,742 - PID:3579626 - worker_3579626 - WARNING - PROFILING WORKER 4. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_4.prof
+2025-06-16 10:55:15,742 - PID:3579624 - worker_3579624 - WARNING - PROFILING WORKER 0. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_0.prof
+2025-06-16 10:55:15,746 - PID:3579629 - worker_3579629 - INFO - SceneProcessorActor 1 (PID: 3579629) initialized on device: cuda:0
+2025-06-16 10:55:15,762 - PID:3579623 - worker_3579623 - INFO - SceneProcessorActor 3 (PID: 3579623) initialized on device: cuda:0
+2025-06-16 10:55:15,775 - PID:3579629 - worker_3579629 - INFO - Starting task: Scene 2, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:55:15,779 - PID:3579628 - worker_3579628 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:55:15,783 - PID:3579626 - worker_3579626 - INFO - Starting task: Scene 1, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:55:15,788 - PID:3579624 - worker_3579624 - INFO - Starting task: Scene 1, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:55:15,789 - PID:3579623 - worker_3579623 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:55:16,445 - PID:3579624 - worker_3579624 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:55:16,446 - PID:3579623 - worker_3579623 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:55:16,446 - PID:3579626 - worker_3579626 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:55:16,447 - PID:3579628 - worker_3579628 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:55:16,447 - PID:3579629 - worker_3579629 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:55:16,830 - PID:3579624 - worker_3579624 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:55:16,832 - PID:3579624 - worker_3579624 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:55:16,869 - PID:3579623 - worker_3579623 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:55:16,873 - PID:3579623 - worker_3579623 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:55:16,927 - PID:3579626 - worker_3579626 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:55:16,930 - PID:3579626 - worker_3579626 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:55:16,939 - PID:3579628 - worker_3579628 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:55:16,942 - PID:3579628 - worker_3579628 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:55:16,951 - PID:3579629 - worker_3579629 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:55:16,954 - PID:3579629 - worker_3579629 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:55:18,630 - PID:3579624 - worker_3579624 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:55:19,242 - PID:3579623 - worker_3579623 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:55:19,299 - PID:3579628 - worker_3579628 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:55:19,324 - PID:3579629 - worker_3579629 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:55:19,350 - PID:3579626 - worker_3579626 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:55:30,284 - PID:3579624 - worker_3579624 - INFO - Finished task: Scene 1, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:55:30,289 - PID:3579624 - worker_3579624 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 10:55:30,315 - PID:3579624 - worker_3579624 - INFO - Starting task: Scene 2, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:55:30,341 - PID:3579624 - worker_3579624 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:55:30,466 - PID:3579624 - worker_3579624 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:55:30,467 - PID:3579624 - worker_3579624 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:55:30,472 - PID:3579624 - worker_3579624 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:55:31,528 - PID:3579623 - worker_3579623 - INFO - Finished task: Scene 2, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:55:31,560 - PID:3579623 - worker_3579623 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:55:31,589 - PID:3579623 - worker_3579623 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:55:31,596 - PID:3579628 - worker_3579628 - INFO - Finished task: Scene 1, Tuning 'Occ_BaseEps_0p07...'
+2025-06-16 10:55:31,602 - PID:3579628 - worker_3579628 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 10:55:31,616 - PID:3579629 - worker_3579629 - INFO - Finished task: Scene 2, Tuning 'ref_mccFwdDmin0p1...'
+2025-06-16 10:55:31,621 - PID:3579626 - worker_3579626 - INFO - Finished task: Scene 1, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:55:31,626 - PID:3579628 - worker_3579628 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:55:31,627 - PID:3579626 - worker_3579626 - WARNING - Worker profiling complete. Stats saved.
+2025-06-16 10:55:31,642 - PID:3579629 - worker_3579629 - INFO - Starting task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:55:31,651 - PID:3579626 - worker_3579626 - INFO - Starting task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:55:31,736 - PID:3579628 - worker_3579628 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:55:31,736 - PID:3579626 - worker_3579626 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:55:31,738 - PID:3579629 - worker_3579629 - DEBUG - Prefetching data for 50 sweeps...
+2025-06-16 10:55:31,748 - PID:3579623 - worker_3579623 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:55:31,750 - PID:3579623 - worker_3579623 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:55:31,754 - PID:3579623 - worker_3579623 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:55:31,994 - PID:3579629 - worker_3579629 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:55:31,997 - PID:3579629 - worker_3579629 - DEBUG - Sweep 0/50: Prefilter kept 19740 / 34752 points.
+2025-06-16 10:55:32,001 - PID:3579629 - worker_3579629 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12956 points as ground.
+2025-06-16 10:55:32,005 - PID:3579626 - worker_3579626 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:55:32,009 - PID:3579626 - worker_3579626 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:55:32,014 - PID:3579626 - worker_3579626 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:55:32,044 - PID:3579628 - worker_3579628 - DEBUG - Sweep data prefetching complete.
+2025-06-16 10:55:32,047 - PID:3579628 - worker_3579628 - DEBUG - Sweep 0/50: Prefilter kept 22092 / 34400 points.
+2025-06-16 10:55:32,054 - PID:3579628 - worker_3579628 - DEBUG - Sweep 0/50: RANSAC pre-labeled 12629 points as ground.
+2025-06-16 10:55:41,784 - PID:3579624 - worker_3579624 - INFO - Finished task: Scene 2, Tuning 'Occ_BaseEps_0p13...'
+2025-06-16 10:55:43,208 - PID:3579623 - worker_3579623 - INFO - Finished task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:55:43,518 - PID:3579626 - worker_3579626 - INFO - Finished task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:55:43,539 - PID:3579629 - worker_3579629 - INFO - Finished task: Scene 1, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-16 10:55:43,603 - PID:3579628 - worker_3579628 - INFO - Finished task: Scene 2, Tuning 'AdapOcc_dthr3p0_kthr0p005_dmax...'
+2025-06-17 06:16:23,412 - PID:4150663 - worker_4150663 - INFO - SceneProcessorActor 4 (PID: 4150663) initialized on device: cuda:0
+2025-06-17 06:16:23,470 - PID:4150666 - worker_4150666 - INFO - SceneProcessorActor 5 (PID: 4150666) initialized on device: cuda:0
+2025-06-17 06:16:23,512 - PID:4150659 - worker_4150659 - INFO - SceneProcessorActor 0 (PID: 4150659) initialized on device: cuda:0
+2025-06-17 06:16:23,549 - PID:4150662 - worker_4150662 - INFO - SceneProcessorActor 3 (PID: 4150662) initialized on device: cuda:0
+2025-06-17 06:16:23,573 - PID:4150710 - worker_4150710 - INFO - SceneProcessorActor 6 (PID: 4150710) initialized on device: cuda:0
+2025-06-17 06:16:23,583 - PID:4150664 - worker_4150664 - INFO - SceneProcessorActor 2 (PID: 4150664) initialized on device: cuda:0
+2025-06-17 06:16:23,587 - PID:4150665 - worker_4150665 - INFO - SceneProcessorActor 7 (PID: 4150665) initialized on device: cuda:0
+2025-06-17 06:16:23,617 - PID:4150667 - worker_4150667 - INFO - SceneProcessorActor 1 (PID: 4150667) initialized on device: cuda:0
+2025-06-17 06:16:23,742 - PID:4150659 - worker_4150659 - WARNING - PROFILING WORKER 0. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_0.prof
+2025-06-17 06:16:23,782 - PID:4150659 - worker_4150659 - INFO - Starting task: Scene 1, Tuning 'static_validation_run...'
+2025-06-17 06:16:23,845 - PID:4150659 - worker_4150659 - DEBUG - Prefetching data for 389 sweeps...
+2025-06-17 06:16:24,975 - PID:4150659 - worker_4150659 - DEBUG - Sweep data prefetching complete.
+2025-06-17 06:16:24,977 - PID:4150659 - worker_4150659 - DEBUG - Sweep 0/389: Prefilter kept 19740 / 34752 points.
+2025-06-17 06:16:25,789 - PID:4150659 - worker_4150659 - DEBUG - Sweep 0/389: RANSAC pre-labeled 12956 points as ground.
+2025-06-17 06:16:32,839 - PID:4150659 - worker_4150659 - DEBUG - Sweep 97/389: Prefilter kept 25437 / 34720 points.
+2025-06-17 06:16:32,843 - PID:4150659 - worker_4150659 - DEBUG - Sweep 97/389: RANSAC pre-labeled 16012 points as ground.
+2025-06-17 06:16:39,454 - PID:4150659 - worker_4150659 - DEBUG - Sweep 194/389: Prefilter kept 26554 / 34720 points.
+2025-06-17 06:16:39,456 - PID:4150659 - worker_4150659 - DEBUG - Sweep 194/389: RANSAC pre-labeled 15901 points as ground.
+2025-06-17 06:16:45,947 - PID:4150659 - worker_4150659 - DEBUG - Sweep 291/389: Prefilter kept 25244 / 34752 points.
+2025-06-17 06:16:45,949 - PID:4150659 - worker_4150659 - DEBUG - Sweep 291/389: RANSAC pre-labeled 15684 points as ground.
+2025-06-17 06:16:52,229 - PID:4150659 - worker_4150659 - DEBUG - Sweep 388/389: Prefilter kept 25042 / 34720 points.
+2025-06-17 06:16:52,231 - PID:4150659 - worker_4150659 - DEBUG - Sweep 388/389: RANSAC pre-labeled 10671 points as ground.
+2025-06-17 06:16:52,317 - PID:4150659 - worker_4150659 - INFO - Finished task: Scene 1, Tuning 'static_validation_run...'
+2025-06-17 06:16:52,322 - PID:4150659 - worker_4150659 - WARNING - Worker profiling complete. Stats saved.
+2025-06-17 07:03:32,101 - PID:4180541 - worker_4180541 - INFO - SceneProcessorActor 4 (PID: 4180541) initialized on device: cuda:0
+2025-06-17 07:03:32,135 - PID:4180539 - worker_4180539 - INFO - SceneProcessorActor 1 (PID: 4180539) initialized on device: cuda:0
+2025-06-17 07:03:32,172 - PID:4180542 - worker_4180542 - INFO - SceneProcessorActor 6 (PID: 4180542) initialized on device: cuda:0
+2025-06-17 07:03:32,194 - PID:4180546 - worker_4180546 - INFO - SceneProcessorActor 7 (PID: 4180546) initialized on device: cuda:0
+2025-06-17 07:03:32,210 - PID:4180538 - worker_4180538 - INFO - SceneProcessorActor 2 (PID: 4180538) initialized on device: cuda:0
+2025-06-17 07:03:32,225 - PID:4180536 - worker_4180536 - INFO - SceneProcessorActor 0 (PID: 4180536) initialized on device: cuda:0
+2025-06-17 07:03:32,236 - PID:4180544 - worker_4180544 - INFO - SceneProcessorActor 3 (PID: 4180544) initialized on device: cuda:0
+2025-06-17 07:03:32,253 - PID:4180545 - worker_4180545 - INFO - SceneProcessorActor 5 (PID: 4180545) initialized on device: cuda:0
+2025-06-17 07:03:32,427 - PID:4180536 - worker_4180536 - WARNING - PROFILING WORKER 0. Saving to /home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/logs/worker_profile_0.prof
+2025-06-17 07:03:32,470 - PID:4180536 - worker_4180536 - INFO - Starting task: Scene 1, Tuning 'static_validation_run...'
+2025-06-17 07:03:32,517 - PID:4180536 - worker_4180536 - DEBUG - Prefetching data for 389 sweeps...
+2025-06-17 07:03:33,589 - PID:4180536 - worker_4180536 - DEBUG - Sweep data prefetching complete.
+2025-06-17 07:03:33,592 - PID:4180536 - worker_4180536 - DEBUG - Sweep 0/389: Prefilter kept 19740 / 34752 points.
+2025-06-17 07:03:34,336 - PID:4180536 - worker_4180536 - DEBUG - Sweep 0/389: RANSAC pre-labeled 12956 points as ground.
+2025-06-17 07:03:42,948 - PID:4180536 - worker_4180536 - DEBUG - Sweep 97/389: Prefilter kept 25437 / 34720 points.
+2025-06-17 07:03:42,956 - PID:4180536 - worker_4180536 - DEBUG - Sweep 97/389: RANSAC pre-labeled 16012 points as ground.
+2025-06-17 07:03:51,054 - PID:4180536 - worker_4180536 - DEBUG - Sweep 194/389: Prefilter kept 26554 / 34720 points.
+2025-06-17 07:03:51,057 - PID:4180536 - worker_4180536 - DEBUG - Sweep 194/389: RANSAC pre-labeled 15901 points as ground.
+2025-06-17 07:03:59,045 - PID:4180536 - worker_4180536 - DEBUG - Sweep 291/389: Prefilter kept 25244 / 34752 points.
+2025-06-17 07:03:59,047 - PID:4180536 - worker_4180536 - DEBUG - Sweep 291/389: RANSAC pre-labeled 15684 points as ground.
+2025-06-17 07:04:07,829 - PID:4180536 - worker_4180536 - DEBUG - Sweep 388/389: Prefilter kept 25042 / 34720 points.
+2025-06-17 07:04:07,832 - PID:4180536 - worker_4180536 - DEBUG - Sweep 388/389: RANSAC pre-labeled 10671 points as ground.
+2025-06-17 07:04:07,967 - PID:4180536 - worker_4180536 - INFO - Finished task: Scene 1, Tuning 'static_validation_run...'
+2025-06-17 07:04:07,978 - PID:4180536 - worker_4180536 - WARNING - Worker profiling complete. Stats saved.

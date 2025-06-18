@@ -1,8 +1,23 @@
 # summarizer_config.yaml
+# folder_to_scan: './ray_scripts'
 folder_to_scan: './src'
 output_summary_file: './repo_summary.txt'
 file_extension: '.py'
-excluded_subfolder: './src/visualization' # Optional: path to a folder to exclude. Can be absolute or relative.
+# excluded_subfolder: './src/visualization' # Optional: path to a folder to exclude. Can be absolute or relative.
                                       # Leave blank or remove line for no exclusion.
 # Example of no exclusion:
-# excluded_subfolder:
+excluded_subfolders: 
+  - "./src/legacy"
+  - "./src/visualization"
+  # - "./src/core"
+  - "./src/utils"
+
+excluded_folder_names:
+  - "tests"
+  - "__pycache__"
+  - "node_modules"
+  - ".git"
+  - "venv"
+  - "env"
+
+max_exclusion_depth: null

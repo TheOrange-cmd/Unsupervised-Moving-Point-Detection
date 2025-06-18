@@ -7,17 +7,37 @@ nuscenes:
   # This can later also have roots for other datasets such as waymo, kitti, etc.
   # Or use the omni dataset Ted (Teddy) de Vries Lentsch is working on. 
 processing_settings: 
+  # 'cpu' or 'cuda'
+  device: "cuda" 
+  
+  # List of GPU IDs to use. If device is 'cuda', this MUST be present.
+  # An empty list [] means use all available GPUs.
+  # e.g., [0, 2, 5] to use GPUs 0, 2, and 5.
+  gpu_ids: [2, 3, 4]
   skip_frames: 0
-  max_frames: 30 # provide an int, or None to process the entire sequence
-  # max_frames: 50 
-mdetector_output_paths: # Renamed
-  save_path: "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/output/test06_06_25" # Directory where M-Detector outputs will be saved
-  # scene_indices_to_run: 'all' # 'all' or a list, e.g.: [1,] or [0, 3, 5]
-  # scene_indices_to_run: [0, 1, 2, 3, 4, ]
-  scene_indices_to_run: [1, 2, 3, 4, 5]
-  max_parallel_scenes: 26 # How many sequences to process in parallel - will use one core and approx 0.6 GB RAM per job for nuscenes. 
+  max_frames: -1 # provide an int, or -1 to process the entire sequence
+  workers_per_gpu: 4
+  detailed_log_level: "DEBUG"
+  random_seed: 42 
+mdetector_output_paths: 
+ # Directory where M-Detector outputs will be saved
+  # save_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_python/output/BIG_RUN_LESS_LESS_DATA"
+  save_path: "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/output/full"
+  # 'all' or a list, e.g.: [1,] or [0, 3, 5]
+  # scene_indices_to_run: 'all' 
+  scene_indices_to_run: [1, ]
 
-validation_params: # Renamed
+  # Control the format of the saved result files.
+  # "full": Saves a label for every single point. (Largest file size)
+  # "sparse_dynamic": Saves only the indices of points labeled as OCCLUDING_IMAGE. (Smallest file size)
+  # save_mode: "sparse_dynamic" # Or "full"
+  save_mode: "full"
+  labels_to_save:    # List of label names (from the OcclusionResult enum) to save when in sparse_dynamic mode.
+    - "OCCLUDING_IMAGE"
+
+  max_parallel_scenes: 26 # How many sequences to process in parallel when running CPU tasks - will use one core and approx 0.6 GB RAM per job for nuscenes. 
+
+validation_params:
   gt_velocity_threshold: 1.0 # For comparing against GT
   # coordinate_tolerance_for_verification: 0.01 # If used in validation scripts
 
@@ -33,6 +53,7 @@ adaptive_epsilon_params_schema: &adaptive_epsilon_defaults
 m_detector:
   # Point Cloud Pre-Filtering (Applied before DI creation)
   point_pre_filtering:
+    enabled: true
     max_range_meters: 50.0
     min_range_meters: 2.5
 
@@ -86,7 +107,7 @@ m_detector:
   # Map Consistency Check (Applied within each test if an occlusion is found)
   map_consistency:
     enabled: true
-    time_window_past_s: 0.5 # How far back to look in seconds for static map points in the map consistency check. 
+    num_past_sweeps_for_mcc: 10 
     # time_window_future_s: 0.25 # Will be used if bidirectional is implemented
     # Thresholds for matching a point to a historical static map point
     epsilon_phi_deg: 0.57 # -> 0.57 in paper
@@ -128,14 +149,15 @@ m_detector:
     interpolation_fallback_to_direct_comparison: true # If true, use direct comparison if interpolation fails
 
 
-  ransac_ground_params: # Name should match key in MDetector._load_pre_labeler_configs
+  ransac_ground_params: 
+    enabled: true
     xyradius_threshold: 25.0
     z_min_threshold: -.inf   # Relative to sensor height
     z_max_threshold: .inf   # Relative to sensor height
     num_trials: 20
     inlier_threshold: 0.3  # Conservative
     ground_threshold: 0.3  # Conservative
-    device: 'cpu' # 'cpu', 'cuda', 'auto'
+    device: 'cuda' # 'cpu', 'cuda', 'auto'
 
   # Clustering & Region Growth (Frame-Out Mode Refinement)
   frame_refinement:

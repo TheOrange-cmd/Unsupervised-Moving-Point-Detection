@@ -1,0 +1,56 @@
+import torch
+from utils import load_lidar_sequence, save_results
+from torchrobotics.ground import flat_ground_plane
+
+
+class MDetector():
+    """
+    Moving point detector module.
+    """
+    def _init_(
+      self,
+      threshold: float = 0.1
+      ):
+        """
+        Args:
+            threshold: Distance threshold to consider a point as moving.
+        """
+        super(MDetector, self)._init_()
+        self.threshold = threshold
+
+    def forward(
+      self, 
+      lidar_seq: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Args:
+            lidar_seq: Tensor of shape (T, N, D), where
+                       T = number of frames,
+                       N = number of points per frame,
+                       D = point dimensionality (e.g., 3 for XYZ).
+
+        Returns:
+            moving_seq: Bool Tensor of shape (T, N), mask of moving points.
+        """
+        # YOUR CODE HERE
+        return None
+
+
+if _name_ == "_main_":
+    # Load a sequence of point clouds (T, N, D)
+    path = "path/to/sequence"
+    raw_seq = load_lidar_sequence(path)
+    
+    # Preprocess if needed
+    lidar_seq = preprocess_pointclouds(raw_seq)
+    lidar_seq = torch.from_numpy(lidar_seq)
+
+    # Instantiate detector
+    detector = MDetector(threshold=0.2)
+
+    # Run detection
+    moving_mask = detector(lidar_seq)
+
+    # Save or visualize results
+    save_results(moving_mask, "moving_points_mask.npy")
+    print("Moving points mask saved to moving_points_mask.npy")
