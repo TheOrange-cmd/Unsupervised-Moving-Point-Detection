@@ -1,6 +1,7 @@
 # src/config_loader.py
 import yaml
 from typing import Dict, Any, List, Optional
+from .core.constants import DYNAMIC_LABEL_VALUE 
 
 class MDetectorConfigAccessor:
     def __init__(self, config_path: str = None, config_dict: dict = None):
@@ -51,7 +52,7 @@ class MDetectorConfigAccessor:
 
         eval_params = {
             "mdet_label_field_name": "mdet_label",
-            "mdet_dynamic_label_value": mdet_dynamic_label_value,
+            "mdet_dynamic_label_value": DYNAMIC_LABEL_VALUE,
             "coordinate_tolerance_for_verification": 1e-3,
             "mdet_min_point_range_meters": filt_cfg['min_range_meters'],
             "mdet_max_point_range_meters": filt_cfg['max_range_meters'],

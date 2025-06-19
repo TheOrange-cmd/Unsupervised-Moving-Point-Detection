@@ -1,0 +1,17 @@
+m_detector:
+  occlusion_determination:
+    epsilon_depth: 0.2301479234122744
+    angular_neighborhood_h_deg: 0.0848832655258229
+    angular_neighborhood_v_deg: 0.5078959605780682
+    adaptive_epsilon_depth_config:
+      enabled: false
+  event_detection_logic:
+    test4_perpendicular:
+      num_historical_DIs_N: 20
+      min_occluding_DIs_M4: 6
+    test2_parallel_away:
+      num_historical_DIs_M2: 8
+  map_consistency:
+    num_sweeps: 15
+    epsilon_phi_deg: 0.511184213166184
+    epsilon_theta_deg: 1.5195312751414027

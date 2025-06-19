@@ -3,7 +3,7 @@ nuscenes:
   version: "v1.0-mini"
   dataroot: "/datasets/nuscenes"
   lidar_sensor_name: "LIDAR_TOP"
-  label_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/nuscenes_labels_interpolated"
+  label_path: "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/labels"
   # This can later also have roots for other datasets such as waymo, kitti, etc.
   # Or use the omni dataset Ted (Teddy) de Vries Lentsch is working on. 
 processing_settings: 
@@ -13,7 +13,7 @@ processing_settings:
   # List of GPU IDs to use. If device is 'cuda', this MUST be present.
   # An empty list [] means use all available GPUs.
   # e.g., [0, 2, 5] to use GPUs 0, 2, and 5.
-  gpu_ids: [2, 3, 4]
+  gpu_ids: [0, ]
   skip_frames: 0
   max_frames: -1 # provide an int, or -1 to process the entire sequence
   workers_per_gpu: 4

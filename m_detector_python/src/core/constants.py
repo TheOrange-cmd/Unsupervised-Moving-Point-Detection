@@ -18,6 +18,11 @@ class OcclusionResult(Enum):
     UNDETERMINED = 3      # Cannot determine the occlusion relationship (e.g., point outside FoV, or within epsilon thresholds).
     PRELABELED_STATIC_GROUND = 4 # Labeled static by RANSAC - ignore for processing, but do use it as static label for consistency checks
 
+# --- Centralized Algorithm Constants ---
+# The integer value representing a dynamic point throughout the system.
+# This is the single source of truth.
+DYNAMIC_LABEL_VALUE = OcclusionResult.OCCLUDING_IMAGE.value
+
 POINT_LABEL_DTYPE = np.dtype([
     # Sensor-frame coordinates (for on-the-fly filtering during evaluation)
     ('x_sensor', np.float32),

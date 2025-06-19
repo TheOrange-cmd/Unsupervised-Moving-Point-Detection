@@ -38,27 +38,35 @@ def _load_gt_file(path: str, device: str) -> tuple[str, dict]:
 @ray.remote
 def load_all_gt_data_in_background(config_path: str, device_str: str = 'cpu'):
     """
-    A single, standalone remote task that loads all GT files and returns them
-    in a dictionary. This is completely separate from the actor.
+    A single, standalone remote task that loads all SPARSE GT files and returns them
+    in a dictionary. The data is already lean, so we just load it directly.
     """
     accessor = MDetectorConfigAccessor(config_path)
     nuscenes_cfg = accessor.get_nuscenes_params()
-    filt_cfg = accessor.get_point_pre_filtering_params()
-    min_r, max_r = filt_cfg['min_range_meters'], filt_cfg['max_range_meters']
+    # --- We now need the velocity threshold to find the correct files ---
+    validation_cfg = accessor.get_validation_params()
+    gt_vel_thresh = validation_cfg['gt_velocity_threshold']
+    
     gt_labels_dir = nuscenes_cfg['label_path']
     
-    # We need a mini-nusc object here just to iterate through scenes
     nusc = NuScenes(version=nuscenes_cfg['version'], dataroot=nuscenes_cfg['dataroot'], verbose=False)
     
     gt_cache = {}
+    print(f"Background loader: Searching for sparse GT files with v_thresh={gt_vel_thresh}...")
     for scene_rec in nusc.scene:
         scene_name = scene_rec['name']
-        gt_filename = f"gt_point_labels_{scene_name}_r{min_r}-{max_r}.pt"
+        # --- FILENAME FORMAT IS UPDATED ---
+        gt_filename = f"gt_sparse_labels_{scene_name}_v{gt_vel_thresh}.pt"
         gt_path = os.path.join(gt_labels_dir, gt_filename)
+        
         if os.path.exists(gt_path):
+            # The loaded data is already the lean dictionary we want
             gt_cache[scene_rec['token']] = torch.load(gt_path, map_location=device_str, weights_only=False)
             
-    print(f"Background loading complete. Loaded {len(gt_cache)} GT files.")
+    if not gt_cache:
+        print(f"[bold red]WARNING:[/bold red] Background loader did not find any sparse GT files for v_thresh={gt_vel_thresh} in {gt_labels_dir}.")
+    else:
+        print(f"Background loading complete. Loaded {len(gt_cache)} sparse GT files.")
     return gt_cache
 
 @ray.remote
@@ -74,18 +82,25 @@ class NuScenesDataActor:
         print(f"Actor cache populated with {len(self.gt_cache)} entries.")
 
     def get_ground_truth_slice(self, scene_token: str, sweep_index: int) -> Optional[np.ndarray]:
-        # No waiting logic is needed anymore. The cache is either there or not.
+        """
+        Returns a slice of the sparse dynamic point indices for a specific sweep.
+        """
         if scene_token not in self.gt_cache:
             return None
             
         gt_data = self.gt_cache[scene_token]
-        gt_labels_all = gt_data['point_labels']
-        gt_sweep_indices = gt_data['sweep_indices']
-        if sweep_index >= len(gt_sweep_indices) - 1:
+        # These are the two arrays we saved in our new .pt files
+        gt_dynamic_indices_all = gt_data['dynamic_point_indices']
+        gt_sweep_boundaries = gt_data['sweep_boundary_indices']
+        
+        if sweep_index >= len(gt_sweep_boundaries) - 1:
             return None
-        start_idx = gt_sweep_indices[sweep_index]
-        end_idx = gt_sweep_indices[sweep_index + 1]
-        return gt_labels_all[start_idx:end_idx]
+            
+        # Use the boundaries to slice the correct portion of the dynamic indices array
+        start_idx = gt_sweep_boundaries[sweep_index]
+        end_idx = gt_sweep_boundaries[sweep_index + 1]
+        
+        return gt_dynamic_indices_all[start_idx:end_idx]
 
     # All other get_* methods are also simple and direct
     def get_nusc_handle(self):
@@ -124,6 +139,7 @@ class NuScenesDataActor:
         T_global_sensor = T_ego_global @ T_sensor_ego
 
         return {
+            # Return the raw point cloud so the M-Detector can do its own filtering
             'points_sensor_frame': points_sensor_frame[:, :3],
             'T_global_lidar': T_global_sensor,
             'timestamp': sweep_rec['timestamp'],
@@ -131,7 +147,17 @@ class NuScenesDataActor:
 
     def get_scene_sweep_tokens(self, scene_token: str, lidar_name: str) -> list[str]:
         scene_rec = self.nusc.get('scene', scene_token)
-        current_sd_token = self.nusc.get('sample', scene_rec['first_sample_token'])['data'][lidar_name]
+        first_sample_token = scene_rec['first_sample_token']
+        current_sd_token = self.nusc.get('sample', first_sample_token)['data'].get(lidar_name)
+        if not current_sd_token:
+            sample_token = first_sample_token
+            while sample_token:
+                sample_rec = self.nusc.get('sample', sample_token)
+                if lidar_name in sample_rec['data']:
+                    current_sd_token = sample_rec['data'][lidar_name]
+                    break
+                sample_token = sample_rec['next']
+            if not current_sd_token: return []
         
         while True:
             sd_rec = self.nusc.get('sample_data', current_sd_token)

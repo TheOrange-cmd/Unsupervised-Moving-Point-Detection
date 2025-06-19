@@ -8,6 +8,8 @@ import logging
 from .constants import OcclusionResult
 from torch_scatter import scatter_min, scatter_max, scatter_add, scatter
 
+from ..utils.transformations import transform_points_numpy
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +33,11 @@ class DepthImage:
         self.pixel_min_depth: torch.Tensor = torch.full((self.num_pixels_v, self.num_pixels_h), float('inf'), dtype=torch.float32, device=self.device)
         self.pixel_max_depth: torch.Tensor = torch.full((self.num_pixels_v, self.num_pixels_h), float('-inf'), dtype=torch.float32, device=self.device)
         self.pixel_count: torch.Tensor = torch.zeros((self.num_pixels_v, self.num_pixels_h), dtype=torch.int32, device=self.device)
+        
         self.original_points_global_coords: Optional[torch.Tensor] = None
         self.mdet_labels_for_points: Optional[torch.Tensor] = None
-        # self.mdet_scores_for_points: Optional[torch.Tensor] = None
+
+        self.original_indices_of_filtered_points: Optional[torch.Tensor] = None
         self.local_sph_coords_for_points: Optional[torch.Tensor] = None
         self.raw_occlusion_results_vs_history: Optional[torch.Tensor] = None
         self.matrix_local_from_global: torch.Tensor = torch.inverse(self.image_pose_global)
@@ -98,60 +102,64 @@ class DepthImage:
         return points_local_all, sph_coords_all, pixel_indices_all, valid_mask
 
     def add_points_batch(self,
-                         points_global_batch: np.ndarray,
-                         initial_labels_for_points: Optional[np.ndarray] = None) -> int:
+                         points_global_raw: np.ndarray,
+                         points_sensor_raw: np.ndarray,
+                         filter_params: Dict[str, Any],
+                         initial_labels_raw: Optional[np.ndarray] = None) -> int: # Renamed for clarity
         
-        batch_size = points_global_batch.shape[0]
-        if batch_size == 0:
-            self.original_points_global_coords = torch.empty((0, 3), dtype=torch.float32, device=self.device)
-            self.local_sph_coords_for_points = torch.empty((0, 3), dtype=torch.float32, device=self.device)
-            self.mdet_labels_for_points = torch.empty((0,), dtype=torch.int8, device=self.device)
+        raw_batch_size = points_global_raw.shape[0]
+        if raw_batch_size == 0:
             self.total_points_added_to_di_arrays = 0
             return 0
 
-        self.original_points_global_coords = torch.from_numpy(points_global_batch).float().to(self.device)
-        if initial_labels_for_points is not None:
-            self.mdet_labels_for_points = torch.from_numpy(initial_labels_for_points).to(self.device)
-        else:
-            self.mdet_labels_for_points = torch.full((batch_size,), OcclusionResult.UNDETERMINED.value, dtype=torch.int8, device=self.device)
-        self.total_points_added_to_di_arrays = batch_size
+        ranges = np.linalg.norm(points_sensor_raw, axis=1)
+        filter_mask = (ranges >= filter_params['min_range_meters']) & (ranges <= filter_params['max_range_meters'])
+        
+        self.original_indices_of_filtered_points = torch.from_numpy(np.where(filter_mask)[0]).int().to(self.device)
+        
+        points_global_filtered = points_global_raw[filter_mask]
+        filtered_batch_size = points_global_filtered.shape[0]
+        self.total_points_added_to_di_arrays = filtered_batch_size
 
+        if filtered_batch_size == 0:
+            return 0
+            
+        self.original_points_global_coords = torch.from_numpy(points_global_filtered).float().to(self.device)
+        
+        # This logic is now correct because initial_labels_raw is a proper integer array
+        if initial_labels_raw is not None:
+            initial_labels_filtered = initial_labels_raw[filter_mask]
+            self.mdet_labels_for_points = torch.from_numpy(initial_labels_filtered).to(self.device)
+        else:
+            self.mdet_labels_for_points = torch.full((filtered_batch_size,), OcclusionResult.UNDETERMINED.value, dtype=torch.int8, device=self.device)
+
+        # --- The rest of the function is unchanged ---
         _points_local, sph_coords, pixel_indices, valid_mask = \
             self.project_points_batch(self.original_points_global_coords)
         self.local_sph_coords_for_points = sph_coords
-
+        
         valid_original_indices = torch.where(valid_mask)[0]
         if valid_original_indices.numel() > 0:
             valid_pixels = pixel_indices[valid_original_indices]
             valid_depths = sph_coords[valid_original_indices, 2]
-            
             flat_pixel_indices = valid_pixels[:, 0] * self.num_pixels_h + valid_pixels[:, 1]
-            
-            # Vectorized pixel stats are already efficient, no change needed here
             pixel_min_depth_flat = self.pixel_min_depth.view(-1)
             pixel_max_depth_flat = self.pixel_max_depth.view(-1)
             pixel_count_flat = self.pixel_count.view(-1)
             scatter_min(valid_depths, flat_pixel_indices, out=pixel_min_depth_flat)
             scatter_max(valid_depths, flat_pixel_indices, out=pixel_max_depth_flat)
             scatter_add(torch.ones_like(valid_depths, dtype=torch.int32), flat_pixel_indices, out=pixel_count_flat)
-
             sorted_flat_pixels, sorted_indices = torch.sort(flat_pixel_indices)
             self.pixel_original_indices_tensor = valid_original_indices[sorted_indices]
             unique_pixels, counts = torch.unique_consecutive(sorted_flat_pixels, return_counts=True)
             start_indices = torch.cat([torch.tensor([0], device=self.device), torch.cumsum(counts, dim=0)[:-1]])
-            
-            # This is the new, efficient part.
-            # We create a tensor of (start, count) pairs.
             start_count_pairs = torch.stack([start_indices, counts], dim=1)
-            
-            # We use a single, highly optimized scatter operation to populate our map.
-            # This replaces the entire Python loop and the 15.3 million .item() calls.
             scatter(start_count_pairs, unique_pixels.long(), dim=0, out=self.pixel_map_tensor)
 
         self.static_points_mask = None
         self._static_labels_used_for_cache = None
             
-        return batch_size
+        return filtered_batch_size
     
     def get_original_points_global(self) -> Optional[np.ndarray]:
         if self.original_points_global_coords is None:

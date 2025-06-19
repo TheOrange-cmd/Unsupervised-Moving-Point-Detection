@@ -7,10 +7,9 @@ file_extension: '.py'
                                       # Leave blank or remove line for no exclusion.
 # Example of no exclusion:
 excluded_subfolders: 
-  - "./src/legacy"
-  - "./src/visualization"
+  # - "./src/ray_scripts"
   # - "./src/core"
-  - "./src/utils"
+  # - "./src/utils"
 
 excluded_folder_names:
   - "tests"

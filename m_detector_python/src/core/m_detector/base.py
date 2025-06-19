@@ -27,7 +27,12 @@ class MDetector:
         check_occlusion_point_level_detailed_batch
     )
     from .map_consistency import is_map_consistent
-    from .processing import process_and_label_di
+    from .processing import (
+        forward,
+        _perform_initial_occlusion_pass,
+        _apply_map_consistency_check,
+        _run_event_test_sequence
+    )
     from .event_tests import execute_test2_parallel_motion, execute_test3_perpendicular_motion
 
     def __init__(self,
@@ -98,18 +103,16 @@ class MDetector:
             label.value for label in self.static_labels_for_map_check_enums
         ]
 
-    # def set_debug_collector(self, collector: PointDebugCollector):
-    #     """Sets a debug collector for tracing specific points."""
-    #     self.logger.info(f"Setting debug collector: {collector}")
-    #     self.debug_collector = collector
 
     def add_sweep(self,
-                  points_global: np.ndarray,
+                  points_global_raw: np.ndarray,
+                  points_sensor_raw: np.ndarray,
                   pose_global: np.ndarray,
                   timestamp: float,
-                  prelabeled_mask: Optional[np.ndarray] = None) -> DepthImage:
+                  prelabeled_mask_raw: Optional[np.ndarray] = None):
         """
-        Adds a new sweep to the detector.
+        Adds a new sweep to the detector. This method now correctly handles
+        the conversion of the boolean RANSAC mask to initial integer labels.
         """
         start_time = time.time()
 
@@ -120,12 +123,22 @@ class MDetector:
             device=self.device
         )
 
-        initial_labels = None
-        if prelabeled_mask is not None:
-            initial_labels = np.full(points_global.shape[0], OcclusionResult.UNDETERMINED.value, dtype=np.int8)
-            initial_labels[prelabeled_mask] = OcclusionResult.PRELABELED_STATIC_GROUND.value
+        # --- THIS IS THE FIX ---
+        # Convert the incoming boolean mask into a proper integer label array.
+        initial_labels_raw = None
+        if prelabeled_mask_raw is not None:
+            # Start with all points as UNDETERMINED
+            initial_labels_raw = np.full(points_global_raw.shape[0], OcclusionResult.UNDETERMINED.value, dtype=np.int8)
+            # Set the points where the mask is True to the PRELABELED_STATIC_GROUND value
+            initial_labels_raw[prelabeled_mask_raw] = OcclusionResult.PRELABELED_STATIC_GROUND.value
+        # --- END FIX ---
 
-        num_added = di.add_points_batch(points_global, initial_labels)
+        num_added = di.add_points_batch(
+            points_global_raw,
+            points_sensor_raw,
+            self.config.get_point_pre_filtering_params(),
+            initial_labels_raw # Pass the correctly formatted integer array
+        )
         self.depth_image_library.add_image(di)
 
         end_time = time.time()
@@ -138,12 +151,12 @@ class MDetector:
 
     def decide_and_process_frame(self) -> Dict[str, Any]:
         """
-        Decides which frame in the library to process and initiates processing.
+        Decides which frame in the library to process and initiates the forward pass.
+        This is the main entry point for processing after sweeps have been added.
         """
         lib_len = len(self.depth_image_library)
         if lib_len < self.min_sweeps_for_processing:
             reason = f"Lib len {lib_len} < min_sweeps {self.min_sweeps_for_processing}"
-            self.logger.info(f"DECIDE_FRAME_NOT_READY: {reason}. Returning 'not ready'.")
             return {'success': False, 'reason': reason}
 
         target_idx_in_deque = lib_len - 1
@@ -153,15 +166,12 @@ class MDetector:
             self.logger.error(f"DECIDE_FRAME_ERROR: {reason}")
             return {'success': False, 'reason': reason}
 
-        self.logger.info(
-            f"DECIDE_FRAME_READY: Processing DI at index {target_idx_in_deque} "
-            f"(TS: {di_to_process.timestamp:.2f})."
-        )
+        self.logger.info(f"DECIDE_FRAME_READY: Processing DI at index {target_idx_in_deque} (TS: {di_to_process.timestamp:.2f}).")
         return self._process_causal_di_wrapper(target_idx_in_deque)
 
     def _process_causal_di_wrapper(self, di_to_process_idx: int) -> Dict[str, Any]:
         """
-        A wrapper around the main processing logic that handles timing and error catching.
+        A wrapper around the main forward pass that handles timing and error catching.
         """
         current_di = self.depth_image_library.get_image_by_index(di_to_process_idx)
         if current_di is None:
@@ -169,14 +179,12 @@ class MDetector:
 
         start_time = time.time()
         try:
-            result = self.process_and_label_di(current_di, di_to_process_idx)
+            # Call the newly named `forward` method
+            result = self.forward(current_di, di_to_process_idx)
         except Exception as e:
-            self.logger.exception(f"Exception during process_and_label_di for DI @ TS {current_di.timestamp:.2f}")
+            self.logger.exception(f"Exception during forward pass for DI @ TS {current_di.timestamp:.2f}")
             return {'success': False, 'reason': str(e), 'timestamp': current_di.timestamp}
         finally:
             end_time = time.time()
-            self.logger.info(
-                f"PROCESS_DI_TIMING: Processing DI @ TS {current_di.timestamp:.2f} "
-                f"took {(end_time - start_time) * 1000:.2f} ms."
-            )
+            self.logger.info(f"PROCESS_DI_TIMING: Forward pass for DI @ TS {current_di.timestamp:.2f} took {(end_time - start_time) * 1000:.2f} ms.")
         return result

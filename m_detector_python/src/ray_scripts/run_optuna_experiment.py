@@ -33,6 +33,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 WORKING_DIR = PROJECT_ROOT.parent
 CONFIG_PATH_ABSOLUTE = WORKING_DIR / 'config' / 'm_detector_config.yaml'
+DB_DIR = WORKING_DIR / "optuna_studies"
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
@@ -162,6 +163,7 @@ def main():
     console = Console()
 
     # --- 2. GPU Configuration (Simplified: reads ONLY from config file) ---
+    console.log(f"[bold green]CONFIG FILE:[/bold green] Using config file in: {CONFIG_PATH_ABSOLUTE}")
     temp_accessor = MDetectorConfigAccessor(CONFIG_PATH_ABSOLUTE)
     base_config = temp_accessor.get_raw_config()
     
@@ -197,13 +199,27 @@ def main():
         console.log("[bold green]Ground Truth caching and actor setup complete.[/bold green]")
         
         # --- Optuna Study Setup (the rest of the script is the same) ---
-        storage_path = f"sqlite:///{args.study_name}.db"
+        console.log(f"Ensuring Optuna database directory exists at: {DB_DIR}")
+        os.makedirs(DB_DIR, exist_ok=True)
+
+        # MODIFY THIS LINE
+        storage_path = f"sqlite:///{DB_DIR / args.study_name}.db"
         study = optuna.create_study(
             study_name=args.study_name, storage=storage_path,
             direction="maximize", pruner=optuna.pruners.MedianPruner(),
             load_if_exists=True
         )
         
+        # --- Enqueue a baseline trial if the study is new ---
+        if len(study.get_trials(deepcopy=False)) == 0:
+            console.log("[bold yellow]Enqueuing baseline trial with known-good settings.[/bold yellow]")
+            # Set parameters to a known good state. For example, disable adaptive epsilon.
+            # This ensures Trial 0 is always a sensible baseline.
+            baseline_params = {
+                "future_mcc_enabled": False
+            }
+            study.enqueue_trial(baseline_params)
+
         console.log(f"--- Starting Optuna Study ---")
         console.log(f"Study Name: {args.study_name}, Metric: [bold cyan]IoU[/bold cyan]")
         console.log(f"Ray Parallelism: {args.n_parallel_trials} trials")

@@ -9,36 +9,18 @@ from typing import List, Dict, Optional
 import h5py
 import torch 
 
-# Import from M-Detector's codebase
-# from .nuscenes_helper import get_scene_sweep_data_sequence 
-from ..visualization.transformations import transform_points_numpy
-from ..core.constants import POINT_LABEL_DTYPE
+
+# from ..core.constants import POINT_LABEL_DTYPE
+from .transformations import transform_points_numpy
 
 from nuscenes.utils.data_classes import LidarPointCloud 
 from pyquaternion import Quaternion 
 
 def get_scene_sweep_data_sequence(nusc: NuScenes, scene_token: str, lidar_name: str = "LIDAR_TOP"):
-    """
-    A generator that yields detailed data dictionaries for each LiDAR sweep in a scene,
-    in chronological order. This is a standalone recreation of the logic previously
-    used in the NuScenesDataActor.
-
-    Args:
-        nusc (NuScenes): The NuScenes SDK instance.
-        scene_token (str): The token of the scene to process.
-        lidar_name (str): The name of the LiDAR sensor to use (e.g., 'LIDAR_TOP').
-
-    Yields:
-        dict: A dictionary containing data for a single sweep, including:
-              'points_sensor_frame', 'T_global_lidar', 'timestamp', etc.
-    """
+    # This helper function remains unchanged as it correctly fetches raw sweep data.
     scene_rec = nusc.get('scene', scene_token)
-    
-    # 1. Find all sweep tokens in chronological order
     first_sample_token = scene_rec['first_sample_token']
     current_sd_token = nusc.get('sample', first_sample_token)['data'].get(lidar_name)
-    
-    # If the first sample doesn't have the lidar data, search forward
     if not current_sd_token:
         sample_token = first_sample_token
         while sample_token:
@@ -47,19 +29,13 @@ def get_scene_sweep_data_sequence(nusc: NuScenes, scene_token: str, lidar_name: 
                 current_sd_token = sample_rec['data'][lidar_name]
                 break
             sample_token = sample_rec['next']
-        if not current_sd_token:
-            # No sweeps for this sensor in the entire scene
-            return
+        if not current_sd_token: return
 
-    # Traverse to the very first sweep in the sequence
     while True:
         sd_rec = nusc.get('sample_data', current_sd_token)
-        if sd_rec['prev']:
-            current_sd_token = sd_rec['prev']
-        else:
-            break
+        if sd_rec['prev']: current_sd_token = sd_rec['prev']
+        else: break
             
-    # 2. Iterate through sweeps and yield detailed data for each one
     while current_sd_token:
         sweep_rec = nusc.get('sample_data', current_sd_token)
         cs_rec = nusc.get('calibrated_sensor', sweep_rec['calibrated_sensor_token'])
@@ -70,7 +46,7 @@ def get_scene_sweep_data_sequence(nusc: NuScenes, scene_token: str, lidar_name: 
             points_sensor_frame = np.empty((0, 5), dtype=np.float32)
         else:
             pc = LidarPointCloud.from_file(pc_filepath)
-            points_sensor_frame = pc.points.T  # Shape (N, 5)
+            points_sensor_frame = pc.points.T
 
         sens_to_ego_rot = Quaternion(cs_rec['rotation']).rotation_matrix
         sens_to_ego_trans = np.array(cs_rec['translation'])
@@ -87,7 +63,7 @@ def get_scene_sweep_data_sequence(nusc: NuScenes, scene_token: str, lidar_name: 
         T_global_sensor = T_ego_global @ T_sensor_ego
 
         yield {
-            'points_sensor_frame': points_sensor_frame[:, :3], # xyz for processing
+            'points_sensor_frame': points_sensor_frame, # Yield the raw (N, 5) point cloud
             'T_global_lidar': T_global_sensor,
             'timestamp': sweep_rec['timestamp'],
             'calibrated_sensor_token': sweep_rec['calibrated_sensor_token'],
@@ -98,25 +74,24 @@ def get_scene_sweep_data_sequence(nusc: NuScenes, scene_token: str, lidar_name: 
         
         current_sd_token = sweep_rec['next']
 
+
+# --- COMPLETELY REWRITTEN FUNCTION ---
 def generate_and_save_point_labels_for_scene_pytorch(
     nusc: NuScenes,
     scene_token: str,
     output_dir: str,
-    min_range_meters: float,
-    max_range_meters: float,
+    gt_velocity_threshold: float,
     verbose: bool = True
 ) -> Optional[str]:
     """
-    Generates point labels for ALL sweeps in a scene, pre-filters them by range,
-    and saves the concatenated points PLUS an array of sweep boundary indices
-    to a single .pt file for fast online slicing.
+    Generates sparse ground truth labels for a scene and saves them to a lean .pt file.
+    The file contains only the *original indices* of dynamic points for each sweep.
 
     Args:
         nusc: NuScenes API instance.
         scene_token (str): The token of the scene to process.
         output_dir (str): The directory to save the output .pt file.
-        min_range_meters (float): The minimum point range to keep (applied in sensor frame).
-        max_range_meters (float): The maximum point range to keep (applied in sensor frame).
+        gt_velocity_threshold (float): The speed (m/s) above which a point is considered dynamic.
         verbose (bool): Whether to print progress messages.
 
     Returns:
@@ -126,14 +101,13 @@ def generate_and_save_point_labels_for_scene_pytorch(
     scene_name = scene_record['name']
 
     os.makedirs(output_dir, exist_ok=True)
-    # Filename now ONLY depends on the expensive range filtering configuration
-    output_filename = f"gt_point_labels_{scene_name}_r{min_range_meters}-{max_range_meters}.pt"
+    # Filename now depends ONLY on the velocity threshold, making it very stable.
+    output_filename = f"gt_sparse_labels_{scene_name}_v{gt_velocity_threshold}.pt"
     output_filepath = os.path.join(output_dir, output_filename)
 
     if verbose:
-        tqdm.write(f"Processing scene for PyTorch GT labels: {scene_name} (Range: {min_range_meters}-{max_range_meters}m)")
+        tqdm.write(f"Processing scene for sparse GT labels: {scene_name} (Vel Threshold: {gt_velocity_threshold} m/s)")
 
-    # --- Data Gathering (same as before) ---
     all_sweep_data_dicts = list(get_scene_sweep_data_sequence(nusc, scene_token))
     if not all_sweep_data_dicts:
         if verbose: tqdm.write(f"No LiDAR sweeps found for scene {scene_name}. Skipping.")
@@ -151,75 +125,54 @@ def generate_and_save_point_labels_for_scene_pytorch(
         )
         all_instances_boxes_at_sweeps[inst_token] = boxes_at_sweeps
     
-    if verbose: tqdm.write("All instance GT box states generated. Now creating point labels per sweep...")
-
     # --- Processing and Data Structuring ---
-    all_point_labels_list = []
-    # NEW: Store the cumulative count of points to mark sweep boundaries.
-    # Starts with 0 for the beginning of the first sweep.
-    sweep_point_indices = [0] 
+    all_dynamic_indices_list = []
+    sweep_boundary_indices = [0] # Marks the start of dynamic indices for each sweep
 
-    sweep_iterator = tqdm(enumerate(all_sweep_data_dicts), total=len(all_sweep_data_dicts), desc="  Generating Range-Filtered GT Labels") if verbose else enumerate(all_sweep_data_dicts)
+    sweep_iterator = tqdm(enumerate(all_sweep_data_dicts), total=len(all_sweep_data_dicts), desc="  Generating Sparse GT Labels") if verbose else enumerate(all_sweep_data_dicts)
 
     for sweep_idx, sweep_data in sweep_iterator:
-        points_sensor_frame = sweep_data['points_sensor_frame']
-        T_global_lidar = sweep_data['T_global_lidar']
+        # Load the raw, unfiltered point cloud
+        points_sensor_raw = sweep_data['points_sensor_frame'][:, :3] # Use only XYZ
         
-        # Apply the expensive range filtering
-        if points_sensor_frame.shape[0] > 0:
-            ranges = np.linalg.norm(points_sensor_frame[:, :3], axis=1)
-            range_mask = (ranges >= min_range_meters) & (ranges <= max_range_meters)
-            points_sensor_frame = points_sensor_frame[range_mask]
+        if points_sensor_raw.shape[0] == 0:
+            all_dynamic_indices_list.append(np.array([], dtype=np.int32))
+            sweep_boundary_indices.append(sweep_boundary_indices[-1])
+            continue
 
-        if points_sensor_frame.shape[0] == 0:
-            current_sweep_point_labels = np.zeros(0, dtype=POINT_LABEL_DTYPE)
-        else:
-            points_global = transform_points_numpy(points_sensor_frame, T_global_lidar)
-            
-            # Initialize the structured array for this sweep's points
-            current_sweep_point_labels = np.zeros(points_global.shape[0], dtype=POINT_LABEL_DTYPE)
-            current_sweep_point_labels['instance_token'] = b''
-            current_sweep_point_labels['category_name'] = b''
-            current_sweep_point_labels['x'] = points_global[:, 0]
-            current_sweep_point_labels['y'] = points_global[:, 1]
-            current_sweep_point_labels['z'] = points_global[:, 2]
-            current_sweep_point_labels['x_sensor'] = points_sensor_frame[:, 0]
-            current_sweep_point_labels['y_sensor'] = points_sensor_frame[:, 1]
-            current_sweep_point_labels['z_sensor'] = points_sensor_frame[:, 2]
+        T_global_lidar = sweep_data['T_global_lidar']
+        points_global_raw = transform_points_numpy(points_sensor_raw, T_global_lidar)
+        
+        # This mask will accumulate all dynamic points for the current sweep
+        dynamic_mask_for_sweep = np.zeros(points_global_raw.shape[0], dtype=bool)
 
-            # Label points based on which GT box they fall into
-            for inst_token, list_of_boxes_for_instance in all_instances_boxes_at_sweeps.items():
-                box_object = list_of_boxes_for_instance[sweep_idx]
-                if box_object is not None:
-                    mask_points_in_obb = _get_points_in_box_mask_global_coords(points_global, box_object)
-                    if np.any(mask_points_in_obb):
-                        unassigned_mask = (current_sweep_point_labels['instance_token'][mask_points_in_obb] == b'')
-                        final_indices_to_label = np.where(mask_points_in_obb)[0][unassigned_mask]
-                        if final_indices_to_label.size > 0:
-                            current_sweep_point_labels['instance_token'][final_indices_to_label] = inst_token.encode('utf-8')
-                            current_sweep_point_labels['category_name'][final_indices_to_label] = box_object.name.encode('utf-8')
-                            current_sweep_point_labels['velocity_x'][final_indices_to_label] = box_object.velocity[0]
-                            current_sweep_point_labels['velocity_y'][final_indices_to_label] = box_object.velocity[1]
-                            current_sweep_point_labels['velocity_z'][final_indices_to_label] = box_object.velocity[2]
+        for inst_token, list_of_boxes_for_instance in all_instances_boxes_at_sweeps.items():
+            box_object = list_of_boxes_for_instance[sweep_idx]
+            if box_object is not None:
+                # Check if the object itself is dynamic
+                speed_sq = box_object.velocity[0]**2 + box_object.velocity[1]**2
+                if speed_sq >= gt_velocity_threshold**2:
+                    # If the box is dynamic, find which raw points fall inside it
+                    mask_points_in_box = _get_points_in_box_mask_global_coords(points_global_raw, box_object)
+                    dynamic_mask_for_sweep[mask_points_in_box] = True
 
-        all_point_labels_list.append(current_sweep_point_labels)
-        # NEW: Update the boundary marker with the number of points from the *current* sweep
-        sweep_point_indices.append(sweep_point_indices[-1] + len(current_sweep_point_labels))
+        # Find the original indices of the dynamic points for this sweep
+        dynamic_indices_this_sweep = np.where(dynamic_mask_for_sweep)[0].astype(np.int32)
+        
+        all_dynamic_indices_list.append(dynamic_indices_this_sweep)
+        sweep_boundary_indices.append(sweep_boundary_indices[-1] + len(dynamic_indices_this_sweep))
 
     # --- Final Assembly and Saving ---
+    final_all_dynamic_indices = np.concatenate(all_dynamic_indices_list) if all_dynamic_indices_list else np.array([], dtype=np.int32)
 
-    # Concatenate all points into one big array
-    final_all_point_labels = np.concatenate(all_point_labels_list, axis=0) if all_point_labels_list else np.array([], dtype=POINT_LABEL_DTYPE)
-
-    # THE FIX: Save a dictionary containing both the points and the sweep boundaries
     data_to_save = {
-        'point_labels': final_all_point_labels,
-        'sweep_indices': np.array(sweep_point_indices, dtype=np.int64)
+        'dynamic_point_indices': final_all_dynamic_indices,
+        'sweep_boundary_indices': np.array(sweep_boundary_indices, dtype=np.int64)
     }
 
     try:
         torch.save(data_to_save, output_filepath)
-        if verbose: tqdm.write(f"Successfully saved range-filtered GT data to {output_filepath}")
+        if verbose: tqdm.write(f"Successfully saved sparse GT data to {output_filepath}")
         return output_filepath
     except Exception as e:
         if verbose: tqdm.write(f"Error saving PyTorch file {output_filepath}: {e}")
