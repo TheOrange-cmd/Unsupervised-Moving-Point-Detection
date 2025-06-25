@@ -9,15 +9,12 @@ from typing import List, Dict, Optional
 import h5py
 import torch 
 
-
-# from ..core.constants import POINT_LABEL_DTYPE
 from .transformations import transform_points_numpy
 
 from nuscenes.utils.data_classes import LidarPointCloud 
 from pyquaternion import Quaternion 
 
 def get_scene_sweep_data_sequence(nusc: NuScenes, scene_token: str, lidar_name: str = "LIDAR_TOP"):
-    # This helper function remains unchanged as it correctly fetches raw sweep data.
     scene_rec = nusc.get('scene', scene_token)
     first_sample_token = scene_rec['first_sample_token']
     current_sd_token = nusc.get('sample', first_sample_token)['data'].get(lidar_name)
@@ -75,7 +72,6 @@ def get_scene_sweep_data_sequence(nusc: NuScenes, scene_token: str, lidar_name: 
         current_sd_token = sweep_rec['next']
 
 
-# --- COMPLETELY REWRITTEN FUNCTION ---
 def generate_and_save_point_labels_for_scene_pytorch(
     nusc: NuScenes,
     scene_token: str,
@@ -101,7 +97,6 @@ def generate_and_save_point_labels_for_scene_pytorch(
     scene_name = scene_record['name']
 
     os.makedirs(output_dir, exist_ok=True)
-    # Filename now depends ONLY on the velocity threshold, making it very stable.
     output_filename = f"gt_sparse_labels_{scene_name}_v{gt_velocity_threshold}.pt"
     output_filepath = os.path.join(output_dir, output_filename)
 
@@ -241,12 +236,6 @@ def get_interpolated_extrapolated_boxes_for_instance(nusc, instance_token, targe
     while current_ann_token:
         ann_rec = nusc.get('sample_annotation', current_ann_token)
         sample_rec = nusc.get('sample', ann_rec['sample_token'])
-        # Calculate velocity between this annotation and the previous one for this instance
-        # This is a simplified velocity; NuScenes annotations have their own velocity if available from trackers.
-        # For simplicity here, we'll primarily use the annotation's inherent properties.
-        # The NuScenes Box class can derive velocity from its state if needed for some operations,
-        # but the raw annotations sometimes have explicit velocity fields (though not directly in ann_rec).
-        # We will use a placeholder or simple diff if needed for extrapolation.
         
         keyframe_annotations.append({
             'token': ann_rec['token'],
@@ -257,9 +246,6 @@ def get_interpolated_extrapolated_boxes_for_instance(nusc, instance_token, targe
             'translation': np.array(ann_rec['translation']),
             'size': np.array(ann_rec['size']),
             'rotation': Quaternion(ann_rec['rotation']),
-            # NuScenes sample_annotation records do not directly store velocity.
-            # Velocity is typically derived or comes from a tracker.
-            # For now, we'll handle velocity during extrapolation.
         })
         if current_ann_token == last_ann_token:
             break
@@ -302,9 +288,6 @@ def get_interpolated_extrapolated_boxes_for_instance(nusc, instance_token, targe
                         box_velocity = velocity_from_sdk[:3] # Take vx, vy, vz
                 except AssertionError: # Handles cases like single annotation for instance
                     # Fallback: if nusc.box_velocity fails (e.g. single ann), try to estimate if possible
-                    # This part is tricky if it's truly a single annotation.
-                    # For now, if nusc.box_velocity fails, it might remain default zero or you can implement
-                    # a simpler diff if there are at least two keyframe_annotations for the instance.
                     if len(keyframe_annotations) > 1:
                         # Try to find this ann in the list to get prev/next for manual diff
                         current_kf_idx = -1

@@ -26,52 +26,47 @@ def calculate_metrics_for_optuna_trial_in_memory(
     
     total_tp, total_fp, total_fn, total_tn = 0, 0, 0, 0
 
-    try:
-        validation_data_list = mdet_results_dict.get('validation_data')
-        mdet_label_val = eval_params["mdet_dynamic_label_value"]
+    validation_data_list = mdet_results_dict['validation_data']
+    mdet_label_val = eval_params["mdet_dynamic_label_value"]
 
-        for sweep_data in validation_data_list:
-            # 1. Get predictions, the index map, and sparse GT for the sweep
-            pred_labels_np = sweep_data['predictions']
-            original_indices_map = sweep_data['original_indices_map']
-            gt_sparse_indices = sweep_data['gt_sparse_indices']
-            
-            num_filtered_points = len(pred_labels_np)
-            if num_filtered_points == 0:
-                continue
+    for sweep_data in validation_data_list:
+        # 1. Get predictions, the index map, and sparse GT for the sweep
+        pred_labels_np = sweep_data['predictions']
+        original_indices_map = sweep_data['original_indices_map']
+        gt_sparse_indices = sweep_data['gt_sparse_indices']
+        
+        num_filtered_points = len(pred_labels_np)
+        if num_filtered_points == 0:
+            continue
 
-            # 2. Create the dense prediction mask for filtered points
-            pred_is_dyn = torch.from_numpy(pred_labels_np).to(device) == mdet_label_val
+        # 2. Create the dense prediction mask for filtered points
+        pred_is_dyn = torch.from_numpy(pred_labels_np).to(device) == mdet_label_val
 
-            # 3. Reconstruct the dense GT mask for filtered points
-            gt_is_dyn = torch.zeros(num_filtered_points, dtype=torch.bool, device=device)
-            
-            # Create a reverse lookup from original index to filtered index
-            # This is the most efficient way to do the mapping
-            map_tensor = torch.from_numpy(original_indices_map.copy()).long().to(device) 
-            gt_sparse_tensor = torch.from_numpy(gt_sparse_indices.copy()).long().to(device)
-            
-            # Find which of our filtered points appear in the sparse GT list
-            # `torch.isin` is highly optimized for this
-            is_in_gt_mask = torch.isin(map_tensor, gt_sparse_tensor)
-            
-            # Set the corresponding positions in our dense GT tensor to True
-            gt_is_dyn[is_in_gt_mask] = True
+        # 3. Reconstruct the dense GT mask for filtered points
+        gt_is_dyn = torch.zeros(num_filtered_points, dtype=torch.bool, device=device)
+        
+        # Create a reverse lookup from original index to filtered index
+        # This is the most efficient way to do the mapping
+        map_tensor = torch.from_numpy(original_indices_map.copy()).long().to(device) 
+        gt_sparse_tensor = torch.from_numpy(gt_sparse_indices.copy()).long().to(device)
+        
+        # Find which of our filtered points appear in the sparse GT list
+        # `torch.isin` is highly optimized for this
+        is_in_gt_mask = torch.isin(map_tensor, gt_sparse_tensor)
+        
+        # Set the corresponding positions in our dense GT tensor to True
+        gt_is_dyn[is_in_gt_mask] = True
 
-            # 4. Calculate metrics for the sweep and accumulate
-            sweep_metrics = calculate_metrics(pred_is_dyn, gt_is_dyn)
-            total_tp += sweep_metrics['tp']
-            total_fp += sweep_metrics['fp']
-            total_fn += sweep_metrics['fn']
-            total_tn += sweep_metrics['tn']
+        # 4. Calculate metrics for the sweep and accumulate
+        sweep_metrics = calculate_metrics(pred_is_dyn, gt_is_dyn)
+        total_tp += sweep_metrics['tp']
+        total_fp += sweep_metrics['fp']
+        total_fn += sweep_metrics['fn']
+        total_tn += sweep_metrics['tn']
 
-        final_metrics = {'tp': total_tp, 'fp': total_fp, 'fn': total_fn, 'tn': total_tn}
-        final_metrics['scene_name'] = nusc.scene[scene_idx]['name']
-        return final_metrics
-
-    except Exception as e:
-        import traceback
-        return {"error": f"Exception in calculate_metrics: {e}\n{traceback.format_exc()}"}
+    final_metrics = {'tp': total_tp, 'fp': total_fp, 'fn': total_fn, 'tn': total_tn}
+    final_metrics['scene_name'] = nusc.scene[scene_idx]['name']
+    return final_metrics
 
 
 def calculate_metrics(

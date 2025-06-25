@@ -2,32 +2,16 @@
 
 import ray
 import os
-import logging
-import time
 import torch
-import traceback
 import numpy as np
 from pyquaternion import Quaternion
 from typing import Optional
-from rich.live import Live
-from rich.progress import Progress, BarColumn, TextColumn, TaskProgressColumn
-from rich.console import Console
-from rich.layout import Layout
-from rich.panel import Panel
 
-# Profiling
-import cProfile
-import pstats
-import io
 
 # Import project-specific classes
-from src.core.m_detector.base import MDetector
-from src.data_utils.nuscenes_helper import NuScenesProcessor
 from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.data_classes import LidarPointCloud
 from ..config_loader import MDetectorConfigAccessor 
-from ..data_utils.seeding_utils import set_seed  
-
 @ray.remote
 def _load_gt_file(path: str, device: str) -> tuple[str, dict]:
     scene_name = os.path.basename(path).split('_r')[0].replace('gt_point_labels_', '')

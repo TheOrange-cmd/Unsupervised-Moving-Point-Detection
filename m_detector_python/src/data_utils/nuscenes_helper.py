@@ -83,7 +83,7 @@ class NuScenesProcessor:
         processing_settings = self.config_accessor.get_processing_settings()
         skip_frames = processing_settings['skip_frames']
         max_frames_config = processing_settings['max_frames']
-        lidar_name = self.config_accessor.get_nuscenes_params()['lidar_sensor_name']
+        lidar_name = 'LIDAR_TOP'
         all_sweep_tokens = ray.get(self.data_actor.get_scene_sweep_tokens.remote(scene_token, lidar_name=lidar_name))
         if not all_sweep_tokens: return None
         start_idx = min(skip_frames, len(all_sweep_tokens))
@@ -104,7 +104,6 @@ class NuScenesProcessor:
             T_global_sensor = sweep_data['T_global_lidar']
             points_global_raw = (T_global_sensor[:3, :3] @ points_sensor_raw.T).T + T_global_sensor[:3, 3]
             
-            # --- CLEANED UP PRE-LABELING STEP ---
             prelabeled_mask_raw = self._get_prelabeled_ground_mask(
                 points_sensor_raw=points_sensor_raw,
                 points_global_raw=points_global_raw,
@@ -122,9 +121,9 @@ class NuScenesProcessor:
             )
             mdet_result = detector.decide_and_process_frame()
             
-            # --- The rest of the packaging logic is unchanged ---
-            if mdet_result and mdet_result.get('success'):
-                processed_di = mdet_result.get('processed_di')
+            # Package results
+            if mdet_result and mdet_result['success']:
+                processed_di = mdet_result['processed_di']
                 if processed_di and processed_di.total_points_added_to_di_arrays > 0:
                     prediction_labels = processed_di.mdet_labels_for_points.cpu().numpy()
                     original_indices_map = processed_di.original_indices_of_filtered_points.cpu().numpy()
@@ -149,3 +148,65 @@ class NuScenesProcessor:
             'validation_data': results_for_validation,
             'scene_name': scene_name
         }
+    
+    def process_scene_for_baking(self, scene_index: int, detector: MDetector):
+        """
+        A generator that processes a scene frame-by-frame and yields the
+        intermediate data needed for the 'tune-refinement' stage.
+        """
+        scene_rec = ray.get(self.data_actor.get_scene_record.remote(scene_index))
+        scene_token = scene_rec['token']
+        lidar_name = 'LIDAR_TOP'
+        all_sweep_tokens = ray.get(self.data_actor.get_scene_sweep_tokens.remote(scene_token, lidar_name=lidar_name))
+        
+        if not all_sweep_tokens:
+            return
+
+        sweep_data_futures = [self.data_actor.get_sweep_data_by_token.remote(token) for token in all_sweep_tokens]
+        all_sweep_data = ray.get(sweep_data_futures)
+
+        for i, sweep_data in enumerate(all_sweep_data):
+            points_sensor_raw = sweep_data['points_sensor_frame']
+            if points_sensor_raw.shape[0] == 0:
+                continue
+
+            T_global_sensor = sweep_data['T_global_lidar']
+            points_global_raw = (T_global_sensor[:3, :3] @ points_sensor_raw.T).T + T_global_sensor[:3, 3]
+            
+            prelabeled_mask_raw = self._get_prelabeled_ground_mask(
+                points_sensor_raw, points_global_raw, float(sweep_data['timestamp']), detector.device
+            )
+
+            di = detector.add_sweep(
+                points_global_raw.astype(np.float32),
+                points_sensor_raw.astype(np.float32),
+                T_global_sensor.astype(np.float32),
+                float(sweep_data['timestamp']),
+                prelabeled_mask_raw
+            )
+            
+            # Check if the detector is ready to process
+            if len(detector.depth_image_library) < detector.min_sweeps_for_processing:
+                continue
+
+            # --- This is the core of the baking process ---
+            lib_len = len(detector.depth_image_library)
+            di_to_process_idx = lib_len - 1
+            di_to_process = detector.depth_image_library.get_image_by_index(di_to_process_idx)
+
+            if di_to_process and di_to_process.total_points_added_to_di_arrays > 0:
+                # 1. Run geometry pipeline
+                labels_before_refinement = detector.get_labels_before_refinement(di_to_process, di_to_process_idx)
+                
+                # 2. Get corresponding ground truth
+                gt_sparse_indices = ray.get(self.data_actor.get_ground_truth_slice.remote(scene_token, i))
+                if gt_sparse_indices is None:
+                    continue
+
+                # 3. Yield all necessary data (on CPU to be pickle-friendly)
+                yield {
+                    'labels_before_refinement': labels_before_refinement.cpu(),
+                    'points_global': di_to_process.original_points_global_coords.cpu(),
+                    'original_indices_map': di_to_process.original_indices_of_filtered_points.cpu().numpy(),
+                    'gt_sparse_indices': gt_sparse_indices
+                }

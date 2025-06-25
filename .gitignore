@@ -3,3 +3,13 @@ backup/*
 .vscode
 .pytest_cache
 profiles/*
+m_detector_python/cache/
+m_detector_python/output/
+m_detector_python/logs/
+m_detector_python/optuna_studies/
+
+# Specific large file types
+*.pkl
+*.out
+*.h5
+*.pt

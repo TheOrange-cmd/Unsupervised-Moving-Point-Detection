@@ -12,7 +12,6 @@ from ..depth_image import DepthImage
 from ..depth_image_library import DepthImageLibrary
 from ..constants import OcclusionResult
 from src.config_loader import MDetectorConfigAccessor
-# from ..debug_collector import PointDebugCollector, NoOpDebugCollector
 
 logger = logging.getLogger(__name__)
 
@@ -26,19 +25,22 @@ class MDetector:
         check_occlusion_batch,
         check_occlusion_point_level_detailed_batch
     )
-    from .map_consistency import is_map_consistent
+    from .map_consistency import is_map_consistent, _perform_direct_comparison_gpu
     from .processing import (
         forward,
         _perform_initial_occlusion_pass,
         _apply_map_consistency_check,
-        _run_event_test_sequence
+        _run_event_test_sequence,
+        _apply_frame_refinement,
+        _forward_geometric_only
     )
     from .event_tests import execute_test2_parallel_motion, execute_test3_perpendicular_motion
 
     def __init__(self,
                  config_accessor: MDetectorConfigAccessor,
                  is_legacy: bool = False,
-                 device: Optional[torch.device] = None):
+                 device: Optional[torch.device] = None,
+                 logger_name: Optional[str] = None):
         """
         Initializes the M-Detector instance.
         """
@@ -48,23 +50,20 @@ class MDetector:
         else:
             self.device = device
         self.is_legacy = is_legacy
-        self.logger = logging.getLogger(f"{__name__}.{'Legacy' if is_legacy else 'Torch'}")
+        log_name_to_use = logger_name if logger_name else f"{__name__}.{'Legacy' if is_legacy else 'Torch'}"
+        self.logger = logging.getLogger(log_name_to_use)
 
         # --- Core Components ---
         self.depth_image_library = DepthImageLibrary(
-            max_size=self.config.get_depth_image_params()['library_size']
+            max_size=self.config.get_initialization_phase_params()['num_sweeps_for_initial_map']+1
         )
         self.depth_image_params = self.config.get_depth_image_params()
-
-        # --- Debugging ---
-        # self.debug_collector: PointDebugCollector = NoOpDebugCollector()
 
         # --- Configuration Parameters ---
         self._load_configuration()
 
     def _load_configuration(self):
         """Loads parameters from the config accessor into instance attributes."""
-        # CORRECTED: All keys now match the provided config.yml file exactly.
         
         # General
         self.min_sweeps_for_processing = self.config.get_initialization_phase_params()['num_sweeps_for_initial_map']
@@ -76,9 +75,10 @@ class MDetector:
         self.neighbor_search_pixels_h = occ_params['pixel_neighborhood_h']
 
         # Detailed Occlusion Check (for Event Tests)
-        self.detailed_check_epsilon_depth = occ_params['epsilon_depth'] # Uses the same base epsilon
-        self.detailed_check_angular_threshold_h_rad = np.deg2rad(occ_params['angular_neighborhood_h_deg'])
-        self.detailed_check_angular_threshold_v_rad = np.deg2rad(occ_params['angular_neighborhood_v_deg'])
+        detailed_check_params = self.config.get_detailed_occlusion_check_params()
+        self.detailed_check_epsilon_depth = detailed_check_params['epsilon_depth']
+        self.detailed_check_angular_threshold_h_rad = np.deg2rad(detailed_check_params['angular_neighborhood_h_deg'])
+        self.detailed_check_angular_threshold_v_rad = np.deg2rad(detailed_check_params['angular_neighborhood_v_deg'])
         
         # Adaptive Epsilon
         self.adaptive_eps_config_occ_depth = self.config.get_adaptive_epsilon_config_for_occlusion_depth()
@@ -97,11 +97,25 @@ class MDetector:
         self.map_consistency_enabled = self.mcc_config['enabled']
         self.num_past_sweeps_for_mcc = self.mcc_config['num_past_sweeps_for_mcc'] 
         self.static_labels_for_map_check_enums = [
-            OcclusionResult[label] for label in self.mcc_config['static_labels_for_map_check']
+            OcclusionResult["OCCLUDED_BY_IMAGE"], OcclusionResult["PRELABELED_STATIC_GROUND"], 
         ]
         self.static_labels_for_map_check_values = [
             label.value for label in self.static_labels_for_map_check_enums
         ]
+
+        self.epsilon_phi_map_rad = np.deg2rad(self.mcc_config['epsilon_phi_deg'])
+        self.epsilon_theta_map_rad = np.deg2rad(self.mcc_config['epsilon_theta_deg'])
+        self.epsilon_depth_forward_map = self.mcc_config['epsilon_depth_forward_m']
+        self.epsilon_depth_backward_map = self.mcc_config['epsilon_depth_backward_m']
+        
+        self.adaptive_eps_config_mc_fwd = self.config.get_adaptive_epsilon_config_for_map_consistency_forward()
+        self.adaptive_eps_config_mc_bwd = self.config.get_adaptive_epsilon_config_for_map_consistency_backward()
+        
+        self.mc_static_confidence_threshold = self.mcc_config['static_confidence_threshold']
+
+        self.mc_interp_enabled = self.mcc_config['interpolation_enabled']
+        self.mc_interp_max_neighbors = self.mcc_config['interpolation_max_neighbors_to_consider']
+        self.mc_interp_max_triplets = self.mcc_config['interpolation_max_triplets_to_try']
 
 
     def add_sweep(self,
@@ -123,7 +137,6 @@ class MDetector:
             device=self.device
         )
 
-        # --- THIS IS THE FIX ---
         # Convert the incoming boolean mask into a proper integer label array.
         initial_labels_raw = None
         if prelabeled_mask_raw is not None:
@@ -131,7 +144,6 @@ class MDetector:
             initial_labels_raw = np.full(points_global_raw.shape[0], OcclusionResult.UNDETERMINED.value, dtype=np.int8)
             # Set the points where the mask is True to the PRELABELED_STATIC_GROUND value
             initial_labels_raw[prelabeled_mask_raw] = OcclusionResult.PRELABELED_STATIC_GROUND.value
-        # --- END FIX ---
 
         num_added = di.add_points_batch(
             points_global_raw,
@@ -152,21 +164,22 @@ class MDetector:
     def decide_and_process_frame(self) -> Dict[str, Any]:
         """
         Decides which frame in the library to process and initiates the forward pass.
-        This is the main entry point for processing after sweeps have been added.
         """
         lib_len = len(self.depth_image_library)
+        
         if lib_len < self.min_sweeps_for_processing:
-            reason = f"Lib len {lib_len} < min_sweeps {self.min_sweeps_for_processing}"
+            reason = f"Cannot process frame: Library size ({lib_len}) is less than minimum required sweeps ({self.min_sweeps_for_processing})."
             return {'success': False, 'reason': reason}
 
         target_idx_in_deque = lib_len - 1
         di_to_process = self.depth_image_library.get_image_by_index(target_idx_in_deque)
-        if di_to_process is None:
-            reason = f"Could not retrieve DI at index {target_idx_in_deque} from library."
-            self.logger.error(f"DECIDE_FRAME_ERROR: {reason}")
-            return {'success': False, 'reason': reason}
 
-        self.logger.info(f"DECIDE_FRAME_READY: Processing DI at index {target_idx_in_deque} (TS: {di_to_process.timestamp:.2f}).")
+        if di_to_process is None:
+            reason = f"Could not retrieve DI at index {target_idx_in_deque} from library. This should not happen."
+            self.logger.error(f"DECIDE_FRAME_ERROR: {reason}")
+            raise RuntimeError(reason)
+
+        self.logger.debug(f"DECIDE_FRAME_READY: Processing DI at index {target_idx_in_deque} (TS: {di_to_process.timestamp:.2f}).")
         return self._process_causal_di_wrapper(target_idx_in_deque)
 
     def _process_causal_di_wrapper(self, di_to_process_idx: int) -> Dict[str, Any]:
@@ -175,16 +188,23 @@ class MDetector:
         """
         current_di = self.depth_image_library.get_image_by_index(di_to_process_idx)
         if current_di is None:
-            return {'success': False, 'reason': f"DI at index {di_to_process_idx} is None."}
+            # This is a critical logic error, it should crash.
+            raise RuntimeError(f"DI at index {di_to_process_idx} is None within the processing wrapper.")
 
         start_time = time.time()
-        try:
-            # Call the newly named `forward` method
-            result = self.forward(current_di, di_to_process_idx)
-        except Exception as e:
-            self.logger.exception(f"Exception during forward pass for DI @ TS {current_di.timestamp:.2f}")
-            return {'success': False, 'reason': str(e), 'timestamp': current_di.timestamp}
-        finally:
-            end_time = time.time()
-            self.logger.info(f"PROCESS_DI_TIMING: Forward pass for DI @ TS {current_di.timestamp:.2f} took {(end_time - start_time) * 1000:.2f} ms.")
+        
+        # FIX 3: The try/except block is removed. Any exception in self.forward()
+        # will now propagate up and crash the worker, revealing the true error.
+        result = self.forward(current_di, di_to_process_idx)
+        
+        end_time = time.time()
+        self.logger.debug(f"PROCESS_DI_TIMING: Forward pass for DI @ TS {current_di.timestamp:.2f} took {(end_time - start_time) * 1000:.2f} ms.")
+        
         return result
+    
+    def get_labels_before_refinement(self, current_di: 'DepthImage', current_di_idx_in_lib: int) -> torch.Tensor:
+        """
+        Runs the entire geometric pipeline but stops before the final refinement step.
+        This is used by the 'bake' process to cache intermediate results.
+        """
+        return self._forward_geometric_only(current_di, current_di_idx_in_lib)

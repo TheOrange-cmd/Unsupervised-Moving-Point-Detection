@@ -2,40 +2,30 @@
 nuscenes:
   version: "v1.0-mini"
   dataroot: "/datasets/nuscenes"
-  lidar_sensor_name: "LIDAR_TOP"
   label_path: "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/labels"
-  # This can later also have roots for other datasets such as waymo, kitti, etc.
-  # Or use the omni dataset Ted (Teddy) de Vries Lentsch is working on. 
+# This can later also have sections for other datasets such as waymo, kitti, etc.
+# Or use the omni dataset Ted (Teddy) de Vries Lentsch is working on. 
 processing_settings: 
   # 'cpu' or 'cuda'
   device: "cuda" 
-  
   # List of GPU IDs to use. If device is 'cuda', this MUST be present.
   # An empty list [] means use all available GPUs.
   # e.g., [0, 2, 5] to use GPUs 0, 2, and 5.
-  gpu_ids: [0, ]
-  skip_frames: 0
+  gpu_ids: [ 1, 3, 4, 5, 6, 7]
+  skip_frames: 0 # number of frames to skip in the sequence - useful for debugging
   max_frames: -1 # provide an int, or -1 to process the entire sequence
-  workers_per_gpu: 4
-  detailed_log_level: "DEBUG"
+  workers_per_gpu: 4 # How many trials to run per gpu with optuna/ray
   random_seed: 42 
-mdetector_output_paths: 
- # Directory where M-Detector outputs will be saved
-  # save_path: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_python/output/BIG_RUN_LESS_LESS_DATA"
-  save_path: "/home/drugge/Unsupervised-Moving-Point-Detection/m_detector_python/output/full"
-  # 'all' or a list, e.g.: [1,] or [0, 3, 5]
-  # scene_indices_to_run: 'all' 
-  scene_indices_to_run: [1, ]
 
-  # Control the format of the saved result files.
-  # "full": Saves a label for every single point. (Largest file size)
-  # "sparse_dynamic": Saves only the indices of points labeled as OCCLUDING_IMAGE. (Smallest file size)
-  # save_mode: "sparse_dynamic" # Or "full"
-  save_mode: "full"
-  labels_to_save:    # List of label names (from the OcclusionResult enum) to save when in sparse_dynamic mode.
-    - "OCCLUDING_IMAGE"
+  # Which scenes to process, 'all' or a list, e.g.: [1,] or [0, 3, 5]
+  scene_indices_to_run: 'all' 
+  # scene_indices_to_run: [1, ]
 
-  max_parallel_scenes: 26 # How many sequences to process in parallel when running CPU tasks - will use one core and approx 0.6 GB RAM per job for nuscenes. 
+logging_settings:
+  log_dir: "logs"
+  # Controls which trials get a verbose DEBUG log file.
+  # Options: 'all', 'none', or a list of trial numbers, e.g., [0, 5, 10]
+  log_detailed_for_trials: []
 
 validation_params:
   gt_velocity_threshold: 1.0 # For comparing against GT
@@ -59,32 +49,31 @@ m_detector:
 
   # Depth Image Construction & Library
   depth_image:
-    # construction_interval_T_sec: 0.05 # Usually fixed by sensor, maybe less configurable
-    resolution_h_deg: 0.4 # -> 0.4 in paper
-    resolution_v_deg: 1.26 # -> 1.26 in paper
+    resolution_h_deg: 0.4
+    resolution_v_deg: 1.26
     phi_min_rad: -3.1415926535
     phi_max_rad: 3.1415926535
     theta_min_rad: -0.535
     theta_max_rad: 0.186
-    library_size: 20
 
-  # Occlusion Check Parameters (General for all tests that use it)
-  # These define how "occlusion" is determined between a point and historical data
+  # Occlusion Check Parameters (Initial, fast check)
   occlusion_determination:
     epsilon_depth: 0.1   # (εd) General depth threshold for occlusion
     adaptive_epsilon_depth_config:
-      <<: *adaptive_epsilon_defaults # Use the defaults
+      <<: *adaptive_epsilon_defaults
       enabled: true                 
       dthr: 5.0    
       kthr: 0.01   
       dmax: 0.5   
       dmin: 0.05   
-    # For pixel-summary based check (currently used by check_occlusion_batch for Test 1 history)
     pixel_neighborhood_h: 2 # (nh)
     pixel_neighborhood_v: 1 # (nv)
-    # For finer point-to-point check (to be used in Tests 2 & 3)
+
+  # Detailed Occlusion Check (Precise, for Event Tests)
+  detailed_occlusion_check:
+    epsilon_depth: 0.1 # Base epsilon for the detailed check
     angular_neighborhood_h_deg: 0.29 # (εh) -> 0.29 in paper
-    angular_neighborhood_v_deg: 0.4 # (εv) -> 0.4 in paper
+    angular_neighborhood_v_deg: 0.4  # (εv) -> 0.4 in paper
 
   # Event Detection Tests
   event_detection_logic:
@@ -92,27 +81,17 @@ m_detector:
       num_historical_DIs_M2: 2
     test3_parallel_towards:
       num_historical_DIs_M3: 3
-      adaptive_epsilon_simulation_params: 
-        enabled_for_simulation: true # To control if Cell 3.12 runs the simulation
-        # di_base: 0.5 # This will be taken from occlusion_determination.epsilon_depth
-        dthr: 30.0              # Depth (meters) at which threshold starts increasing
-        kthr: 0.05              # Linear increasing rate (e.g., 0.05 means 5% of (d - dthr))
-        dmax: 2.0               # Maximum cap for the adaptive threshold
-    
     test4_perpendicular:
       num_historical_DIs_N: 15
       min_occluding_DIs_M4: 4
-    # Note: Map consistency is applied *within* each test's logic
 
-  # Map Consistency Check (Applied within each test if an occlusion is found)
+  # Map Consistency Check
   map_consistency:
     enabled: true
     num_past_sweeps_for_mcc: 10 
-    # time_window_future_s: 0.25 # Will be used if bidirectional is implemented
-    # Thresholds for matching a point to a historical static map point
-    epsilon_phi_deg: 0.57 # -> 0.57 in paper
-    epsilon_theta_deg: 1.72 # -> 1.72 in paper
-    epsilon_depth_forward_m: 1.0  # This is the di_base for MCC forward checks, same value as in the paper
+    epsilon_phi_deg: 0.57
+    epsilon_theta_deg: 1.72
+    epsilon_depth_forward_m: 1.0
     adaptive_epsilon_forward_config:
       <<: *adaptive_epsilon_defaults
       enabled: true
@@ -120,158 +99,45 @@ m_detector:
       kthr: 0.07
       dmax: 3.0
       dmin: 0.1
-
-    epsilon_depth_backward_m: 0.3 # This is the di_base for MCC backward checks, same value as in the paper
+    epsilon_depth_backward_m: 0.3
     adaptive_epsilon_backward_config:
       <<: *adaptive_epsilon_defaults
       enabled: true
       dthr: 20.0
-      kthr: 0.03 # Potentially a smaller increase rate for backward check
+      kthr: 0.03
       dmax: 1.0
       dmin: 0.05
-    # Logic for deciding if enough consistency is found
-    threshold_mode: "count" # 'count' or 'ratio'
-    threshold_value_count: 2 # Min DIs with a consistent static point
-    # threshold_value_ratio: 0.5 # Min ratio of DIs
-    static_labels_for_map_check: # Labels in historical DIs considered static
-      - "OCCLUDED_BY_IMAGE" # Key one from paper's spirit
-      - "UNDETERMINED"      # Often implies static if not clearly dynamic
-      - "PRELABELED_STATIC_GROUND" # prelabeled by ransac 
-      # Following are deprecated labels
-      # - "NON_EVENT" # From initialization phase
-      # - "STATIC_CONFIRMED_BY_MAP" # If previously confirmed as static by this check
-      # - "PENDING_CLASSIFICATION" # Default label for future points - necessary if comparing current points with future ones
-    interpolation_enabled: true         # Master switch for this feature
-    interpolation_min_depth_m: 15.0     # Min depth of P_current (projected to DI_hist) to trigger interpolation
-    interpolation_max_depth_m: 70.0     # Max depth of P_current to trigger interpolation (can be same as point_pre_filtering.max_range_meters)
-    interpolation_max_neighbors_to_consider: 20 # Max static neighbors to use for forming triplets
-    interpolation_max_triplets_to_try: 100      # Max triplet combinations to attempt solving
-    interpolation_fallback_to_direct_comparison: true # If true, use direct comparison if interpolation fails
-
+    static_confidence_threshold: 0.2 
+    interpolation_enabled: true
+    interpolation_min_depth_m: 15.0
+    interpolation_max_depth_m: 50.0
+    interpolation_max_neighbors_to_consider: 20
+    interpolation_max_triplets_to_try: 100
+    interpolation_fallback_to_direct_comparison: true
 
   ransac_ground_params: 
     enabled: true
     xyradius_threshold: 25.0
-    z_min_threshold: -.inf   # Relative to sensor height
-    z_max_threshold: .inf   # Relative to sensor height
-    num_trials: 20
-    inlier_threshold: 0.3  # Conservative
-    ground_threshold: 0.3  # Conservative
-    device: 'cuda' # 'cpu', 'cuda', 'auto'
+    z_min_threshold: -2.84023
+    z_max_threshold: -0.84023
+    num_trials: 50
+    inlier_threshold: 0.3
+    ground_threshold: 0.3
 
   # Clustering & Region Growth (Frame-Out Mode Refinement)
   frame_refinement:
     enabled: false # Set to true to enable these steps
     clustering:
       voxel_size_m: 0.3 # Lv
-      dbscan_eps: 0.5 # Example, needs tuning based on voxel centers
-      dbscan_min_samples: 3 # Example
+      dbscan_eps: 0.5 
+      dbscan_min_samples: 3 
     region_growth:
       expansion_factor_aabb: 2.0 # "twice its size"
-      # RANSAC params for ground plane fitting would go here if used
 
-  # Initialization Phase (for initial DIs before full processing)
+  # Initialization Phase (how many sweeps we want to have in history before we start processing)
   initialization_phase:
     num_sweeps_for_initial_map: 10
 
   # --- Bidirectional Temporal Processing (Advanced/Future) ---
-  # This section can be kept separate and clearly marked as for future/advanced use.
-  # The complex decision rules you have under 'temporal_processing' belong here.
   bidirectional_aggregation:
     enabled: false
-    # past_window_size: 5
-    # future_window_size: 1
-    # ... and all the ..._outcome rules ...
-    # past_occluding_mc_true_outcome: "STATIC"
-    # ...
-    # default_ambiguous_outcome: "UNDETERMINED"
-    # both_map_consistent_override: "STATIC"
-
-# --- Visualization Configuration (Can be a separate file too) ---
-visualization:
-  video_generation:
-    fps: 20
-    default_scene_index: 1 # Example, choose a scene index from your dataset
-    output_directory: "/home/drugge/staff-umbrella/TeamHolgerResearch/drugge/m_detector_output" # Store comparison videos here
-    figure_size_side_by_side: [20, 10] # Inches: [width, height] for the whole figure with 2 subplots
-    
-    bev_range_meters: 50
-    point_size_all_lidar: 0.2
-    point_color_all_lidar: 'lightgrey'
-    point_alpha_all_lidar: 0.5
-    
-    point_size_dynamic_gt: 2.5
-    point_size_dynamic_pred: 2.0
-    point_size_occluded_pred: 1.5 # For MDet: Occluded points
-    show_mdet_occluded_points: False # Whether to plot M-Detector's occluded points
-
-    # Ego vehicle plotting config (can be used by plot_bev_frame)
-    ego_vehicle:
-      marker: 'o'
-      markersize: 8
-      color: 'darkred' # Make it distinct for comparison plots
-      arrow_length: 2.0
-      arrow_head_width: 0.8
-      arrow_head_length: 1.0
-      arrow_fc: 'darkred'
-      arrow_ec: 'darkred'
-      arrow_zorder: 10
-  k3d_plot:
-    # General Plot Settings
-    plot_background_color_hex: 0xDDDDDD  # Lighter grey for K3D
-    grid_visible: true
-    camera_auto_fit: true # Can be overridden by specific camera settings in notebook
-    point_size: 0.06      # Default point size for categories if not specified below
-
-    # Camera offset defaults (if not using auto-fit or specific settings)
-    camera_offset_x: 25
-    camera_offset_y: 25
-    camera_offset_z: 20
-
-    # Point Categories Styling
-    ransac_ground_color_hex: 0x006400    # DarkGreen
-    ransac_ground_point_size_factor: 0.7 # Multiplier for default point_size
-
-    tp_color_hex: 0x32CD32              # LimeGreen
-    tp_point_size_factor: 1.1
-
-    fp_color_hex: 0xFF0000              # Red
-    fp_point_size_factor: 1.1
-
-    fn_color_hex: 0xFF4500              # OrangeRed
-    fn_point_size_factor: 1.1
-    
-    # Background / True Negative (or other non-highlighted points)
-    tn_background_color_hex: 0xB0C4DE    # LightSteelBlue
-    tn_background_point_size_factor: 0.4
-
-    # Point of Interest (POI) - if you highlight a specific debug point
-    poi_color_hex: 0xFFFF00             # Yellow (example, can be overridden by MDet label)
-    poi_k3d_point_size: 0.3             # Larger size for the POI
-
-    # Raw LiDAR background points (if you decide to plot them separately from TNs)
-    background_points_color_hex: 0xAAAAAA # Light grey (same as old default)
-    background_points_scale_factor: 0.7   # For raw lidar if shown
-
-    # GT Annotation Boxes
-    show_gt_boxes_k3d: true
-    gt_box_line_width: 0.02
-    num_instance_box_colors: 20
-    instance_box_colormap: 'tab20' # Matplotlib colormap name
-
-    # M-Detector specific labels (if you want to visualize them directly sometimes)
-    # These are used by the general visualize_sweep_k3d if you call it directly
-    mdet_dynamic_label_value: 0 # Corresponds to OcclusionResult.OCCLUDING_IMAGE.value
-    mdet_occluded_label_value: 1 # Corresponds to OcclusionResult.OCCLUDED_BY_IMAGE.value
-    mdet_undetermined_label_value: 3 # Corresponds to OcclusionResult.UNDETERMINED.value
-    
-    mdet_dynamic_points_color_hex: 0x00FF00 # Green (used by visualize_sweep_k3d)
-    mdet_dynamic_points_scale_factor: 1.0
-    mdet_occluded_points_color_hex: 0xFFA500 # Orange (used by visualize_sweep_k3d)
-    mdet_occluded_points_scale_factor: 0.9
-    mdet_undetermined_points_color_hex: 0xFFFF00 # Yellow (used by visualize_sweep_k3d)
-    mdet_undetermined_points_scale_factor: 0.7
-    show_mdet_undetermined_points: false # Whether visualize_sweep_k3d shows these
-
-    # Downsampling for K3D (can be different from other visualizations)
-    downsample_factor_k3d: 1 # 1 means no downsampling
