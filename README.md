@@ -75,7 +75,7 @@ The entire experimentation pipeline is managed using **Ray** for parallel proces
 
 ## Dataset Preparation
 
-The algorithm is designed to work with the [NuScenes dataset](https://www.nuscenes.org/nuscenes). You will need to download the dataset and place it in a location accessible by the scripts. You can set which version of the dataset (e.g., 'v1.0-mini' or 'v1.0-trainval') in the config file. 
+The algorithm is designed to work with the [NuScenes dataset](https://www.nuscenes.org/nuscenes). You will need to download the dataset and place it in a location accessible by the scripts. You can select which version of the dataset (e.g., 'v1.0-mini' or 'v1.0-trainval') to use in the config file. 
 
 ### Ground Truth Label Generation
 
