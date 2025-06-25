@@ -9,3 +9,6 @@
 9. Remove comments related to refacotring, thought processes, etc. 
 10. Add header comments describing functions and comments inside functions 
 11. parallelize baker???
+12. Add validation of config file? 
+13. Add more dosctrings to functions 
+14. Expand logging prints in different functions

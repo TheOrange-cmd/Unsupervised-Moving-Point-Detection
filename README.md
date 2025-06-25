@@ -4,7 +4,7 @@
 [![PyTorch 2.6.0](https://img.shields.io/badge/PyTorch-2.6.0-orange.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This repository contains a PyTorch-based re-implementation of M-Detector, an algorithm for detecting moving points within LiDAR sequences. The core principle of the detector is to identify dynamic points by analyzing geometric inconsistencies over time against a dynamically built map of the static environment.
+This repository contains a PyTorch-based re-implementation of M-Detector[1], an algorithm for detecting moving points within LiDAR sequences. The core principle of the detector is to identify dynamic points by analyzing geometric inconsistencies over time against a dynamically built map of the static environment.
 
 ## Overview
 
@@ -155,3 +155,8 @@ python -m src.ray_scripts.run_experiment \
 │   └── utils/                  # General utility functions
 └── ...
 ```
+
+
+### References
+
+[1] Wu, H., Li, Y., Xu, W. et al. Moving event detection from LiDAR point streams. Nat Commun 15, 345 (2024). https://doi.org/10.1038/s41467-023-44554-8
