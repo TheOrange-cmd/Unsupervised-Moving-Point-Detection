@@ -7,6 +7,8 @@ m_detector_python/cache/
 m_detector_python/output/
 m_detector_python/logs/
 m_detector_python/optuna_studies/
+m_detector_python/mcc_perf_logs
+m_detector_python/backup
 
 # Specific large file types
 *.pkl
