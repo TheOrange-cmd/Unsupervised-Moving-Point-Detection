@@ -1,4 +1,144 @@
 ############################
+FILE: src/config_loader.py
+############################
+
+# src/config_loader.py
+import yaml
+from typing import Dict, Any, List, Optional
+from .core.constants import DYNAMIC_LABEL_VALUE 
+
+class MDetectorConfigAccessor:
+    def __init__(self, config_path: str = None, config_dict: dict = None):
+        """Initializes the accessor from either a file path or a dictionary."""
+        if config_path:
+            try:
+                with open(config_path, 'r') as f:
+                    self._config_data: Dict[str, Any] = yaml.safe_load(f)
+            except FileNotFoundError:
+                raise FileNotFoundError(f"Configuration file not found at: {config_path}")
+            except yaml.YAMLError as e:
+                raise ValueError(f"Error parsing YAML configuration file {config_path}: {e}")
+        elif config_dict:
+            self._config_data = config_dict
+        else:
+            raise ValueError("MDetectorConfigAccessor must be initialized with either a config_path or a config_dict.")
+        
+        if not isinstance(self._config_data, dict):
+            raise ValueError(f"Configuration data did not load as a dictionary.")
+
+    # --- Top-Level Sections ---
+    def get_nuscenes_params(self) -> Dict[str, Any]:
+        return self._config_data['nuscenes']
+
+    def get_processing_settings(self) -> Dict[str, Any]:
+        return self._config_data['processing_settings']
+    
+    def get_random_seed(self) -> Optional[int]:
+        return self.get_processing_settings()['random_seed']
+        
+    def get_mdetector_output_paths(self) -> Dict[str, Any]:
+        return self._config_data['mdetector_output_paths']
+
+    def get_validation_params(self) -> dict:
+        filt_cfg = self.get_point_pre_filtering_params()
+        val_cfg = self._config_data['validation_params']
+        
+        eval_params = {
+            "mdet_label_field_name": "mdet_label",
+            "mdet_dynamic_label_value": DYNAMIC_LABEL_VALUE,
+            "coordinate_tolerance_for_verification": 1e-3,
+            "mdet_min_point_range_meters": filt_cfg['min_range_meters'],
+            "mdet_max_point_range_meters": filt_cfg['max_range_meters'],
+            "evaluate_only_keyframes": False,
+            "gt_velocity_threshold": val_cfg['gt_velocity_threshold']
+        }
+        return eval_params
+
+    # --- M-Detector Core Algorithm Parameters ---
+    def _get_m_detector_base(self) -> Dict[str, Any]:
+        return self._config_data['m_detector']
+
+    def get_point_pre_filtering_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base()['point_pre_filtering']
+
+    def get_depth_image_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base()['depth_image']
+
+    def get_occlusion_determination_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base()['occlusion_determination']
+    
+    def get_detailed_occlusion_check_params(self) -> Dict[str, Any]:
+        """Gets the parameters for the precise, point-to-point check used in event tests."""
+        return self._get_m_detector_base()['detailed_occlusion_check']
+
+    def get_event_detection_logic_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base()['event_detection_logic']
+    
+    def get_test4_perpendicular_params(self) -> Dict[str, Any]:
+        return self.get_event_detection_logic_params()['test4_perpendicular']
+        
+    def get_test2_parallel_away_params(self) -> Dict[str, Any]:
+        return self.get_event_detection_logic_params()['test2_parallel_away']
+
+    def get_test3_parallel_towards_params(self) -> Dict[str, Any]:
+        return self.get_event_detection_logic_params()['test3_parallel_towards']
+
+    def get_map_consistency_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base()['map_consistency']
+
+    def get_frame_refinement_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base()['frame_refinement']
+        
+    def get_clustering_params(self) -> Dict[str, Any]:
+        return self.get_frame_refinement_params()['clustering']
+
+    def get_region_growth_params(self) -> Dict[str, Any]:
+        return self.get_frame_refinement_params()['region_growth']
+
+    def get_initialization_phase_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base()['initialization_phase']
+        
+    def get_bidirectional_aggregation_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base()['bidirectional_aggregation']
+    
+    def get_ransac_ground_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base()['ransac_ground_params']
+    
+    def get_adaptive_epsilon_config_for_occlusion_depth(self) -> Dict[str, Any]:
+        return self.get_occlusion_determination_params()['adaptive_epsilon_depth_config']
+
+    def get_adaptive_epsilon_config_for_map_consistency_forward(self) -> Dict[str, Any]:
+        return self.get_map_consistency_params()['adaptive_epsilon_forward_config']
+
+    def get_adaptive_epsilon_config_for_map_consistency_backward(self) -> Dict[str, Any]:
+        return self.get_map_consistency_params()['adaptive_epsilon_backward_config']
+    
+    def get_study_name(self) -> str:
+        """
+        Gets the study name, which is injected at runtime by the experiment runner.
+        """
+        return self._config_data['study_name']
+
+    def get_logging_settings(self) -> Dict[str, Any]:
+        """
+        Gets the logging configuration section. Returns an empty dict if not found.
+        """
+        return self._config_data['logging_settings']
+
+    # # --- Direct accessors ---
+    # def get_library_size(self, default: int = 20) -> int:
+    #     di_params = self.get_depth_image_params()
+    #     return di_params['library_size']
+    
+    def get_raw_config(self) -> Dict[str, Any]:
+        return self._config_data
+
+############################
+FILE: src/__init__.py
+############################
+
+
+############################
 FILE: src/core/depth_image_library.py
 ############################
 
@@ -674,7 +814,7 @@ class MDetector:
 
         # --- Core Components ---
         self.depth_image_library = DepthImageLibrary(
-            max_size=self.config.get_depth_image_params()['library_size']
+            max_size=self.config.get_initialization_phase_params()['num_sweeps_for_initial_map']+1
         )
         self.depth_image_params = self.config.get_depth_image_params()
 
@@ -683,7 +823,6 @@ class MDetector:
 
     def _load_configuration(self):
         """Loads parameters from the config accessor into instance attributes."""
-        # CORRECTED: All keys now match the provided config.yml file exactly.
         
         # General
         self.min_sweeps_for_processing = self.config.get_initialization_phase_params()['num_sweeps_for_initial_map']
@@ -717,7 +856,7 @@ class MDetector:
         self.map_consistency_enabled = self.mcc_config['enabled']
         self.num_past_sweeps_for_mcc = self.mcc_config['num_past_sweeps_for_mcc'] 
         self.static_labels_for_map_check_enums = [
-            OcclusionResult[label] for label in self.mcc_config['static_labels_for_map_check']
+            OcclusionResult["OCCLUDED_BY_IMAGE"], OcclusionResult["PRELABELED_STATIC_GROUND"], 
         ]
         self.static_labels_for_map_check_values = [
             label.value for label in self.static_labels_for_map_check_enums
@@ -784,19 +923,20 @@ class MDetector:
     def decide_and_process_frame(self) -> Dict[str, Any]:
         """
         Decides which frame in the library to process and initiates the forward pass.
-        This is the main entry point for processing after sweeps have been added.
         """
         lib_len = len(self.depth_image_library)
+        
         if lib_len < self.min_sweeps_for_processing:
-            reason = f"Lib len {lib_len} < min_sweeps {self.min_sweeps_for_processing}"
+            reason = f"Cannot process frame: Library size ({lib_len}) is less than minimum required sweeps ({self.min_sweeps_for_processing})."
             return {'success': False, 'reason': reason}
 
         target_idx_in_deque = lib_len - 1
         di_to_process = self.depth_image_library.get_image_by_index(target_idx_in_deque)
+
         if di_to_process is None:
-            reason = f"Could not retrieve DI at index {target_idx_in_deque} from library."
+            reason = f"Could not retrieve DI at index {target_idx_in_deque} from library. This should not happen."
             self.logger.error(f"DECIDE_FRAME_ERROR: {reason}")
-            return {'success': False, 'reason': reason}
+            raise RuntimeError(reason)
 
         self.logger.debug(f"DECIDE_FRAME_READY: Processing DI at index {target_idx_in_deque} (TS: {di_to_process.timestamp:.2f}).")
         return self._process_causal_di_wrapper(target_idx_in_deque)
@@ -807,18 +947,18 @@ class MDetector:
         """
         current_di = self.depth_image_library.get_image_by_index(di_to_process_idx)
         if current_di is None:
-            return {'success': False, 'reason': f"DI at index {di_to_process_idx} is None."}
+            # This is a critical logic error, it should crash.
+            raise RuntimeError(f"DI at index {di_to_process_idx} is None within the processing wrapper.")
 
         start_time = time.time()
-        try:
-            # Call the newly named `forward` method
-            result = self.forward(current_di, di_to_process_idx)
-        except Exception as e:
-            self.logger.exception(f"Exception during forward pass for DI @ TS {current_di.timestamp:.2f}")
-            return {'success': False, 'reason': str(e), 'timestamp': current_di.timestamp}
-        finally:
-            end_time = time.time()
-            self.logger.debug(f"PROCESS_DI_TIMING: Forward pass for DI @ TS {current_di.timestamp:.2f} took {(end_time - start_time) * 1000:.2f} ms.")
+        
+        # FIX 3: The try/except block is removed. Any exception in self.forward()
+        # will now propagate up and crash the worker, revealing the true error.
+        result = self.forward(current_di, di_to_process_idx)
+        
+        end_time = time.time()
+        self.logger.debug(f"PROCESS_DI_TIMING: Forward pass for DI @ TS {current_di.timestamp:.2f} took {(end_time - start_time) * 1000:.2f} ms.")
+        
         return result
     
     def get_labels_before_refinement(self, current_di: 'DepthImage', current_di_idx_in_lib: int) -> torch.Tensor:
@@ -877,8 +1017,8 @@ def _refine_with_hdbscan_convex_hull(
     min_points_param = cluster_params['min_points']
     min_cluster_size = cluster_params['min_cluster_size']
 
-    # Extract cluster_selection_epsilon with a default if not present (though it should be tuned now)
-    cluster_selection_epsilon = cluster_params.get('cluster_selection_epsilon', 0.0)
+    # Extract cluster_selection_epsilon 
+    cluster_selection_epsilon = cluster_params['cluster_selection_epsilon']
 
     if dynamic_points_global_torch.shape[0] < min_points_param:
         logger.debug(f"Skipping HDBSCAN: Not enough points ({dynamic_points_global_torch.shape[0]}) "
@@ -990,11 +1130,11 @@ def apply_clustering_and_refinement(
     """
     Main entry point for the frame refinement stage.
     """
-    if not refinement_params.get('enabled', False):
+    if not refinement_params['enabled']:
         return labels
 
-    clustering_config = refinement_params.get('clustering', {})
-    algo_name = clustering_config.get('algorithm')
+    clustering_config = refinement_params['clustering']
+    algo_name = clustering_config['algorithm']
     
     if not algo_name or algo_name == 'none':
         return labels
@@ -1004,7 +1144,7 @@ def apply_clustering_and_refinement(
     if algo_name == ClusteringAlgorithm.HDBSCAN.value:
         # --- MODIFICATION: The key 'hdbscan' should now point to CPU params ---
         # The logic here remains the same, it just calls the CPU version now.
-        algo_params = clustering_config.get(algo_name, {})
+        algo_params = clustering_config[algo_name]
         return _refine_with_hdbscan_convex_hull(labels, current_di, algo_params)
     else:
         logger.error(f"Unknown or unsupported clustering algorithm specified: {algo_name}")
@@ -1309,12 +1449,12 @@ FILE: src/core/m_detector/map_consistency.py
 
 from __future__ import annotations
 import torch
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, List
 from ..constants import OcclusionResult
 from .adaptive_epsilon_utils import calculate_adaptive_epsilon
-from .interpolation_utils import interpolate_surface_depth_at_angle
 import numpy as np
 import logging
+from itertools import combinations
 
 logger_mcc_perf = logging.getLogger("MCC_PERF_DEBUG")
 
@@ -1425,219 +1565,6 @@ def is_map_consistent(self: 'MDetector',
     
     return static_confidence_scores
 
-
-def _perform_direct_comparison_gpu(self: 'MDetector', indices, sph_coords_target, d_anchors, di_hist, static_mask_hist):
-    """Helper to contain the GPU-based direct comparison logic."""
-    device = self.device
-    
-    phi_target = sph_coords_target[indices, 0].unsqueeze(1)
-    theta_target = sph_coords_target[indices, 1].unsqueeze(1)
-    depth_target = sph_coords_target[indices, 2].unsqueeze(1)
-
-    static_sph_coords_hist = di_hist.local_sph_coords_for_points[static_mask_hist]
-    phi_static = static_sph_coords_hist[:, 0]
-    theta_static = static_sph_coords_hist[:, 1]
-    depth_static = static_sph_coords_hist[:, 2]
-
-    is_angular_neighbor = (torch.abs(phi_target - phi_static) <= self.epsilon_phi_map_rad) & \
-                          (torch.abs(theta_target - theta_static) <= self.epsilon_theta_map_rad)
-
-    eps_fwd = calculate_adaptive_epsilon(d_anchors[indices], self.epsilon_depth_forward_map, **self.adaptive_eps_config_mc_fwd).unsqueeze(1)
-    eps_bwd = calculate_adaptive_epsilon(d_anchors[indices], self.epsilon_depth_backward_map, **self.adaptive_eps_config_mc_bwd).unsqueeze(1)
-    
-    is_depth_consistent = (depth_target >= depth_static - eps_bwd) & (depth_target <= depth_static + eps_fwd)
-    
-    is_consistent_match = is_angular_neighbor & is_depth_consistent
-    return torch.any(is_consistent_match, dim=1)
-
-############################
-FILE: src/core/m_detector/occlusion_checks.py
-############################
-
-# src/core/m_detector/occlusion_checks.py
-
-import numpy as np
-import torch
-from typing import Tuple, Optional, List, Dict, Any, TYPE_CHECKING
-from ..constants import OcclusionResult
-from .adaptive_epsilon_utils import calculate_adaptive_epsilon
-from ..depth_image import DepthImage
-
-import logging
-logger_oc = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from .base import MDetector
-
-def check_occlusion_batch(self,
-                          points_global_batch: torch.Tensor,
-                          historical_depth_image: DepthImage) -> torch.Tensor:
-    """
-    Batch occlusion check using pure PyTorch tensor operations.
-    """
-    batch_size = points_global_batch.shape[0]
-    device = self.device
-
-    if not isinstance(points_global_batch, torch.Tensor):
-        points_global_batch = torch.from_numpy(points_global_batch).float()
-    points_global_batch = points_global_batch.to(device)
-
-    _, sph_coords, pixel_indices, valid_mask = historical_depth_image.project_points_batch(points_global_batch)
-    results = torch.full((batch_size,), OcclusionResult.OCCLUDED_BY_IMAGE.value, dtype=torch.int32, device=device)
-    valid_indices = torch.where(valid_mask)[0]
-
-    if valid_indices.numel() == 0:
-        return results
-
-    valid_pixels = pixel_indices[valid_indices]
-    valid_depths = sph_coords[valid_indices, 2]
-
-    n_v, n_h = self.neighbor_search_pixels_v, self.neighbor_search_pixels_h
-    dv = torch.arange(-n_v, n_v + 1, device=device)
-    dh = torch.arange(-n_h, n_h + 1, device=device)
-    grid_dv, grid_dh = torch.meshgrid(dv, dh, indexing='ij')
-    offsets = torch.stack([grid_dv.flatten(), grid_dh.flatten()], dim=1)
-    neighborhood_pixels = valid_pixels.unsqueeze(1) + offsets
-
-    neighborhood_pixels[:, :, 0].clamp_(0, historical_depth_image.num_pixels_v - 1)
-    neighborhood_pixels[:, :, 1].clamp_(0, historical_depth_image.num_pixels_h - 1)
-
-    v_coords = neighborhood_pixels[:, :, 0]
-    h_coords = neighborhood_pixels[:, :, 1]
-    flat_indices = v_coords * historical_depth_image.num_pixels_h + h_coords
-
-    hist_counts_flat = historical_depth_image.pixel_count.view(-1)
-    hist_min_depth_flat = historical_depth_image.pixel_min_depth.view(-1)
-    hist_max_depth_flat = historical_depth_image.pixel_max_depth.view(-1)
-
-    neighborhood_counts = hist_counts_flat[flat_indices]
-    neighborhood_min_depths = hist_min_depth_flat[flat_indices]
-    neighborhood_max_depths = hist_max_depth_flat[flat_indices]
-
-    has_data_mask = neighborhood_counts > 0
-    any_data_in_neighborhood = torch.any(has_data_mask, dim=1)
-    results[valid_indices[~any_data_in_neighborhood]] = OcclusionResult.EMPTY_IN_IMAGE.value
-
-    if torch.any(any_data_in_neighborhood):
-        points_with_data_mask = any_data_in_neighborhood
-        min_depths_clean = torch.where(has_data_mask, neighborhood_min_depths, float('inf'))
-        max_depths_clean = torch.where(has_data_mask, neighborhood_max_depths, float('-inf'))
-
-        min_depth_in_region = torch.min(min_depths_clean[points_with_data_mask], dim=1).values
-        max_depth_in_region = torch.max(max_depths_clean[points_with_data_mask], dim=1).values
-        
-        active_depths = valid_depths[points_with_data_mask]
-        active_indices = valid_indices[points_with_data_mask]
-
-        current_results = results[active_indices]
-        
-        occluded_mask = active_depths > max_depth_in_region + self.epsilon_depth_occlusion
-        current_results = torch.where(occluded_mask, OcclusionResult.OCCLUDED_BY_IMAGE.value, current_results)
-
-        occluding_mask = active_depths < min_depth_in_region - self.epsilon_depth_occlusion
-        current_results = torch.where(occluding_mask, OcclusionResult.OCCLUDING_IMAGE.value, current_results)
-
-        results[active_indices] = current_results
-
-    return results
-
-def check_occlusion_point_level_detailed_batch(
-    self: 'MDetector',
-    points_eval_global: torch.Tensor,
-    d_anchors_of_points_eval: torch.Tensor,
-    points_hist_cand_global: torch.Tensor,
-    historical_di: 'DepthImage',
-    occlusion_type_to_check: str,
-) -> torch.Tensor:
-    """
-    Performs a detailed occlusion check between two BATCHES of global points.
-    This is the fully vectorized version for high performance.
-    """
-    batch_size = points_eval_global.shape[0]
-    final_results = torch.zeros(batch_size, dtype=torch.bool, device=self.device)
-
-    if batch_size == 0:
-        return final_results
-
-    # Project both batches of points at once
-    points_to_project = torch.cat([points_eval_global, points_hist_cand_global])
-    _, sph_coords_batch, _, valid_mask = historical_di.project_points_batch(points_to_project)
-
-    # Split the results back
-    sph_coords_eval, sph_coords_hist = sph_coords_batch.chunk(2)
-    valid_mask_eval, valid_mask_hist = valid_mask.chunk(2)
-
-    # A check is only possible if BOTH points in a pair project successfully
-    possible_check_mask = valid_mask_eval & valid_mask_hist
-    if not torch.any(possible_check_mask):
-        return final_results
-    
-    # Filter to only the pairs where the check is possible
-    possible_indices = torch.where(possible_check_mask)[0]
-    
-    phi_eval = sph_coords_eval[possible_indices, 0]
-    theta_eval = sph_coords_eval[possible_indices, 1]
-    d_eval = sph_coords_eval[possible_indices, 2]
-
-    phi_hist = sph_coords_hist[possible_indices, 0]
-    theta_hist = sph_coords_hist[possible_indices, 1]
-    d_hist = sph_coords_hist[possible_indices, 2]
-
-    # Perform angular check on the batch
-    angular_phi_match = torch.abs(phi_eval - phi_hist) <= self.detailed_check_angular_threshold_h_rad
-    angular_theta_match = torch.abs(theta_eval - theta_hist) <= self.detailed_check_angular_threshold_v_rad
-    angular_match_mask = angular_phi_match & angular_theta_match
-
-    if not torch.any(angular_match_mask):
-        return final_results
-
-    # Filter again to pairs that passed the angular check
-    passed_angular_indices = possible_indices[angular_match_mask]
-
-    # Calculate adaptive epsilon for the remaining points
-    d_anchors_for_calc = d_anchors_of_points_eval[passed_angular_indices]
-    adaptive_config = self.adaptive_eps_config_occ_depth
-    current_detailed_epsilon = calculate_adaptive_epsilon(
-        d_anchors_for_calc,
-        self.detailed_check_epsilon_depth,
-        adaptive_config['enabled'],
-        adaptive_config['dthr'],
-        adaptive_config['kthr'],
-        adaptive_config['dmax'],
-        adaptive_config['dmin']
-    )
-
-    # Perform depth check on the remaining batch
-    d_eval_final = d_eval[angular_match_mask]
-    d_hist_final = d_hist[angular_match_mask]
-
-    depth_condition_met = torch.zeros_like(d_eval_final, dtype=torch.bool)
-    if occlusion_type_to_check == "OCCLUDING":
-        depth_condition_met = d_eval_final < d_hist_final - current_detailed_epsilon
-    elif occlusion_type_to_check == "OCCLUDED_BY":
-        depth_condition_met = d_eval_final > d_hist_final + current_detailed_epsilon
-    else:
-        raise ValueError(f"Invalid occlusion_type_to_check: {occlusion_type_to_check}")
-
-    # Update the final results tensor at the correct indices
-    final_results[passed_angular_indices[depth_condition_met]] = True
-        
-    return final_results
-
-############################
-FILE: src/core/m_detector/interpolation_utils.py
-############################
-
-# src/core/m_detector/interpolation_utils.py
-
-from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, List
-from itertools import combinations
-import numpy as np
-
-if TYPE_CHECKING:
-    from ..depth_image import DepthImage
-
 def interpolate_surface_depth_at_angle(
     target_phi_rad: float,
     target_theta_rad: float,
@@ -1718,4 +1645,3028 @@ def interpolate_surface_depth_at_angle(
             return float(interpolated_depth)
             
     return None
+
+
+def _perform_direct_comparison_gpu(self: 'MDetector', indices, sph_coords_target, d_anchors, di_hist, static_mask_hist):
+    """Helper to contain the GPU-based direct comparison logic."""
+    device = self.device
+    
+    phi_target = sph_coords_target[indices, 0].unsqueeze(1)
+    theta_target = sph_coords_target[indices, 1].unsqueeze(1)
+    depth_target = sph_coords_target[indices, 2].unsqueeze(1)
+
+    static_sph_coords_hist = di_hist.local_sph_coords_for_points[static_mask_hist]
+    phi_static = static_sph_coords_hist[:, 0]
+    theta_static = static_sph_coords_hist[:, 1]
+    depth_static = static_sph_coords_hist[:, 2]
+
+    is_angular_neighbor = (torch.abs(phi_target - phi_static) <= self.epsilon_phi_map_rad) & \
+                          (torch.abs(theta_target - theta_static) <= self.epsilon_theta_map_rad)
+
+    eps_fwd = calculate_adaptive_epsilon(d_anchors[indices], self.epsilon_depth_forward_map, **self.adaptive_eps_config_mc_fwd).unsqueeze(1)
+    eps_bwd = calculate_adaptive_epsilon(d_anchors[indices], self.epsilon_depth_backward_map, **self.adaptive_eps_config_mc_bwd).unsqueeze(1)
+    
+    is_depth_consistent = (depth_target >= depth_static - eps_bwd) & (depth_target <= depth_static + eps_fwd)
+    
+    is_consistent_match = is_angular_neighbor & is_depth_consistent
+    return torch.any(is_consistent_match, dim=1)
+
+############################
+FILE: src/core/m_detector/occlusion_checks.py
+############################
+
+# src/core/m_detector/occlusion_checks.py
+
+import numpy as np
+import torch
+from typing import Tuple, Optional, List, Dict, Any, TYPE_CHECKING
+from ..constants import OcclusionResult
+from .adaptive_epsilon_utils import calculate_adaptive_epsilon
+from ..depth_image import DepthImage
+
+import logging
+logger_oc = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from .base import MDetector
+
+def check_occlusion_batch(self,
+                          points_global_batch: torch.Tensor,
+                          historical_depth_image: DepthImage) -> torch.Tensor:
+    """
+    Performs a fast, coarse-grained (broad-phase) occlusion check for a batch of points 
+    against an entire historical depth image.
+
+    This function acts as a rapid filter to classify points into general occlusion 
+    categories. It compares each point to a neighborhood of pixels in the historical 
+    image rather than to individual points, making it highly efficient. It is intended 
+    to be the first stage in a two-stage occlusion detection process.
+
+    Workflow:
+    1. Projects all 3D points onto the 2D grid of the historical depth image.
+    2. For each valid projection, defines a rectangular neighborhood of pixels.
+    3. Gathers pre-computed min/max depth values from all pixels in the neighborhood.
+    4. Compares the point's depth against the aggregated neighborhood depth to classify it as
+       OCCLUDED_BY_IMAGE, OCCLUDING_IMAGE, or EMPTY_IN_IMAGE.
+
+    Args:
+        points_global_batch (torch.Tensor): A tensor of shape (N, 3) containing the 3D points 
+                                            to check, in global coordinates.
+        historical_depth_image (DepthImage): The historical depth image data structure, 
+                                             which contains pre-aggregated depth information.
+
+    Returns:
+        torch.Tensor: A 1D tensor of shape (N,) with integer values from the 
+                      OcclusionResult enum, classifying each point.
+    """
+    batch_size = points_global_batch.shape[0]
+    device = self.device
+
+    # Ensure input is a PyTorch tensor on the correct device
+    if not isinstance(points_global_batch, torch.Tensor):
+        points_global_batch = torch.from_numpy(points_global_batch).float()
+    points_global_batch = points_global_batch.to(device)
+
+    # --- 1. Project points onto the historical image ---
+    _, sph_coords, pixel_coords, is_valid_projection_mask = historical_depth_image.project_points_batch(points_global_batch)
+    
+    # Initialize results, assuming points are occluded by default. This will be refined.
+    results = torch.full((batch_size,), OcclusionResult.OCCLUDED_BY_IMAGE.value, dtype=torch.int32, device=device)
+    
+    # Get the indices of points that projected successfully into the image frame.
+    valid_indices = torch.where(is_valid_projection_mask)[0]
+
+    # If no points project into the image, we can return early.
+    if valid_indices.numel() == 0:
+        return results
+
+    # --- 2. Define search neighborhoods for all valid points ---
+    valid_pixels = pixel_coords[valid_indices]
+    valid_depths = sph_coords[valid_indices, 2]
+
+    # Create a 2D grid of offsets (e.g., a 3x3 grid for n_v=1, n_h=1)
+    n_v, n_h = self.neighbor_search_pixels_v, self.neighbor_search_pixels_h
+    dv = torch.arange(-n_v, n_v + 1, device=device)
+    dh = torch.arange(-n_h, n_h + 1, device=device)
+    grid_dv, grid_dh = torch.meshgrid(dv, dh, indexing='ij')
+    offsets = torch.stack([grid_dv.flatten(), grid_dh.flatten()], dim=1)
+
+    # Use broadcasting to create a neighborhood grid for each valid point.
+    # Shape: (num_valid_points, num_neighborhood_pixels, 2)
+    neighborhood_pixels = valid_pixels.unsqueeze(1) + offsets
+
+    # Prevent neighborhood indices from going out of bounds of the image dimensions.
+    neighborhood_pixels[:, :, 0].clamp_(0, historical_depth_image.num_pixels_v - 1)
+    neighborhood_pixels[:, :, 1].clamp_(0, historical_depth_image.num_pixels_h - 1)
+
+    # --- 3. Gather historical data from neighborhoods ---
+    # Convert 2D neighborhood coordinates to 1D indices for efficient, vectorized lookup.
+    v_coords = neighborhood_pixels[:, :, 0]
+    h_coords = neighborhood_pixels[:, :, 1]
+    flat_indices = v_coords * historical_depth_image.num_pixels_h + h_coords
+
+    # Fetch pre-aggregated data from the historical image using the flat indices.
+    hist_counts_flat = historical_depth_image.pixel_count.view(-1)
+    hist_min_depth_flat = historical_depth_image.pixel_min_depth.view(-1)
+    hist_max_depth_flat = historical_depth_image.pixel_max_depth.view(-1)
+
+    neighborhood_counts = hist_counts_flat[flat_indices]
+    neighborhood_min_depths = hist_min_depth_flat[flat_indices]
+    neighborhood_max_depths = hist_max_depth_flat[flat_indices]
+
+    # --- 4. Classify points based on neighborhood data ---
+    # A neighborhood pixel is valid only if it contained points in the historical image.
+    has_data_mask = neighborhood_counts > 0
+    any_data_in_neighborhood = torch.any(has_data_mask, dim=1)
+
+    # If a point's entire neighborhood was empty, classify it as such.
+    results[valid_indices[~any_data_in_neighborhood]] = OcclusionResult.EMPTY_IN_IMAGE.value
+
+    # Proceed only with points whose neighborhoods contained some data.
+    if torch.any(any_data_in_neighborhood):
+        points_with_data_mask = any_data_in_neighborhood
+
+        # To find the true min/max depth, we must ignore empty pixels.
+        # We achieve this by replacing their depths with +/- infinity.
+        min_depths_clean = torch.where(has_data_mask, neighborhood_min_depths, float('inf'))
+        max_depths_clean = torch.where(has_data_mask, neighborhood_max_depths, float('-inf'))
+
+        # Aggregate the min/max depth across the entire neighborhood for each point.
+        min_depth_in_region = torch.min(min_depths_clean[points_with_data_mask], dim=1).values
+        max_depth_in_region = torch.max(max_depths_clean[points_with_data_mask], dim=1).values
+        
+        # Filter to the active points and depths we are currently classifying.
+        active_depths = valid_depths[points_with_data_mask]
+        active_indices = valid_indices[points_with_data_mask]
+        current_results = results[active_indices]
+        
+        # If the point's depth is greater than the max depth of the region, it's occluded.
+        occluded_mask = active_depths > max_depth_in_region + self.epsilon_depth_occlusion
+        current_results = torch.where(occluded_mask, OcclusionResult.OCCLUDED_BY_IMAGE.value, current_results)
+
+        # If the point's depth is less than the min depth of the region, it's an occluder.
+        occluding_mask = active_depths < min_depth_in_region - self.epsilon_depth_occlusion
+        current_results = torch.where(occluding_mask, OcclusionResult.OCCLUDING_IMAGE.value, current_results)
+
+        # Update the main results tensor with these refined classifications.
+        results[active_indices] = current_results
+
+    return results
+
+def check_occlusion_point_level_detailed_batch(
+    self: 'MDetector',
+    points_eval_global: torch.Tensor,
+    d_anchors_of_points_eval: torch.Tensor,
+    points_hist_cand_global: torch.Tensor,
+    historical_di: 'DepthImage',
+    occlusion_type_to_check: str,
+) -> torch.Tensor:
+    """
+    Performs a precise, fine-grained (narrow-phase) occlusion check between paired
+    points from an evaluation set and a historical set.
+
+    This function is designed to be a high-precision verification step, used *after* a
+    coarse check has identified potential occlusion candidates. It directly compares a
+    point with its historical counterpart, using strict angular matching and an adaptive
+    depth threshold that accounts for sensor error at different distances.
+
+    Workflow:
+    1. Projects both batches of points onto the historical image grid in a single call.
+    2. Filters out pairs where one or both points failed to project.
+    3. Performs a strict angular check to ensure the two points lie on the same ray.
+    4. For angularly-matched pairs, calculates an adaptive depth epsilon based on distance.
+    5. Performs the final depth comparison to verify the specific occlusion type requested.
+
+    Args:
+        points_eval_global (torch.Tensor): (N, 3) tensor of points to evaluate.
+        d_anchors_of_points_eval (torch.Tensor): (N,) tensor of anchor depths for the evaluation
+                                                 points, used for adaptive epsilon calculation.
+        points_hist_cand_global (torch.Tensor): (N, 3) tensor of historical candidate points,
+                                                paired one-to-one with `points_eval_global`.
+        historical_di (DepthImage): The historical depth image, used for projection.
+        occlusion_type_to_check (str): The specific relationship to verify. Must be either
+                                       "OCCLUDING" or "OCCLUDED_BY".
+
+    Returns:
+        torch.Tensor: A 1D boolean tensor of shape (N,) where `True` indicates that the
+                      specified occlusion condition was met for that pair of points.
+    """
+    batch_size = points_eval_global.shape[0]
+    final_results = torch.zeros(batch_size, dtype=torch.bool, device=self.device)
+
+    # Guard clause for empty input
+    if batch_size == 0:
+        return final_results
+
+    # --- 1. Project both sets of points ---
+    # Concatenate for a single, efficient projection call to the GPU.
+    points_to_project = torch.cat([points_eval_global, points_hist_cand_global])
+    _, sph_coords_batch, _, valid_mask = historical_di.project_points_batch(points_to_project)
+
+    # Split the results back into evaluation and historical sets.
+    sph_coords_eval, sph_coords_hist = sph_coords_batch.chunk(2)
+    valid_mask_eval, valid_mask_hist = valid_mask.chunk(2)
+
+    # --- 2. Filter for valid pairs ---
+    # A check is only meaningful if *both* points in a pair successfully project.
+    possible_check_mask = valid_mask_eval & valid_mask_hist
+    if not torch.any(possible_check_mask):
+        return final_results
+    
+    # We now work only with the subset of pairs that can be checked.
+    possible_indices = torch.where(possible_check_mask)[0]
+    
+    # Extract spherical coordinates for the valid pairs.
+    phi_eval = sph_coords_eval[possible_indices, 0]
+    theta_eval = sph_coords_eval[possible_indices, 1]
+    d_eval = sph_coords_eval[possible_indices, 2]
+
+    phi_hist = sph_coords_hist[possible_indices, 0]
+    theta_hist = sph_coords_hist[possible_indices, 1]
+    d_hist = sph_coords_hist[possible_indices, 2]
+
+    # --- 3. Perform strict angular proximity check ---
+    # This ensures both points are on almost the exact same line of sight.
+    angular_phi_match = torch.abs(phi_eval - phi_hist) <= self.detailed_check_angular_threshold_h_rad
+    angular_theta_match = torch.abs(theta_eval - theta_hist) <= self.detailed_check_angular_threshold_v_rad
+    angular_match_mask = angular_phi_match & angular_theta_match
+
+    if not torch.any(angular_match_mask):
+        return final_results
+
+    # Filter again to the subset of pairs that passed the angular check.
+    passed_angular_indices = possible_indices[angular_match_mask]
+
+    # --- 4. Calculate adaptive depth threshold ---
+    # For points that are angularly close, calculate a more precise, distance-dependent
+    # depth threshold to account for increasing sensor error over distance.
+    d_anchors_for_calc = d_anchors_of_points_eval[passed_angular_indices]
+    adaptive_config = self.adaptive_eps_config_occ_depth
+    current_detailed_epsilon = calculate_adaptive_epsilon(
+        d_anchors_for_calc,
+        self.detailed_check_epsilon_depth,
+        adaptive_config['enabled'],
+        adaptive_config['dthr'],
+        adaptive_config['kthr'],
+        adaptive_config['dmax'],
+        adaptive_config['dmin']
+    )
+
+    # --- 5. Perform final depth comparison ---
+    d_eval_final = d_eval[angular_match_mask]
+    d_hist_final = d_hist[angular_match_mask]
+
+    # Check the specific occlusion condition requested by the caller.
+    depth_condition_met = torch.zeros_like(d_eval_final, dtype=torch.bool)
+    if occlusion_type_to_check == "OCCLUDING":
+        # Check if the evaluation point is significantly closer than the historical point.
+        depth_condition_met = d_eval_final < d_hist_final - current_detailed_epsilon
+    elif occlusion_type_to_check == "OCCLUDED_BY":
+        # Check if the evaluation point is significantly farther than the historical point.
+        depth_condition_met = d_eval_final > d_hist_final + current_detailed_epsilon
+    else:
+        # This should not happen with controlled inputs.
+        raise ValueError(f"Invalid occlusion_type_to_check: {occlusion_type_to_check}")
+
+    # --- 6. Update final results ---
+    final_results[passed_angular_indices[depth_condition_met]] = True
+        
+    return final_results
+
+############################
+FILE: src/ray_scripts/shared_utils.py
+############################
+
+# src/ray_scripts/shared_utils.py
+
+import logging
+from pathlib import Path
+
+def deep_update_dict(base_dict, update_dict):
+    """Recursively updates a dictionary."""
+    for key, value in update_dict.items():
+        if isinstance(value, dict) and key in base_dict and isinstance(base_dict[key], dict):
+            deep_update_dict(base_dict[key], value)
+        else:
+            base_dict[key] = value
+    return base_dict
+
+def calculate_iou(tp: int, fp: int, fn: int) -> float:
+    """Calculates IoU from true positives, false positives, and false negatives."""
+    denominator = tp + fp + fn
+    return tp / denominator if denominator > 0 else 0.0
+
+def setup_trial_file_logging(logger_name: str, study_name: str, run_timestamp: str, trial_number: int, logging_config: dict):
+    """
+    Sets up structured, ISOLATED file logging for a specific trial worker.
+    This logger outputs to a file to prevent clogging the terminal output. 
+    """
+    log_dir = Path(logging_config["log_dir"])
+    study_log_dir = log_dir / study_name / run_timestamp
+    study_log_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Get the SPECIFIC logger for this worker.
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.DEBUG) # Capture all levels of messages for the files.
+
+    # 2. IMPORTANT: Prevent messages from bubbling up to the root logger.
+    # This stops worker logs from appearing in the main script's console.
+    logger.propagate = False
+
+    # 3. Clear any existing handlers from previous runs in the same reused worker process.
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    # 4. Create Summary File Handler (INFO level)
+    # This file gets a high-level summary from all trials.
+    summary_handler = logging.FileHandler(study_log_dir / "run_summary.log", mode='a')
+    summary_handler.setLevel(logging.INFO)
+    summary_formatter = logging.Formatter(f'%(asctime)s - T{trial_number:03d} - %(levelname)s - %(message)s')
+    summary_handler.setFormatter(summary_formatter)
+    logger.addHandler(summary_handler)
+
+    # 5. Create Detailed Trial-Specific File Handler (DEBUG level)
+    detailed_trials = logging_config["log_detailed_for_trials"]
+    if trial_number in detailed_trials or "all" in detailed_trials:
+        detailed_handler = logging.FileHandler(study_log_dir / f"detailed_trial_{trial_number}.log", mode='w')
+        detailed_handler.setLevel(logging.DEBUG)
+        detailed_formatter = logging.Formatter('%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
+        detailed_handler.setFormatter(detailed_formatter)
+        logger.addHandler(detailed_handler)
+
+    # NOTE: The console handler has been intentionally removed.
+
+    # Silence other verbose libraries for this worker
+    logging.getLogger("numba").setLevel(logging.WARNING)
+    logging.getLogger("optuna").setLevel(logging.WARNING)
+
+############################
+FILE: src/ray_scripts/run_experiment.py
+############################
+
+# src/ray_scripts/run_experiment.py 
+
+# Filter annoying warnings
+import warnings
+warnings.filterwarnings("ignore", message="The cuda.cuda module is deprecated", category=FutureWarning)
+warnings.filterwarnings("ignore", message="The cuda.cudart module is deprecated", category=FutureWarning)
+
+import os
+import argparse
+import ray
+import logging
+from pathlib import Path
+import time
+from rich.logging import RichHandler
+
+from ..config_loader import MDetectorConfigAccessor
+from .modes import bake_runner, refinement_tuner, full_tuner
+from .ray_actors import NuScenesDataActor, load_all_gt_data_in_background
+
+# # toggle this to see all logs for all trials - 
+# can lead to an explosion of terminal output when running big experiments 
+# os.environ["RAY_DEDUP_LOGS"] = "0" 
+
+# --- Setup Paths and Environment ---
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+WORKING_DIR = PROJECT_ROOT.parent
+CONFIG_PATH_ABSOLUTE = WORKING_DIR / 'config' / 'm_detector_config.yaml'
+DB_DIR = WORKING_DIR / "optuna_studies"
+
+def main():
+    parser = argparse.ArgumentParser(description="M-Detector Experiment Runner")
+    parser.add_argument("--mode", type=str, required=True, choices=['bake', 'tune-refinement', 'tune-full'], help="The mode to run.")
+    parser.add_argument("--study-name", type=str, required=True, help="Name for the Optuna study.")
+    parser.add_argument("--n-trials", type=int, default=100, help="Number of trials for tuning modes.")
+    parser.add_argument("--source-study-name", type=str, help="For 'bake' mode: the geometric study to get best params from.")
+    parser.add_argument("--bake-id", type=str, help="For 'tune-refinement' mode: the ID of the baked results to use.")
+    args = parser.parse_args()
+
+    # --- Centralized Logging Configuration ---
+    logging.basicConfig(
+        level="INFO",
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True, show_path=False, markup=True)] # markup=True is default but explicit
+    )
+    # Get a logger for this file, which will now use the RichHandler.
+    logger = logging.getLogger(__name__)
+
+    accessor = MDetectorConfigAccessor(CONFIG_PATH_ABSOLUTE)
+    base_config = accessor.get_raw_config()
+    base_config['study_name'] = args.study_name
+
+    # Configure CUDA_VISIBLE_DEVICES based on config ---
+    processing_settings = accessor.get_processing_settings()
+    if processing_settings['device'] == 'cuda':
+        gpu_ids = processing_settings['gpu_ids']
+        if gpu_ids: # If gpu_ids is not empty
+            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, gpu_ids))
+            logger.info(f"Setting CUDA_VISIBLE_DEVICES=[bold yellow]{os.environ['CUDA_VISIBLE_DEVICES']}[/bold yellow]")
+        else:
+            if "CUDA_VISIBLE_DEVICES" in os.environ:
+                del os.environ["CUDA_VISIBLE_DEVICES"]
+            logger.info("CUDA_VISIBLE_DEVICES not explicitly set, Ray will use all available GPUs.")
+
+    ray.init(ignore_reinit_error=True, logging_level=logging.WARNING)
+    nuscenes_cfg = accessor.get_nuscenes_params()
+    config_path_str = str(CONFIG_PATH_ABSOLUTE)
+    
+    data_actor = NuScenesDataActor.options(name="nuscenes_data_service", get_if_exists=True).remote(
+        nuscenes_cfg['version'], nuscenes_cfg['dataroot'], config_path_str
+    )
+    gt_data_future = load_all_gt_data_in_background.remote(config_path_str)
+    ray.get(data_actor.set_cache.remote(ray.get(gt_data_future)))
+    logger.info("Ray initialized and data actor is ready.")
+
+    run_timestamp = time.strftime("%Y%m%d-%H%M%S")
+
+    try:
+        if args.mode == 'bake':
+            if not args.source_study_name:
+                raise ValueError("--source-study-name is required for 'bake' mode.")
+            bake_runner.run(base_config, args.source_study_name, DB_DIR)
+
+        elif args.mode == 'tune-refinement':
+            if not args.bake_id:
+                raise ValueError("--bake-id is required for 'tune-refinement' mode.")
+            refinement_tuner.run(base_config, args.study_name, args.n_trials, args.bake_id, DB_DIR, run_timestamp)
+
+        elif args.mode == 'tune-full':
+            full_tuner.run(base_config, args.study_name, args.n_trials, run_timestamp, DB_DIR)
+            
+    finally:
+        ray.shutdown()
+        logger.info("Ray shut down.")
+
+if __name__ == '__main__':
+    main()
+
+############################
+FILE: src/ray_scripts/ray_actors.py
+############################
+
+# src/ray_scripts/ray_actors.py
+
+import ray
+import os
+import torch
+import numpy as np
+from pyquaternion import Quaternion
+from typing import Optional
+
+
+# Import project-specific classes
+from nuscenes.nuscenes import NuScenes
+from nuscenes.utils.data_classes import LidarPointCloud
+from ..config_loader import MDetectorConfigAccessor 
+@ray.remote
+def _load_gt_file(path: str, device: str) -> tuple[str, dict]:
+    scene_name = os.path.basename(path).split('_r')[0].replace('gt_point_labels_', '')
+    data = torch.load(path, map_location=device, weights_only=False)
+    return scene_name, data
+
+# --- Standalone Helper Function for Loading ---
+@ray.remote
+def load_all_gt_data_in_background(config_path: str, device_str: str = 'cpu'):
+    """
+    A single, standalone remote task that loads all SPARSE GT files and returns them
+    in a dictionary. The data is already lean, so we just load it directly.
+    """
+    accessor = MDetectorConfigAccessor(config_path)
+    nuscenes_cfg = accessor.get_nuscenes_params()
+    # --- We now need the velocity threshold to find the correct files ---
+    validation_cfg = accessor.get_validation_params()
+    gt_vel_thresh = validation_cfg['gt_velocity_threshold']
+    
+    gt_labels_dir = nuscenes_cfg['label_path']
+    
+    nusc = NuScenes(version=nuscenes_cfg['version'], dataroot=nuscenes_cfg['dataroot'], verbose=False)
+    
+    gt_cache = {}
+    print(f"Background loader: Searching for sparse GT files with v_thresh={gt_vel_thresh}...")
+    for scene_rec in nusc.scene:
+        scene_name = scene_rec['name']
+        # --- FILENAME FORMAT IS UPDATED ---
+        gt_filename = f"gt_sparse_labels_{scene_name}_v{gt_vel_thresh}.pt"
+        gt_path = os.path.join(gt_labels_dir, gt_filename)
+        
+        if os.path.exists(gt_path):
+            # The loaded data is already the lean dictionary we want
+            gt_cache[scene_rec['token']] = torch.load(gt_path, map_location=device_str, weights_only=False)
+            
+    if not gt_cache:
+        print(f"[bold red]WARNING:[/bold red] Background loader did not find any sparse GT files for v_thresh={gt_vel_thresh} in {gt_labels_dir}.")
+    else:
+        print(f"Background loading complete. Loaded {len(gt_cache)} sparse GT files.")
+    return gt_cache
+
+@ray.remote
+class NuScenesDataActor:
+    def __init__(self, version: str, dataroot: str, config_path: str):
+        self.nusc = NuScenes(version=version, dataroot=dataroot, verbose=False)
+        self.gt_cache = {}
+        print("NuScenesDataActor initialized (empty).")
+
+    def set_cache(self, gt_cache: dict):
+        """A simple method to set the cache from the outside."""
+        self.gt_cache = gt_cache
+        print(f"Actor cache populated with {len(self.gt_cache)} entries.")
+
+    def get_ground_truth_slice(self, scene_token: str, sweep_index: int) -> Optional[np.ndarray]:
+        """
+        Returns a slice of the sparse dynamic point indices for a specific sweep.
+        """
+        if scene_token not in self.gt_cache:
+            return None
+            
+        gt_data = self.gt_cache[scene_token]
+        # These are the two arrays we saved in our new .pt files
+        gt_dynamic_indices_all = gt_data['dynamic_point_indices']
+        gt_sweep_boundaries = gt_data['sweep_boundary_indices']
+        
+        if sweep_index >= len(gt_sweep_boundaries) - 1:
+            return None
+            
+        # Use the boundaries to slice the correct portion of the dynamic indices array
+        start_idx = gt_sweep_boundaries[sweep_index]
+        end_idx = gt_sweep_boundaries[sweep_index + 1]
+        
+        return gt_dynamic_indices_all[start_idx:end_idx]
+
+    # All other get_* methods are also simple and direct
+    def get_nusc_handle(self):
+        return self.nusc
+    
+    def get_scene_record(self, scene_index: int) -> dict:
+        return self.nusc.scene[scene_index]
+    
+    def get_scene_count(self) -> int:
+        return len(self.nusc.scene)
+
+    def get_sweep_data_by_token(self, lidar_sd_token: str) -> dict:
+        sweep_rec = self.nusc.get('sample_data', lidar_sd_token)
+        cs_rec = self.nusc.get('calibrated_sensor', sweep_rec['calibrated_sensor_token'])
+        pose_rec = self.nusc.get('ego_pose', sweep_rec['ego_pose_token'])
+        pc_filepath = os.path.join(self.nusc.dataroot, sweep_rec['filename'])
+
+        if not os.path.exists(pc_filepath):
+            points_sensor_frame = np.empty((0, 5), dtype=np.float32)
+        else:
+            pc = LidarPointCloud.from_file(pc_filepath)
+            points_sensor_frame = pc.points.T
+
+        sens_to_ego_rot = Quaternion(cs_rec['rotation']).rotation_matrix
+        sens_to_ego_trans = np.array(cs_rec['translation'])
+        T_sensor_ego = np.eye(4, dtype=np.float32)
+        T_sensor_ego[:3, :3] = sens_to_ego_rot
+        T_sensor_ego[:3, 3] = sens_to_ego_trans
+
+        ego_to_glob_rot = Quaternion(pose_rec['rotation']).rotation_matrix
+        ego_to_glob_trans = np.array(pose_rec['translation'])
+        T_ego_global = np.eye(4, dtype=np.float32)
+        T_ego_global[:3, :3] = ego_to_glob_rot
+        T_ego_global[:3, 3] = ego_to_glob_trans
+
+        T_global_sensor = T_ego_global @ T_sensor_ego
+
+        return {
+            # Return the raw point cloud so the M-Detector can do its own filtering
+            'points_sensor_frame': points_sensor_frame[:, :3],
+            'T_global_lidar': T_global_sensor,
+            'timestamp': sweep_rec['timestamp'],
+        }
+
+    def get_scene_sweep_tokens(self, scene_token: str, lidar_name: str) -> list[str]:
+        scene_rec = self.nusc.get('scene', scene_token)
+        first_sample_token = scene_rec['first_sample_token']
+        current_sd_token = self.nusc.get('sample', first_sample_token)['data'].get(lidar_name)
+        if not current_sd_token:
+            sample_token = first_sample_token
+            while sample_token:
+                sample_rec = self.nusc.get('sample', sample_token)
+                if lidar_name in sample_rec['data']:
+                    current_sd_token = sample_rec['data'][lidar_name]
+                    break
+                sample_token = sample_rec['next']
+            if not current_sd_token: return []
+        
+        while True:
+            sd_rec = self.nusc.get('sample_data', current_sd_token)
+            if sd_rec['prev']:
+                current_sd_token = sd_rec['prev']
+            else:
+                break
+        
+        all_tokens = []
+        while current_sd_token:
+            all_tokens.append(current_sd_token)
+            current_sd_token = self.nusc.get('sample_data', current_sd_token)['next']
+            
+        return all_tokens
+
+############################
+FILE: src/ray_scripts/tuning_manager.py
+############################
+
+# src/ray_scripts/tuning_manager.py
+
+import optuna
+from ..core.m_detector.refinement_algorithms import ClusteringAlgorithm
+from .shared_utils import deep_update_dict
+
+def define_geometric_search_space(trial: optuna.Trial) -> dict:
+    """Defines the search space for the expensive geometric parameters."""
+    overrides = {}
+    # These parameters are critical as they happen first.
+    overrides['ransac_ground_params'] = {
+        # How close a point must be to a candidate plane during trial fits.
+        "inlier_threshold": trial.suggest_float("ransac_inlier_thresh", 0.1, 0.5),
+        # How close a point must be to the FINAL best plane to be labeled ground.
+        "ground_threshold": trial.suggest_float("ransac_ground_thresh", 0.1, 0.5),
+        # Define the vertical window to search for ground.
+        "z_min_threshold": trial.suggest_float("ransac_z_min", -3.0, -2.0),
+        "z_max_threshold": trial.suggest_float("ransac_z_max", -1.0, 0.0),
+    }
+
+    # === Occlusion Determination (Initial Detection) ===
+    overrides['occlusion_determination'] = {
+        "epsilon_depth": trial.suggest_float("occ_epsilon_depth", 0.1, 0.25),
+        "pixel_neighborhood_h": 2,  # Fixed
+        "pixel_neighborhood_v": 2,  # Fixed
+    }
+
+    overrides['detailed_occlusion_check'] = {
+        "epsilon_depth": trial.suggest_float("detail_epsilon_depth", 0.1, 0.25),
+        "angular_neighborhood_h_deg": trial.suggest_float("detail_angular_h", 0.05, 0.2), # Narrow, precise range
+        "angular_neighborhood_v_deg": trial.suggest_float("detail_angular_v", 0.1, 0.4),  # Narrow, precise range
+    }
+    
+    # Allow the optimizer to enable/disable adaptive epsilon for occlusion checks.
+    if trial.suggest_categorical("occ_adaptive_enabled", [True, False]):
+        overrides['occlusion_determination']['adaptive_epsilon_depth_config'] = {
+            "enabled": True,
+            "dthr": trial.suggest_float("occ_adaptive_dthr", 5.0, 20.0),
+            "kthr": trial.suggest_float("occ_adaptive_kthr", 0.01, 0.1, log=True),
+            "dmax": trial.suggest_float("occ_adaptive_dmax", 0.3, 1.0),
+            "dmin": 0.05  # Fixed safety net
+        }
+    else:
+        overrides['occlusion_determination']['adaptive_epsilon_depth_config'] = {"enabled": False}
+
+    # === Event Detection Logic ===
+    # Keep these ranges wide as well.
+    event_n = trial.suggest_int("event_N", 15, 25)
+    overrides['event_detection_logic'] = {
+        "test2_parallel_away": {"num_historical_DIs_M2": trial.suggest_int("event_M2", 3, 10)},
+        "test3_parallel_towards": {"num_historical_DIs_M3": 1}, # Fixed
+        "test4_perpendicular": {
+            "num_historical_DIs_N": event_n,
+            "min_occluding_DIs_M4": trial.suggest_int("event_M4", 5, 10)
+        }
+    }
+
+    # === Map Consistency Check (MCC) ===
+    overrides['map_consistency'] = {
+        "enabled": True,  
+        "interpolation_enabled": False,  # Keep disabled for faster tuning
+        "num_past_sweeps_for_mcc": trial.suggest_int("mcc_num_sweeps", 15, 25),
+        
+        # Use lenient angular windows to give the optimizer a good starting point.
+        "epsilon_phi_deg": trial.suggest_float("mcc_eps_phi", 0.1, 0.5),
+        "epsilon_theta_deg": trial.suggest_float("mcc_eps_theta", 0.5, 1.5),
+
+        # A low value is lenient (few points marked static).
+        # A high value is strict (many points marked static).
+        "static_confidence_threshold": trial.suggest_float("mcc_score_thresh", 0.1, 0.9),
+    }
+    
+    # Also allow tuning of the adaptive epsilon for the MCC, using forgiving ranges.
+    overrides['map_consistency']['adaptive_epsilon_forward_config'] = {
+        "enabled": True,
+        "dthr": trial.suggest_float("mcc_fwd_adaptive_dthr", 15.0, 30.0),
+        "kthr": trial.suggest_float("mcc_fwd_adaptive_kthr", 0.01, 0.05, log=True),
+        "dmax": trial.suggest_float("mcc_fwd_adaptive_dmax", 0.2, 0.8),
+        "dmin": trial.suggest_float("mcc_fwd_adaptive_dmin", 0.01, 0.1)
+    }
+    overrides['map_consistency']['adaptive_epsilon_backward_config'] = {
+        "enabled": True,
+        "dthr": trial.suggest_float("mcc_bwd_adaptive_dthr", 15.0, 30.0),
+        "kthr": trial.suggest_float("mcc_bwd_adaptive_kthr", 0.01, 0.05, log=True),
+        "dmax": trial.suggest_float("mcc_bwd_adaptive_dmax", 0.2, 0.8),
+        "dmin": trial.suggest_float("mcc_bwd_adaptive_dmin", 0.01, 0.1)
+    }
+
+    # === Derived Initialization Parameter ===
+    # This logic sets the number of sweeps needed before processing can start.
+    mcc_sweeps = overrides.get('map_consistency', {}).get('num_past_sweeps_for_mcc', 0)
+    required_init_sweeps = max(event_n, mcc_sweeps)
+    overrides['initialization_phase'] = {
+        "num_sweeps_for_initial_map": required_init_sweeps
+    }
+
+    return {"m_detector": overrides}
+
+
+def define_refinement_search_space(trial: optuna.Trial) -> dict:
+    """
+    Defines the search space for the refinement stage using the stable
+    CPU-based hdbscan library.
+    """
+    algo_choice = trial.suggest_categorical(
+        "cluster_algorithm", ['none', ClusteringAlgorithm.HDBSCAN.value]
+    )
+
+    if algo_choice == 'none':
+        return {"m_detector": {"frame_refinement": {"enabled": False}}}
+
+    overrides = {"m_detector": {"frame_refinement": {"enabled": True}}}
+    clustering_params = {"algorithm": algo_choice}
+
+    if algo_choice == ClusteringAlgorithm.HDBSCAN.value:
+        min_points = trial.suggest_int("hdbscan_min_points", 3, 25)
+        min_cluster_size = trial.suggest_int("hdbscan_min_cluster_size", min_points, 50)
+        
+        cluster_selection_epsilon = trial.suggest_float(
+            "hdbscan_cluster_selection_epsilon", 0.0, 5.0 
+        )
+        
+        clustering_params[algo_choice] = {
+            "min_cluster_size": min_cluster_size,
+            "min_points": min_points,
+            "cluster_selection_epsilon": cluster_selection_epsilon,
+        }
+        
+    overrides["m_detector"]["frame_refinement"]["clustering"] = clustering_params
+    return overrides
+
+
+def define_search_space(trial: optuna.Trial, mode: str):
+    """Defines the search space based on the current run mode."""
+    if mode == 'tune-full':
+        # FOR THE GEOMETRIC RUN, WE ONLY CALL THIS
+        params = define_geometric_search_space(trial)
+        # AND FORCE REFINEMENT TO BE OFF
+        params["m_detector"]["frame_refinement"] = {"enabled": False}
+        return params
+
+
+    elif mode == 'tune-refinement':
+        return define_refinement_search_space(trial)
+    else:
+        return {}
+
+
+
+# # src/ray_scripts/tuning_manager.py
+
+# import copy
+# import itertools
+# import optuna
+
+# def define_search_space(trial: optuna.Trial) -> dict:
+#     """
+#     PHASE 7: Tuning with Convex Hull Frame Refinement.
+
+#     GOAL: Break the plateau using a geometrically precise refinement method.
+
+#     STRATEGY:
+#     1.  REVERT the core geometric parameters to the ranges from the best run (Phase 5).
+#     2.  ENABLE the new Convex Hull refinement logic.
+#     3.  TUNE the clustering parameters (`eps`, `min_samples`) to find optimal clusters
+#         for this new, more precise refinement method.
+#     """
+#     overrides = {}
+
+#     # === Core Geometric Parameters (based on the 0.475-scoring run) ===
+#     overrides['occlusion_determination'] = {
+#         "epsilon_depth": trial.suggest_float("occ_epsilon_depth", 0.2, 0.3),
+#         "adaptive_epsilon_depth_config": {
+#             "enabled": True,
+#             "dthr": trial.suggest_float("occ_adaptive_dthr", 7.0, 12.0),
+#             "kthr": trial.suggest_float("occ_adaptive_kthr", 0.07, 0.1),
+#             "dmax": trial.suggest_float("occ_adaptive_dmax", 0.4, 0.6),
+#             "dmin": 0.05
+#         }
+#     }
+#     overrides['detailed_occlusion_check'] = {
+#         "epsilon_depth": trial.suggest_float("detail_epsilon_depth", 0.18, 0.25),
+#         "angular_neighborhood_h_deg": trial.suggest_float("detail_angular_h", 0.12, 0.18),
+#         "angular_neighborhood_v_deg": trial.suggest_float("detail_angular_v", 0.25, 0.35),
+#     }
+#     overrides['map_consistency'] = {
+#         "enabled": True,
+#         "num_past_sweeps_for_mcc": 19, # Fixed
+#         "epsilon_phi_deg": trial.suggest_float("mcc_eps_phi", 0.35, 0.55),
+#         "epsilon_theta_deg": trial.suggest_float("mcc_eps_theta", 1.0, 1.5),
+#         "static_confidence_threshold": trial.suggest_float("mcc_score_thresh", 0.45, 0.75),
+#     }
+    
+#     # === Event Logic (FIXED based on best results) ===
+#     overrides['event_detection_logic'] = {
+#         "test2_parallel_away": {"num_historical_DIs_M2": 8},
+#         "test4_perpendicular": {"min_occluding_DIs_M4": 7, "num_historical_DIs_N": 19}
+#     }
+
+#     # === NEW: Convex Hull Refinement (Tuning this is now the priority) ===
+#     overrides['frame_refinement'] = {
+#         "enabled": True,
+#         "clustering": {
+#             # Widen the search space again, as the logic is new
+#             "dbscan_eps": trial.suggest_float("cluster_eps", 0.3, 1.5),
+#             "dbscan_min_samples": trial.suggest_int("cluster_min_samples", 3, 15)
+#         }
+#     }
+
+#     return {"m_detector": overrides}
+
+    
+# def define_search_space(trial: optuna.Trial) -> dict:
+#     """
+#     Defines the hyperparameter search space for parameters we want to tune.
+#     """
+#     overrides = {}
+
+#     # === Occlusion Determination ===
+#     overrides['occlusion_determination'] = {
+#         "epsilon_depth": trial.suggest_float("occ_epsilon_depth", 0.05, 0.2, log=True),
+#         "pixel_neighborhood_h": trial.suggest_int("occ_pixel_h", 1, 3),
+#         "pixel_neighborhood_v": trial.suggest_int("occ_pixel_v", 1, 2),
+#         "angular_neighborhood_h_deg": trial.suggest_float("occ_angular_h", 0.1, 0.6),
+#         "angular_neighborhood_v_deg": trial.suggest_float("occ_angular_v", 0.2, 0.8)
+#     }
+#     # Optional: Add adaptive epsilon for occlusion here 
+#     # ...
+
+#     # === Event Detection Logic ===
+#     event_n = trial.suggest_int("event_N", 5, 15)
+#     overrides['event_detection_logic'] = {
+#         "test2_parallel_away": {"num_historical_DIs_M2": trial.suggest_int("event_M2", 1, 5)},
+#         "test3_parallel_towards": {"num_historical_DIs_M3": trial.suggest_int("event_M3", 1, 5)},
+#         "test4_perpendicular": {
+#             "num_historical_DIs_N": event_n,
+#             "min_occluding_DIs_M4": trial.suggest_int("event_M4", 2, event_n)
+#         }
+#     }
+
+#     # === Map Consistency Check (MCC) ===
+#     mcc_sweeps = 0 # Default to 0 if MCC is disabled
+#     if trial.suggest_categorical("mcc_enabled", [True, ]):
+#         mcc_sweeps = trial.suggest_int("mcc_num_sweeps", 5, 20)
+#         overrides['map_consistency'] = {
+#             "enabled": True,
+#             "num_past_sweeps_for_mcc": mcc_sweeps,
+#             "epsilon_phi_deg": trial.suggest_float("mcc_eps_phi", 0.3, 1.0),
+#             "epsilon_theta_deg": trial.suggest_float("mcc_eps_theta", 1.0, 3.0),
+#             "threshold_value_count": trial.suggest_int("mcc_thresh_count", 1, 4),
+#             # Note: We are not tuning the adaptive MCC params for simplicity here, but they could be added.
+#         }
+
+#     required_init_sweeps = max(event_n, mcc_sweeps)
+    
+#     overrides['initialization_phase'] = {
+#         "num_sweeps_for_initial_map": required_init_sweeps
+#     }
+
+#     # The final dictionary must be nested under the top-level 'm_detector' key
+#     return {"m_detector": overrides}
+
+# def define_search_space(trial: optuna.Trial) -> dict:
+#     """
+#     PHASE 2 (Take 3): A hybrid "Anchor and Explore" strategy.
+#     Start with the original working space and make minimal, high-confidence changes.
+#     """
+#     overrides = {}
+
+#     # === Occlusion Determination ===
+#     # ANCHOR: Keep the original, wide search space for these parameters.
+#     # The risk of narrowing them all at once is too high. Let the optimizer
+#     # explore freely here, now that we are guiding it elsewhere.
+#     overrides['occlusion_determination'] = {
+#         "epsilon_depth": trial.suggest_float("occ_epsilon_depth", 0.05, 0.2, log=True),
+#         # FIX: We can confidently fix the pixel neighborhoods based on the analysis.
+#         # This is a low-risk change that simplifies the search space.
+#         "pixel_neighborhood_h": 2,
+#         "pixel_neighborhood_v": 2,
+#         "angular_neighborhood_h_deg": trial.suggest_float("occ_angular_h", 0.1, 0.6),
+#         "angular_neighborhood_v_deg": trial.suggest_float("occ_angular_v", 0.2, 0.8)
+#     }
+
+#     # === Event Detection Logic ===
+#     # EXPLORE: This is our most confident change. The analysis showed a clear
+#     # desire for higher values. We extend the upper bound but keep the lower
+#     # bound within the original "known good" territory.
+#     event_n = trial.suggest_int("event_N", 10, 25) # Changed from (5, 15)
+#     overrides['event_detection_logic'] = {
+#         "test2_parallel_away": {"num_historical_DIs_M2": trial.suggest_int("event_M2", 3, 10)}, # Changed from (1, 5)
+#         # ANCHOR: Keep M3 the same.
+#         "test3_parallel_towards": {"num_historical_DIs_M3": trial.suggest_int("event_M3", 1, 5)},
+#         "test4_perpendicular": {
+#             "num_historical_DIs_N": event_n,
+#             "min_occluding_DIs_M4": trial.suggest_int("event_M4", 2, event_n)
+#         }
+#     }
+
+#     # === Map Consistency Check (MCC) ===
+#     # ANCHOR: Keep the main MCC parameters broad.
+#     mcc_sweeps = 0
+#     if trial.suggest_categorical("mcc_enabled", [True, ]):
+#         mcc_sweeps = trial.suggest_int("mcc_num_sweeps", 5, 20)
+#         overrides['map_consistency'] = {
+#             "enabled": True,
+#             "num_past_sweeps_for_mcc": mcc_sweeps,
+#             "epsilon_phi_deg": trial.suggest_float("mcc_eps_phi", 0.3, 1.0),
+#             "epsilon_theta_deg": trial.suggest_float("mcc_eps_theta", 1.0, 3.0),
+#             # FIX: This is our other high-confidence change.
+#             "threshold_value_count": 1, # Changed from suggest_int(..., 1, 4)
+#         }
+
+#     # This logic remains the same.
+#     required_init_sweeps = max(event_n, mcc_sweeps)
+#     overrides['initialization_phase'] = {
+#         "num_sweeps_for_initial_map": required_init_sweeps
+#     }
+
+#     return {"m_detector": overrides}
+
+# def define_search_space(trial: optuna.Trial) -> dict:
+#     """
+#     PHASE 3: Exploit and Verify.
+#     - Exploit the highly consistent results from the last run by creating a very narrow search space.
+#     - Verify if the adaptive epsilon feature can provide an additional performance boost.
+#     """
+#     overrides = {}
+
+#     # === Occlusion Determination ===
+#     # EXPLOIT: Zoom in on the optimal regions found in the last run.
+#     # The best values for epsilon_depth and angular_h were pinned at the boundaries,
+#     # so we will center our new search there and give a little room to explore.
+#     overrides['occlusion_determination'] = {
+#         "epsilon_depth": trial.suggest_float("occ_epsilon_depth", 0.19, 0.25), # Centered around the old max of 0.2
+#         "pixel_neighborhood_h": 2, # Fixed
+#         "pixel_neighborhood_v": 2, # Fixed
+#         "angular_neighborhood_h_deg": trial.suggest_float("occ_angular_h", 0.08, 0.15), # Centered around the old min of 0.1
+#         "angular_neighborhood_v_deg": trial.suggest_float("occ_angular_v", 0.3, 0.7), # Keep this range wider as the signal wasn't as strong
+#     }
+    
+#     # --- VERIFY: Re-introduce the adaptive epsilon feature ---
+#     # We now test if this feature, added to our new high-performing baseline, can improve the score.
+#     if trial.suggest_categorical("occ_adaptive_enabled", [True, False]):
+#         overrides['occlusion_determination']['adaptive_epsilon_depth_config'] = {
+#             "enabled": True,
+#             # Let's give these reasonable ranges to start.
+#             "dthr": trial.suggest_float("occ_adaptive_dthr", 3.0, 15.0),
+#             "kthr": trial.suggest_float("occ_adaptive_kthr", 0.01, 0.05, log=True),
+#             "dmax": trial.suggest_float("occ_adaptive_dmax", 0.4, 1.0),
+#             "dmin": 0.05 # Fixed, as it's a safety net
+#         }
+#     else:
+#         # Ensure it's explicitly disabled if the categorical is False
+#         overrides['occlusion_determination']['adaptive_epsilon_depth_config'] = {"enabled": False}
+
+
+#     # === Event Detection Logic ===
+#     # EXPLOIT: This is our most important parameter set. We will create a very
+#     # tight search space around the optimal values found.
+#     event_n = trial.suggest_int("event_N", 18, 22) # Tight range around 19-20
+#     overrides['event_detection_logic'] = {
+#         "test2_parallel_away": {"num_historical_DIs_M2": trial.suggest_int("event_M2", 5, 8)}, # Tight range around 5-7
+#         "test3_parallel_towards": {"num_historical_DIs_M3": 1}, # FIX: Confidently fix to 1.
+#         "test4_perpendicular": {
+#             "num_historical_DIs_N": event_n,
+#             "min_occluding_DIs_M4": trial.suggest_int("event_M4", 6, 8) # Best M4 was 7, let's explore around it.
+#         }
+#     }
+
+#     # === Map Consistency Check (MCC) ===
+#     # EXPLOIT: Refine the ranges based on the new data.
+#     overrides['map_consistency'] = {
+#         "enabled": True, # Fixed
+#         "num_past_sweeps_for_mcc": trial.suggest_int("mcc_num_sweeps", 15, 20), # Nudge range up
+#         "epsilon_phi_deg": trial.suggest_float("mcc_eps_phi", 0.45, 0.7), # Refined range
+#         "epsilon_theta_deg": trial.suggest_float("mcc_eps_theta", 1.0, 2.8), # Keep wide
+#         "threshold_value_count": 1, # Fixed
+#     }
+    
+#     # This logic remains the same.
+#     mcc_sweeps = overrides.get('map_consistency').get('num_past_sweeps_for_mcc')
+#     required_init_sweeps = max(event_n, mcc_sweeps)
+#     overrides['initialization_phase'] = {
+#         "num_sweeps_for_initial_map": required_init_sweeps
+#     }
+
+#     return {"m_detector": overrides}
+
+
+# def define_search_space(trial: optuna.Trial) -> dict:
+#     """
+#     PHASE 4a: Fast Calibration (Interpolation DISABLED).
+    
+#     The goal is to rapidly find the optimal parameters for the fast, GPU-only
+#     path of the Map Consistency Check. By disabling the slow CPU interpolation,
+#     we can run many more trials and quickly establish a strong baseline.
+#     """
+#     overrides = {}
+
+#     # === Occlusion Determination ===
+#     # We keep the search space wide to allow the optimizer to find the best
+#     # parameters for this specific (non-interpolated) system behavior.
+#     overrides['occlusion_determination'] = {
+#         "epsilon_depth": trial.suggest_float("occ_epsilon_depth", 0.1, 0.25),
+#         "pixel_neighborhood_h": 2,
+#         "pixel_neighborhood_v": 2,
+#         "angular_neighborhood_h_deg": trial.suggest_float("occ_angular_h", 0.1, 0.5),
+#         "angular_neighborhood_v_deg": trial.suggest_float("occ_angular_v", 0.2, 0.8),
+#     }
+    
+#     if trial.suggest_categorical("occ_adaptive_enabled", [True, False]):
+#         overrides['occlusion_determination']['adaptive_epsilon_depth_config'] = {
+#             "enabled": True,
+#             "dthr": trial.suggest_float("occ_adaptive_dthr", 5.0, 20.0),
+#             "kthr": trial.suggest_float("occ_adaptive_kthr", 0.01, 0.1, log=True),
+#             "dmax": trial.suggest_float("occ_adaptive_dmax", 0.3, 1.0),
+#             "dmin": 0.05
+#         }
+#     else:
+#         overrides['occlusion_determination']['adaptive_epsilon_depth_config'] = {"enabled": False}
+
+#     # === Event Detection Logic ===
+#     event_n = trial.suggest_int("event_N", 15, 25)
+#     overrides['event_detection_logic'] = {
+#         "test2_parallel_away": {"num_historical_DIs_M2": trial.suggest_int("event_M2", 3, 10)},
+#         "test3_parallel_towards": {"num_historical_DIs_M3": 1},
+#         "test4_perpendicular": {
+#             "num_historical_DIs_N": event_n,
+#             "min_occluding_DIs_M4": trial.suggest_int("event_M4", 5, 10)
+#         }
+#     }
+
+#     # === Map Consistency Check (MCC) ===
+#     overrides['map_consistency'] = {
+#         "enabled": True,
+#         # --- THIS IS THE KEY CHANGE FOR THIS STAGE ---
+#         "interpolation_enabled": False, # Disable slow CPU path for fast tuning.
+        
+#         "num_past_sweeps_for_mcc": trial.suggest_int("mcc_num_sweeps", 15, 25),
+#         "epsilon_phi_deg": trial.suggest_float("mcc_eps_phi", 0.3, 1.0),
+#         "epsilon_theta_deg": trial.suggest_float("mcc_eps_theta", 1.0, 3.0),
+#         "threshold_value_count": trial.suggest_int("mcc_thresh_count", 1, 3),
+#     }
+    
+#     # We still tune the adaptive epsilon configs, as they affect the GPU path.
+#     overrides['map_consistency']['adaptive_epsilon_forward_config'] = {
+#         "enabled": True,
+#         "dthr": trial.suggest_float("mcc_fwd_adaptive_dthr", 10.0, 25.0),
+#         "kthr": trial.suggest_float("mcc_fwd_adaptive_kthr", 0.02, 0.1, log=True),
+#         "dmax": trial.suggest_float("mcc_fwd_adaptive_dmax", 0.4, 1.5),
+#         "dmin": trial.suggest_float("mcc_fwd_adaptive_dmin", 0.05, 0.2)
+#     }
+#     overrides['map_consistency']['adaptive_epsilon_backward_config'] = {
+#         "enabled": True,
+#         "dthr": trial.suggest_float("mcc_bwd_adaptive_dthr", 10.0, 25.0),
+#         "kthr": trial.suggest_float("mcc_bwd_adaptive_kthr", 0.02, 0.1, log=True),
+#         "dmax": trial.suggest_float("mcc_bwd_adaptive_dmax", 0.4, 1.5),
+#         "dmin": trial.suggest_float("mcc_bwd_adaptive_dmin", 0.05, 0.2)
+#     }
+
+#     # This logic remains the same.
+#     mcc_sweeps = overrides.get('map_consistency').get('num_past_sweeps_for_mcc')
+#     required_init_sweeps = max(event_n, mcc_sweeps)
+#     overrides['initialization_phase'] = {
+#         "num_sweeps_for_initial_map": required_init_sweeps
+#     }
+
+#     return {"m_detector": overrides}
+
+# Tight tuning space with old code:
+
+# def define_search_space(trial: optuna.Trial) -> dict:
+#     """
+#     PHASE 3: Exploit and Verify.
+#     - Exploit the highly consistent results from the last run by creating a very narrow search space.
+#     - Verify if the adaptive epsilon feature can provide an additional performance boost.
+#     """
+#     overrides = {}
+
+#     # === Occlusion Determination ===
+#     # EXPLOIT: Zoom in on the optimal regions found in the last run.
+#     # The best values for epsilon_depth and angular_h were pinned at the boundaries,
+#     # so we will center our new search there and give a little room to explore.
+#     overrides['occlusion_determination'] = {
+#         "epsilon_depth": trial.suggest_float("occ_epsilon_depth", 0.19, 0.25), # Centered around the old max of 0.2
+#         "pixel_neighborhood_h": 2, # Fixed
+#         "pixel_neighborhood_v": 2, # Fixed
+#         "angular_neighborhood_h_deg": trial.suggest_float("occ_angular_h", 0.08, 0.15), # Centered around the old min of 0.1
+#         "angular_neighborhood_v_deg": trial.suggest_float("occ_angular_v", 0.3, 0.7), # Keep this range wider as the signal wasn't as strong
+#     }
+    
+#     # --- VERIFY: Re-introduce the adaptive epsilon feature ---
+#     # We now test if this feature, added to our new high-performing baseline, can improve the score.
+#     if trial.suggest_categorical("occ_adaptive_enabled", [True, False]):
+#         overrides['occlusion_determination']['adaptive_epsilon_depth_config'] = {
+#             "enabled": True,
+#             # Let's give these reasonable ranges to start.
+#             "dthr": trial.suggest_float("occ_adaptive_dthr", 3.0, 15.0),
+#             "kthr": trial.suggest_float("occ_adaptive_kthr", 0.01, 0.05, log=True),
+#             "dmax": trial.suggest_float("occ_adaptive_dmax", 0.4, 1.0),
+#             "dmin": 0.05 # Fixed, as it's a safety net
+#         }
+#     else:
+#         # Ensure it's explicitly disabled if the categorical is False
+#         overrides['occlusion_determination']['adaptive_epsilon_depth_config'] = {"enabled": False}
+
+
+#     # === Event Detection Logic ===
+#     # EXPLOIT: This is our most important parameter set. We will create a very
+#     # tight search space around the optimal values found.
+#     event_n = trial.suggest_int("event_N", 18, 22) # Tight range around 19-20
+#     overrides['event_detection_logic'] = {
+#         "test2_parallel_away": {"num_historical_DIs_M2": trial.suggest_int("event_M2", 5, 8)}, # Tight range around 5-7
+#         "test3_parallel_towards": {"num_historical_DIs_M3": 1}, # FIX: Confidently fix to 1.
+#         "test4_perpendicular": {
+#             "num_historical_DIs_N": event_n,
+#             "min_occluding_DIs_M4": trial.suggest_int("event_M4", 6, 8) # Best M4 was 7, let's explore around it.
+#         }
+#     }
+
+#     # === Map Consistency Check (MCC) ===
+#     # EXPLOIT: Refine the ranges based on the new data.
+#     overrides['map_consistency'] = {
+#         "enabled": False, # Fixed
+#         "num_past_sweeps_for_mcc": trial.suggest_int("mcc_num_sweeps", 15, 20), # Nudge range up
+#         "epsilon_phi_deg": trial.suggest_float("mcc_eps_phi", 0.45, 0.7), # Refined range
+#         "epsilon_theta_deg": trial.suggest_float("mcc_eps_theta", 1.0, 2.8), # Keep wide
+#         "threshold_value_count": 1, # Fixed
+#     }
+    
+#     # This logic remains the same.
+#     mcc_sweeps = overrides.get('map_consistency').get('num_past_sweeps_for_mcc')
+#     required_init_sweeps = max(event_n, mcc_sweeps)
+#     overrides['initialization_phase'] = {
+#         "num_sweeps_for_initial_map": required_init_sweeps
+#     }
+
+#     return {"m_detector": overrides}
+
+# def define_search_space(trial: optuna.Trial) -> dict:
+#     """
+#     PHASE 4b: Forgiving Calibration (with Hyperband Pruner).
+    
+#     The goal is to make the MCC filter less aggressive by default, to ensure
+#     the optimizer can find a non-zero IoU signal to work with. We are making
+#     the epsilon values for the MCC SMALLER, meaning it will be more strict
+#     about what it considers a "match" and therefore will filter FEWER points.
+#     """
+#     overrides = {}
+
+#     # === Occlusion Determination ===
+#     # Keep this part wide
+#     overrides['occlusion_determination'] = {
+#         "epsilon_depth": trial.suggest_float("occ_epsilon_depth", 0.1, 0.25),
+#         "pixel_neighborhood_h": 2, "pixel_neighborhood_v": 2,
+#         "angular_neighborhood_h_deg": trial.suggest_float("occ_angular_h", 0.1, 0.5),
+#         "angular_neighborhood_v_deg": trial.suggest_float("occ_angular_v", 0.2, 0.8),
+#     }
+#     # ... (adaptive epsilon config for occlusion remains the same)
+
+#     # === Event Detection Logic ===
+#     # Keep this part wide
+#     event_n = trial.suggest_int("event_N", 15, 25)
+#     overrides['event_detection_logic'] = {
+#         "test2_parallel_away": {"num_historical_DIs_M2": trial.suggest_int("event_M2", 3, 10)},
+#         "test3_parallel_towards": {"num_historical_DIs_M3": 1},
+#         "test4_perpendicular": { "num_historical_DIs_N": event_n, "min_occluding_DIs_M4": trial.suggest_int("event_M4", 5, 10) }
+#     }
+
+#     # === Map Consistency Check (MCC) ===
+#     overrides['map_consistency'] = {
+#         "enabled": True,
+#         "interpolation_enabled": False, # Still disabled for speed
+#         "num_past_sweeps_for_mcc": trial.suggest_int("mcc_num_sweeps", 15, 25),
+        
+#         # --- KEY CHANGE: Make the filter LESS AGGRESSIVE ---
+#         # Use smaller angular windows. A smaller window means a point has to be
+#         # VERY close to a static point to be filtered out. This will let more
+#         # true positives through.
+#         "epsilon_phi_deg": trial.suggest_float("mcc_eps_phi", 0.1, 0.5), # Was (0.3, 1.0)
+#         "epsilon_theta_deg": trial.suggest_float("mcc_eps_theta", 0.5, 1.5), # Was (1.0, 3.0)
+        
+#         "threshold_value_count": trial.suggest_int("mcc_thresh_count", 1, 2), # More likely to be 1 now
+#     }
+    
+#     # Also make the adaptive epsilon for MCC less aggressive by default
+#     overrides['map_consistency']['adaptive_epsilon_forward_config'] = {
+#         "enabled": True,
+#         "dthr": trial.suggest_float("mcc_fwd_adaptive_dthr", 15.0, 30.0),
+#         "kthr": trial.suggest_float("mcc_fwd_adaptive_kthr", 0.01, 0.05, log=True), # Smaller k
+#         "dmax": trial.suggest_float("mcc_fwd_adaptive_dmax", 0.2, 0.8), # Smaller max
+#         "dmin": trial.suggest_float("mcc_fwd_adaptive_dmin", 0.01, 0.1) # Smaller min
+#     }
+#     overrides['map_consistency']['adaptive_epsilon_backward_config'] = {
+#         "enabled": True,
+#         "dthr": trial.suggest_float("mcc_bwd_adaptive_dthr", 15.0, 30.0),
+#         "kthr": trial.suggest_float("mcc_bwd_adaptive_kthr", 0.01, 0.05, log=True),
+#         "dmax": trial.suggest_float("mcc_bwd_adaptive_dmax", 0.2, 0.8),
+#         "dmin": trial.suggest_float("mcc_bwd_adaptive_dmin", 0.01, 0.1)
+#     }
+
+#     # ... (initialization logic remains the same) ...
+#     mcc_sweeps = overrides.get('map_consistency').get('num_past_sweeps_for_mcc')
+#     required_init_sweeps = max(event_n, mcc_sweeps)
+#     overrides['initialization_phase'] = { "num_sweeps_for_initial_map": required_init_sweeps }
+
+#     return {"m_detector": overrides}
+
+# def define_search_space(trial: optuna.Trial) -> dict:
+#     """
+#     PHASE 5: Tuning the Normalized Score MCC.
+
+#     GOAL: Beat the 0.47 IoU baseline by finding the optimal configuration for the now-working
+#     Map Consistency Check (MCC) filter.
+
+#     STRATEGY:
+#     1.  RE-ENABLE the MCC.
+#     2.  TUNE the new `static_confidence_threshold`, giving it a wide range to explore. This is
+#         now the primary control for the filter's strictness.
+#     3.  KEEP the other parameters in wide, forgiving ranges to allow the optimizer to find
+#         the best combination between the initial detection and the new filter.
+#     """
+#     overrides = {}
+
+#     # === Occlusion Determination (Initial Detection) ===
+#     # Keep this search space wide. The baseline is strong, but there may be
+#     # better configurations when combined with a working MCC.
+#     overrides['occlusion_determination'] = {
+#         "epsilon_depth": trial.suggest_float("occ_epsilon_depth", 0.1, 0.25),
+#         "pixel_neighborhood_h": 2,  # Fixed
+#         "pixel_neighborhood_v": 2,  # Fixed
+#     }
+
+#     overrides['detailed_occlusion_check'] = {
+#         "epsilon_depth": trial.suggest_float("detail_epsilon_depth", 0.1, 0.25),
+#         "angular_neighborhood_h_deg": trial.suggest_float("detail_angular_h", 0.05, 0.2), # Narrow, precise range
+#         "angular_neighborhood_v_deg": trial.suggest_float("detail_angular_v", 0.1, 0.4),  # Narrow, precise range
+#     }
+    
+    
+#     # Allow the optimizer to enable/disable adaptive epsilon for occlusion checks.
+#     if trial.suggest_categorical("occ_adaptive_enabled", [True, False]):
+#         overrides['occlusion_determination']['adaptive_epsilon_depth_config'] = {
+#             "enabled": True,
+#             "dthr": trial.suggest_float("occ_adaptive_dthr", 5.0, 20.0),
+#             "kthr": trial.suggest_float("occ_adaptive_kthr", 0.01, 0.1, log=True),
+#             "dmax": trial.suggest_float("occ_adaptive_dmax", 0.3, 1.0),
+#             "dmin": 0.05  # Fixed safety net
+#         }
+#     else:
+#         overrides['occlusion_determination']['adaptive_epsilon_depth_config'] = {"enabled": False}
+
+
+#     # === Event Detection Logic ===
+#     # Keep these ranges wide as well.
+#     event_n = trial.suggest_int("event_N", 15, 25)
+#     overrides['event_detection_logic'] = {
+#         "test2_parallel_away": {"num_historical_DIs_M2": trial.suggest_int("event_M2", 3, 10)},
+#         "test3_parallel_towards": {"num_historical_DIs_M3": 1}, # Fixed
+#         "test4_perpendicular": {
+#             "num_historical_DIs_N": event_n,
+#             "min_occluding_DIs_M4": trial.suggest_int("event_M4", 5, 10)
+#         }
+#     }
+
+#     # === Map Consistency Check (MCC) ===
+#     # This is the most critical section for this phase.
+#     overrides['map_consistency'] = {
+#         "enabled": True,  # RE-ENABLE THE MCC
+#         "interpolation_enabled": False,  # Keep disabled for faster tuning
+        
+#         "num_past_sweeps_for_mcc": trial.suggest_int("mcc_num_sweeps", 15, 25),
+        
+#         # Use lenient angular windows to give the optimizer a good starting point.
+#         "epsilon_phi_deg": trial.suggest_float("mcc_eps_phi", 0.1, 0.5),
+#         "epsilon_theta_deg": trial.suggest_float("mcc_eps_theta", 0.5, 1.5),
+
+#         # This is the NEW primary tuning parameter for the MCC.
+#         # A low value is lenient (few points marked static).
+#         # A high value is strict (many points marked static).
+#         "static_confidence_threshold": trial.suggest_float("mcc_score_thresh", 0.1, 0.9),
+
+#         # The old count threshold is no longer used, so it's removed.
+#         # "threshold_value_count": ...
+#     }
+    
+#     # Also allow tuning of the adaptive epsilon for the MCC, using forgiving ranges.
+#     overrides['map_consistency']['adaptive_epsilon_forward_config'] = {
+#         "enabled": True,
+#         "dthr": trial.suggest_float("mcc_fwd_adaptive_dthr", 15.0, 30.0),
+#         "kthr": trial.suggest_float("mcc_fwd_adaptive_kthr", 0.01, 0.05, log=True),
+#         "dmax": trial.suggest_float("mcc_fwd_adaptive_dmax", 0.2, 0.8),
+#         "dmin": trial.suggest_float("mcc_fwd_adaptive_dmin", 0.01, 0.1)
+#     }
+#     overrides['map_consistency']['adaptive_epsilon_backward_config'] = {
+#         "enabled": True,
+#         "dthr": trial.suggest_float("mcc_bwd_adaptive_dthr", 15.0, 30.0),
+#         "kthr": trial.suggest_float("mcc_bwd_adaptive_kthr", 0.01, 0.05, log=True),
+#         "dmax": trial.suggest_float("mcc_bwd_adaptive_dmax", 0.2, 0.8),
+#         "dmin": trial.suggest_float("mcc_bwd_adaptive_dmin", 0.01, 0.1)
+#     }
+
+#     # === Derived Initialization Parameter ===
+#     # This logic correctly sets the number of sweeps needed before processing can start.
+#     mcc_sweeps = overrides.get('map_consistency', {}).get('num_past_sweeps_for_mcc', 0)
+#     required_init_sweeps = max(event_n, mcc_sweeps)
+#     overrides['initialization_phase'] = {
+#         "num_sweeps_for_initial_map": required_init_sweeps
+#     }
+
+#     return {"m_detector": overrides}
+
+
+
+############################
+FILE: src/ray_scripts/analyze_study.py
+############################
+
+import argparse
+import sys
+import pandas as pd
+import optuna
+
+# Set pandas display options for better text-based output
+pd.set_option('display.max_rows', 100)
+pd.set_option('display.max_columns', 20)
+pd.set_option('display.width', 180)
+pd.set_option('display.precision', 5)
+
+def analyze_study(db_path: str, study_name: str):
+    """
+    Connects to an Optuna SQLite database, loads a study, and performs
+    a text-based analysis to guide future search space adjustments.
+    """
+    # 1. Connect to the Optuna database
+    storage_url = f"sqlite:///{db_path}"
+    try:
+        study = optuna.load_study(study_name=study_name, storage=storage_url)
+    except KeyError:
+        print(f"Error: Study '{study_name}' not found in the database '{db_path}'.")
+        # Optional: List available studies
+        try:
+            all_studies = optuna.get_all_study_summaries(storage=storage_url)
+            if all_studies:
+                print("\nAvailable studies are:")
+                for s in all_studies:
+                    print(f"- {s.study_name}")
+        except Exception:
+            pass # Ignore if listing fails
+        sys.exit(1)
+    except Exception as e:
+        print(f"An error occurred while loading the study: {e}")
+        sys.exit(1)
+
+    # 2. Get all trials into a pandas DataFrame
+    df = study.trials_dataframe()
+
+    print("\n" + "="*80)
+    print(f"Optuna Study Analysis for: '{study.study_name}'")
+    print(f"Direction: {study.direction.name}")
+    print("="*80)
+
+    # --- Overall Summary ---
+    total_trials = len(df)
+    complete_trials = df[df.state == 'COMPLETE']
+    
+    if complete_trials.empty:
+        print("\nNo trials have been completed yet. Cannot perform analysis.")
+        sys.exit(0)
+        
+    print(f"\n[1] Overall Summary\n" + "-"*20)
+    print(f"Total trials in DB: {total_trials}")
+    print(f"Completed trials:   {len(complete_trials)}")
+    print(f"Pruned trials:      {len(df[df.state == 'PRUNED'])}")
+    print(f"Failed trials:      {len(df[df.state == 'FAIL'])}")
+
+    # --- Best Trial ---
+    best_trial = study.best_trial
+    print(f"\n[2] Best Trial (Score: {best_trial.value:.5f})\n" + "-"*20)
+    for key, value in best_trial.params.items():
+        print(f"  - {key:<30}: {value}")
+
+    # --- Top 10 Trials ---
+    print(f"\n[3] Top 10 Performing Trials\n" + "-"*20)
+    # Clean up column names for display
+    df_display = complete_trials.copy()
+    df_display.columns = df_display.columns.str.replace('params_', '')
+    
+    # Sort by score (assuming higher is better)
+    if study.direction == optuna.study.StudyDirection.MAXIMIZE:
+        df_display.sort_values(by='value', ascending=False, inplace=True)
+    else:
+        df_display.sort_values(by='value', ascending=True, inplace=True)
+
+    # Select only the relevant parameter columns plus the value
+    param_cols = list(study.best_params.keys())
+    display_cols = ['value'] + param_cols
+    print(df_display.head(10)[display_cols].to_string())
+
+    # --- Parameter Importance ---
+    print(f"\n[4] Parameter Importance\n" + "-"*20)
+    print("This shows which parameters have the biggest impact on the score.")
+    try:
+        # Use a target to only consider completed trials for importance calculation
+        param_importance = optuna.importance.get_param_importances(
+            study, target=lambda t: t.state == optuna.trial.TrialState.COMPLETE
+        )
+        
+        importance_df = pd.DataFrame.from_dict(param_importance, orient='index', columns=['Importance'])
+        importance_df.sort_values(by='Importance', ascending=False, inplace=True)
+        print(importance_df)
+        
+        top_importances = list(param_importance.items())
+        top_importances.sort(key=lambda item: item[1], reverse=True)
+
+    except Exception as e:
+        print(f"Could not calculate parameter importance: {e}")
+        top_importances = []
+
+
+    # --- Search Space Suggestions ---
+    print(f"\n[5] Search Space Suggestions\n" + "-"*20)
+    print("Based on the distribution of parameters in the TOP 20% of trials.")
+
+    if not top_importances:
+        print("Cannot generate suggestions without parameter importances.")
+        sys.exit(0)
+
+    # Get the threshold for the top 20% of scores
+    if study.direction == optuna.study.StudyDirection.MAXIMIZE:
+        top_quantile_threshold = complete_trials['value'].quantile(0.8)
+        df_top_trials = complete_trials[complete_trials['value'] >= top_quantile_threshold]
+    else:
+        top_quantile_threshold = complete_trials['value'].quantile(0.2)
+        df_top_trials = complete_trials[complete_trials['value'] <= top_quantile_threshold]
+
+    print(f"(Analyzing {len(df_top_trials)} trials with scores >= {top_quantile_threshold:.5f})\n")
+
+    # Analyze the top 5 most important parameters
+    for param_name, _ in top_importances[:5]:
+        # The column name in the DataFrame includes "params_"
+        df_col_name = f"params_{param_name}"
+        
+        if df_col_name in df_top_trials.columns:
+            stats = df_top_trials[df_col_name].describe()
+            
+            print(f"-> For parameter '{param_name}':")
+            print(f"   The best trials have values concentrated between {stats['min']:.4f} and {stats['max']:.4f}.")
+            print(f"   Mean: {stats['mean']:.4f}, Median: {df_top_trials[df_col_name].median():.4f}")
+            print(f"   SUGGESTION: Consider narrowing the search range to approx. [{stats['25%']:.4f}, {stats['75%']:.4f}]\n")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Analyze an Optuna study from an SQLite database.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        "db_path", 
+        help="Path to the Optuna sqlite .db file."
+    )
+    parser.add_argument(
+        "--study-name", 
+        required=True,
+        help="Name of the study to analyze (e.g., 'm-detector-tuning-phase-5')."
+    )
+    
+    args = parser.parse_args()
+    
+    analyze_study(args.db_path, args.study_name)
+
+############################
+FILE: src/ray_scripts/__init__.py
+############################
+
+
+############################
+FILE: src/ray_scripts/modes/full_tuner.py
+############################
+
+# FILE: src/ray_scripts/modes/full_tuner.py (FINAL, CORRECTED)
+
+import ray
+import optuna
+import torch
+import logging
+import os
+import copy
+from pathlib import Path
+import time
+from typing import Union
+import warnings
+
+from ...config_loader import MDetectorConfigAccessor
+from ...core.m_detector.base import MDetector
+from ...data_utils.nuscenes_helper import NuScenesProcessor
+from ...data_utils.validation_utils_torch import calculate_metrics_for_optuna_trial_in_memory
+from ..shared_utils import deep_update_dict, calculate_iou, setup_trial_file_logging
+from ..tuning_manager import define_search_space
+
+@ray.remote
+class PruningManagerActor:
+    """A central actor to manage all interactions with the Optuna study."""
+    def __init__(self, study_name: str, storage_path: str):
+        self.study_name = study_name
+        self.storage_path = storage_path
+
+    def report(self, trial_number: int, value: float, step: int) -> Union[bool, None]:
+        """
+        Reports an intermediate value for a trial.
+        """
+        try:
+            # Load a fresh instance of the study to get the most up-to-date trial list.
+            study = optuna.load_study(study_name=self.study_name, storage=self.storage_path)
+            trial = optuna.trial.Trial(study, trial_number)
+            
+            trial.report(value, step)
+            if trial.should_prune():
+                return True # Prune the trial
+                
+        except KeyError:
+            return None
+        except optuna.exceptions.UpdateFinishedTrialError:
+            # The trial has already been completed or pruned by another mechanism.
+            return True
+            
+        return False # Do not prune
+
+@ray.remote
+def run_trial_on_ray(trial_params: dict, trial_number: int, base_config: dict, run_timestamp: str, pruning_manager: PruningManagerActor):
+    """A Ray worker task that reports progress to the central PruningManagerActor."""
+    warnings.filterwarnings("ignore", message="The cuda.cuda module is deprecated", category=FutureWarning)
+
+    logger_name = f"worker_trial_{trial_number}"
+    logger = logging.getLogger(logger_name)
+    setup_trial_file_logging(logger_name, base_config['study_name'], run_timestamp, trial_number, base_config['logging_settings'])
+    logger.info(f"Worker starting trial {trial_number}.")
+
+    trial_config = deep_update_dict(copy.deepcopy(base_config), trial_params)
+    accessor = MDetectorConfigAccessor(config_dict=trial_config)
+    data_actor_handle = ray.get_actor("nuscenes_data_service")
+
+    try:
+        device = torch.device("cuda:0" if accessor.get_processing_settings().get('device') == 'cuda' and torch.cuda.is_available() else "cpu")
+        nusc_handle = ray.get(data_actor_handle.get_nusc_handle.remote())
+        detector = MDetector(config_accessor=accessor, device=device, logger_name=logger_name)
+        processor = NuScenesProcessor(
+            data_actor=data_actor_handle, config_accessor=accessor,
+            progress_actor=None, worker_id=trial_number, logger_name=logger_name
+        )
+    except Exception as e:
+        logger.error(f"Trial {trial_number} failed during setup: {e}", exc_info=True)
+        raise
+
+    scene_indices = accessor.get_processing_settings()['scene_indices_to_run']
+
+    if isinstance(scene_indices, str) and scene_indices.lower() == 'all':
+        total_scenes = ray.get(data_actor_handle.get_scene_count.remote())
+        scene_indices = set(range(total_scenes))
+    else:
+        scene_indices = set(scene_indices)
+    total_tp, total_fp, total_fn = 0, 0, 0
+    
+    for i, scene_idx in enumerate(scene_indices):
+        result_dict = processor.process_scene(scene_idx, detector, f"T{trial_number}_S{scene_idx}")
+        logger.info(f"Trial {trial_number}, done processing Scene {scene_idx}")
+        if not result_dict:
+            logger.warning(f"Trial {trial_number}, Scene {scene_idx} produced no result dictionary. Skipping.")
+            continue
+
+        metrics = calculate_metrics_for_optuna_trial_in_memory(
+            mdet_results_dict=result_dict, eval_params={"mdet_dynamic_label_value": 0},
+            nusc=nusc_handle, scene_idx=scene_idx
+        ) 
+        total_tp += metrics['tp']; total_fp += metrics['fp']; total_fn += metrics['fn']
+
+
+        step = i + 1
+        intermediate_iou = calculate_iou(total_tp, total_fp, total_fn)
+
+        logger.info(f"Trial {trial_number}, Intermediate IoU for Scene {scene_idx}: {intermediate_iou}")
+        
+        pruning_decision = ray.get(pruning_manager.report.remote(trial_number, intermediate_iou, step))
+
+        if pruning_decision is None and trial_number != 0:
+            raise RuntimeError(f"PruningManagerActor could not find Trial #{trial_number} in the database.")
+        
+        if pruning_decision is True:
+            logger.warning(f"Worker for trial {trial_number} is being pruned at step {step} with IoU {intermediate_iou:.4f}. Another trial was better.")
+            raise optuna.TrialPruned()
+
+    final_iou = calculate_iou(total_tp, total_fp, total_fn)
+    logger.info(f"Worker finished trial {trial_number}. Final IoU: {final_iou:.4f}")
+    return final_iou
+
+
+def run(config: dict, study_name: str, n_trials: int, run_timestamp: str, db_dir: Path):
+    """Manages an Optuna study for end-to-end tuning."""
+    logger = logging.getLogger(__name__)
+    logger.info(f"--- Starting Tune-Full Mode for study '[bold green]{study_name}[/bold green]' ---")
+
+    pruner = optuna.pruners.HyperbandPruner(min_resource=1, max_resource='auto', reduction_factor=3)
+
+    storage_path = f"sqlite:///{db_dir / study_name}.db"
+    
+    study = optuna.create_study(
+        study_name=study_name, storage=storage_path, 
+        direction="maximize", load_if_exists=True, pruner=pruner
+    )
+    
+    pruning_manager = PruningManagerActor.remote(study_name, storage_path)
+    logger.info(f"Using Storage: [bold cyan]SQLite via PruningManagerActor[/bold cyan]")
+    logger.info(f"Using Pruner: [bold cyan]HyperbandPruner[/bold cyan]")
+
+    available_gpus = int(ray.cluster_resources().get("GPU", 0))
+    if available_gpus == 0:
+        logger.error("[bold red]No GPUs available...[/bold red]"); return
+
+    workers_per_gpu = config['processing_settings']['workers_per_gpu']
+    gpus_per_trial = 1.0 / workers_per_gpu
+    max_concurrent_trials = int(available_gpus / gpus_per_trial)
+    logger.info(f"Running with a maximum of [bold cyan]{max_concurrent_trials}[/bold cyan] parallel trials...")
+
+    running_tasks = {}
+    completed_trials = len(study.get_trials(deepcopy=False, states=(optuna.trial.TrialState.COMPLETE, optuna.trial.TrialState.FAIL, optuna.trial.TrialState.PRUNED)))
+    logger.info(f"Found {completed_trials} existing trials in the study.")
+
+    while completed_trials < n_trials:
+        if (completed_trials + len(running_tasks)) < n_trials and len(running_tasks) < max_concurrent_trials:
+            trial_obj = study.ask()
+            params = define_search_space(trial_obj, mode='tune-full')
+            
+            future = run_trial_on_ray.options(num_gpus=gpus_per_trial).remote(
+                params, trial_obj.number, config, run_timestamp, pruning_manager
+            )
+            running_tasks[future] = trial_obj
+            logger.info(f"Dispatched Trial #[bold cyan]{trial_obj.number}[/bold cyan]...")
+        else:
+            if not running_tasks: time.sleep(1); continue
+            ready_futures, _ = ray.wait(list(running_tasks.keys()), num_returns=1)
+            for ready_future in ready_futures:
+                trial_obj = running_tasks.pop(ready_future)
+                try:
+                    score = ray.get(ready_future)
+                    study.tell(trial_obj, score)
+                    logger.info(f"Trial {trial_obj.number} finished. Score (IoU): [bold yellow]{score:.4f}[/bold yellow]")
+                except optuna.TrialPruned:
+                    study.tell(trial_obj, state=optuna.trial.TrialState.PRUNED)
+                    logger.info(f"[yellow]Trial {trial_obj.number} was PRUNED.[/yellow]")
+                except Exception as e:
+                    study.tell(trial_obj, state=optuna.trial.TrialState.FAIL)
+                    logger.error(f"[bold red]Trial {trial_obj.number} crashed: {e}[/bold red]", exc_info=False)
+                
+                completed_trials += 1
+                
+                try:
+                    best_score_str = f"{study.best_value:.4f} (T#{study.best_trial.number})"
+                except ValueError:
+                    best_score_str = "N/A"
+                
+                logger.info(f"Progress: {completed_trials}/{n_trials}. Best score: [bold green]{best_score_str}[/bold green]")
+    
+    logger.info(f"\n[bold green]--- Optuna Study '{study_name}' Complete ---[/bold green]")
+
+############################
+FILE: src/ray_scripts/modes/refinement_tuner.py
+############################
+
+# FILE: src/ray_scripts/modes/refinement_tuner.py (FINAL, CORRECTED)
+
+import ray
+import optuna
+import torch
+import logging
+import pickle
+import copy
+from pathlib import Path
+import time
+import warnings
+
+from ...config_loader import MDetectorConfigAccessor
+from ...core.m_detector.base import MDetector
+from ..shared_utils import deep_update_dict, calculate_iou, setup_trial_file_logging
+from ..tuning_manager import define_search_space
+from ...data_utils.validation_utils_torch import calculate_metrics
+from ...core.constants import DYNAMIC_LABEL_VALUE
+
+class MockDI:
+    """A lightweight mock of a DepthImage for the refinement function."""
+    def __init__(self, points_global: torch.Tensor):
+        self.original_points_global_coords = points_global
+
+def _calculate_metrics_for_baked_frame(pred_labels: torch.Tensor, frame_data: dict, mdet_label_val: int) -> dict:
+    """Calculates metrics for a single frame from baked data."""
+    device = pred_labels.device
+    pred_is_dyn = (pred_labels == mdet_label_val)
+    num_filtered_points = len(pred_labels)
+    gt_is_dyn = torch.zeros(num_filtered_points, dtype=torch.bool, device=device)
+    map_tensor = torch.from_numpy(frame_data['original_indices_map'].copy()).long().to(device) 
+    gt_sparse_tensor = torch.from_numpy(frame_data['gt_sparse_indices'].copy()).long().to(device)
+    is_in_gt_mask = torch.isin(map_tensor, gt_sparse_tensor)
+    gt_is_dyn[is_in_gt_mask] = True
+    return calculate_metrics(pred_is_dyn, gt_is_dyn)
+
+@ray.remote
+def run_trial_on_ray(trial_params: dict, trial_number: int, base_config: dict, run_timestamp: str, cached_data: list):
+    """
+    A lightweight Ray worker that tunes ONLY the refinement stage using pre-baked data.
+    This function's logs are configured to go ONLY to files, not the console.
+    """
+    # --- Filter Warnings within the remote worker ---
+    warnings.filterwarnings("ignore", message="The cuda.cuda module is deprecated", category=FutureWarning)
+    warnings.filterwarnings("ignore", message="The cuda.cudart module is deprecated", category=FutureWarning)
+    warnings.filterwarnings(
+        "ignore",
+        message="'force_all_finite' was renamed to 'ensure_all_finite' in 1.6 and will be removed in 1.8.",
+        category=FutureWarning
+    )
+
+    # 1. Setup Worker-Specific File Logging
+    logger_name = f"worker_trial_{trial_number}"
+    logger = logging.getLogger(logger_name)
+    accessor = MDetectorConfigAccessor(config_dict=base_config)
+    setup_trial_file_logging(
+        logger_name,
+        accessor.get_study_name(), 
+        run_timestamp, 
+        trial_number, 
+        accessor.get_logging_settings()
+    )
+    logger.info(f"Worker starting refinement trial {trial_number} with params: {trial_params.get('m_detector', {}).get('frame_refinement', {})}")
+    
+    # 2. Configuration and Setup
+    trial_config = deep_update_dict(copy.deepcopy(base_config), trial_params)
+    trial_accessor = MDetectorConfigAccessor(config_dict=trial_config)
+    device = torch.device("cuda:0" if trial_accessor.get_processing_settings().get('device') == 'cuda' and torch.cuda.is_available() else "cpu")
+    detector = MDetector(config_accessor=trial_accessor, device=device, logger_name=logger_name)
+    mdet_label_val = DYNAMIC_LABEL_VALUE
+
+    # 3. Processing and Metrics Calculation
+    total_tp, total_fp, total_fn = 0, 0, 0
+    for frame_data in cached_data:
+        labels_before = frame_data['labels_before_refinement'].to(device)
+        points_global = frame_data['points_global'].to(device)
+        mock_di = MockDI(points_global)
+        
+        refined_labels = detector._apply_frame_refinement(labels_before, mock_di)
+        
+        metrics = _calculate_metrics_for_baked_frame(refined_labels, frame_data, mdet_label_val)
+        total_tp += metrics['tp']
+        total_fp += metrics['fp']
+        total_fn += metrics['fn']
+
+    # 4. Final Result
+    final_iou = calculate_iou(total_tp, total_fp, total_fn)
+    logger.info(f"Worker finished trial {trial_number}. Final IoU: {final_iou:.4f}")
+    return trial_number, final_iou, {}
+
+def run(config: dict, study_name: str, n_trials: int, bake_id: str, db_dir: Path, run_timestamp: str):
+    """
+    Manages an Optuna study for the refinement stage.
+    This function acts as the "driver" and logs formatted progress to the console.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"--- Starting Tune-Refinement Mode for study '[bold green]{study_name}[/bold green]' ---")
+    logger.info(f"Using baked results from: '[bold cyan]{bake_id}[/bold cyan]'")
+
+    cache_path = Path("cache") / f"{bake_id}.pkl"
+    if not cache_path.exists():
+        logger.error(f"[bold red]Bake file not found: {cache_path}. Please run bake mode first.[/bold red]")
+        return
+        
+    logger.info(f"Deserializing baked data from [yellow]{cache_path}[/yellow]...")
+    with open(cache_path, 'rb') as f:
+        cached_data = pickle.load(f)
+    
+    logger.info("Data loaded. Placing into Ray Object Store for worker access...")
+    cached_data_ref = ray.put(cached_data)
+    logger.info(f"Successfully loaded and broadcasted [bold cyan]{len(cached_data)}[/bold cyan] baked data entries.")
+    
+    storage_path = f"sqlite:///{db_dir / study_name}.db"
+    study = optuna.create_study(study_name=study_name, storage=storage_path, direction="maximize", load_if_exists=True)
+    
+    available_gpus = int(ray.cluster_resources().get("GPU", 0))
+    if available_gpus == 0:
+        logger.error("[bold red]No GPUs available in the Ray cluster. Refinement tuning requires GPUs.[/bold red]")
+        return
+
+    workers_per_gpu = config['processing_settings']['workers_per_gpu']
+    gpus_per_trial = 1.0 / workers_per_gpu
+    max_concurrent_trials = int(available_gpus / gpus_per_trial)
+    logger.info(f"Running with a maximum of [bold cyan]{max_concurrent_trials}[/bold cyan] parallel trials ({gpus_per_trial} GPUs per trial).")
+
+    running_tasks = {}
+    existing_trials = len(study.get_trials(deepcopy=False, states=(optuna.trial.TrialState.COMPLETE, optuna.trial.TrialState.FAIL, optuna.trial.TrialState.PRUNED)))
+    completed_trials = existing_trials
+    logger.info(f"Found {existing_trials} existing trials in the study.")
+
+    while completed_trials < n_trials:
+        if (completed_trials + len(running_tasks)) < n_trials and len(running_tasks) < max_concurrent_trials:
+            trial = study.ask()
+            params = define_search_space(trial, mode='tune-refinement')
+            
+            future = run_trial_on_ray.options(num_gpus=gpus_per_trial).remote(params, trial.number, config, run_timestamp, cached_data_ref)
+            running_tasks[future] = trial
+            logger.info(f"Dispatched Trial #[bold cyan]{trial.number}[/bold cyan]...")
+        else:
+            if not running_tasks:
+                time.sleep(1) # Avoid busy-waiting
+                continue
+                
+            ready_futures, _ = ray.wait(list(running_tasks.keys()), num_returns=1)
+            for ready_future in ready_futures:
+                trial_obj = running_tasks.pop(ready_future)
+                try:
+                    trial_num, iou_score, metadata = ray.get(ready_future)
+                    if "error" in metadata:
+                        study.tell(trial_obj, state=optuna.trial.TrialState.FAIL)
+                        logger.warning(f"[yellow]Trial {trial_obj.number} FAILED. Reason: {metadata['error']}[/yellow]")
+                    else:
+                        study.tell(trial_obj, iou_score)
+                        logger.info(f"Trial {trial_obj.number} finished. Score (IoU): [bold yellow]{iou_score:.4f}[/bold yellow]")
+                except Exception as e:
+                    study.tell(trial_obj, state=optuna.trial.TrialState.FAIL)
+                    logger.error(f"[bold red]Trial {trial_obj.number} crashed with exception: {e}[/bold red]", exc_info=True)
+
+                completed_trials += 1
+                best_score_str = f"{study.best_value:.4f}" if study.best_value is not None else "N/A"
+                logger.info(f"Progress: {completed_trials}/{n_trials}. Best score: [bold green]{best_score_str}[/bold green]")
+                
+    logger.info(f"\n[bold green]--- Optuna Study '{study_name}' Complete ---[/bold green]")
+
+############################
+FILE: src/ray_scripts/modes/bake_runner.py
+############################
+
+# FILE: src/ray_scripts/modes/bake_runner.py (FINAL, CORRECTED)
+
+import ray
+import optuna
+import torch
+import logging
+import pickle 
+from pathlib import Path
+from rich.logging import RichHandler
+from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn, MofNCompleteColumn
+
+from ...config_loader import MDetectorConfigAccessor
+from ...core.m_detector.base import MDetector
+from ...data_utils.nuscenes_helper import NuScenesProcessor
+from ..shared_utils import deep_update_dict
+
+def run(config: dict, source_study_name: str, db_dir: Path):
+    logger = logging.getLogger(__name__)
+
+
+    logger.info("--- Starting Bake Mode ---")
+    storage_path = f"sqlite:///{db_dir / source_study_name}.db"
+    
+    try:
+        study = optuna.load_study(study_name=source_study_name, storage=storage_path)
+        best_trial = study.best_trial
+        best_params = best_trial.params
+        logger.info(
+            f"Loaded best trial [bold cyan]#{best_trial.number}[/bold cyan] from study '[bold green]{source_study_name}[/bold green]'\n"
+            f"  -> Trial Score: {best_trial.value:.4f}. Using its parameters for baking."
+        )
+    except Exception as e:
+        logger.error(f"Could not load study '{source_study_name}'. Error: {e}")
+        return
+
+    bake_config = deep_update_dict(config.copy(), best_params)
+    accessor = MDetectorConfigAccessor(config_dict=bake_config)
+    
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    detector = MDetector(config_accessor=accessor, device=device, logger_name=__name__)
+    data_actor_handle = ray.get_actor("nuscenes_data_service")
+    processor = NuScenesProcessor(
+        data_actor=data_actor_handle, config_accessor=accessor,
+        progress_actor=None, worker_id=0, logger_name=__name__
+    )
+
+    cached_data = []
+    scene_indices = accessor.get_processing_settings()['scene_indices_to_run']
+
+    if isinstance(scene_indices, str) and scene_indices.lower() == 'all':
+        total_scenes = ray.get(data_actor_handle.get_scene_count.remote())
+        scene_indices = set(range(total_scenes))
+    else:
+        scene_indices = set(scene_indices)
+    
+    logger.info("Calculating total number of sweeps to process...")
+    total_sweeps = 0
+    lidar_name = 'LIDAR_TOP'
+    for scene_idx in scene_indices:
+        scene_rec = ray.get(data_actor_handle.get_scene_record.remote(scene_idx))
+        sweep_tokens = ray.get(data_actor_handle.get_scene_sweep_tokens.remote(scene_rec['token'], lidar_name))
+        total_sweeps += len(sweep_tokens)
+    logger.info(f"Preparing to bake [bold yellow]{total_sweeps}[/bold yellow] sweeps across [bold yellow]{len(scene_indices)}[/bold yellow] scenes.")
+
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(), MofNCompleteColumn(), "[progress.percentage]{task.percentage:>3.0f}%", TimeElapsedColumn(),
+    ) as progress:
+        sweep_task = progress.add_task("[green]Baking sweeps...", total=total_sweeps)
+
+        for scene_idx in scene_indices:
+            frame_generator = processor.process_scene_for_baking(scene_idx, detector)
+            for frame_data in frame_generator:
+                cached_data.append(frame_data)
+                progress.update(sweep_task, advance=1)
+
+        if not cached_data:
+            logger.error("Bake process finished, but no data was generated. Check dataset paths and detector initialization.")
+            return
+            
+        logger.info(f"Bake processing complete. Generated data for [bold cyan]{len(cached_data)}[/bold cyan] frames.")
+        logger.info("Serializing baked data to disk... (this may take a moment)")
+        
+        bake_id = f"{source_study_name}_trial{best_trial.number}"
+        cache_dir = Path("cache")
+        cache_dir.mkdir(exist_ok=True)
+        
+        output_path = cache_dir / f"{bake_id}.pkl"
+        with open(output_path, 'wb') as f:
+            pickle.dump(cached_data, f)
+        
+        logger.info(f"[bold green]Bake successful![/bold green]")
+        logger.info(f"Saved baked data to: [yellow]{output_path}[/yellow]")
+        logger.info(f"Use the following argument for the next step: [bold cyan]--bake-id {bake_id}[/bold cyan]")
+
+############################
+FILE: src/utils/label_generation.py
+############################
+
+# src/data_utils/label_generation.py
+import os
+import numpy as np
+from nuscenes.nuscenes import NuScenes
+from nuscenes.utils.data_classes import Box as NuScenesDataClassesBox
+from pyquaternion import Quaternion
+from tqdm import tqdm
+from typing import List, Dict, Optional
+import h5py
+import torch 
+
+from .transformations import transform_points_numpy
+
+from nuscenes.utils.data_classes import LidarPointCloud 
+from pyquaternion import Quaternion 
+
+def get_scene_sweep_data_sequence(nusc: NuScenes, scene_token: str, lidar_name: str = "LIDAR_TOP"):
+    scene_rec = nusc.get('scene', scene_token)
+    first_sample_token = scene_rec['first_sample_token']
+    current_sd_token = nusc.get('sample', first_sample_token)['data'].get(lidar_name)
+    if not current_sd_token:
+        sample_token = first_sample_token
+        while sample_token:
+            sample_rec = nusc.get('sample', sample_token)
+            if lidar_name in sample_rec['data']:
+                current_sd_token = sample_rec['data'][lidar_name]
+                break
+            sample_token = sample_rec['next']
+        if not current_sd_token: return
+
+    while True:
+        sd_rec = nusc.get('sample_data', current_sd_token)
+        if sd_rec['prev']: current_sd_token = sd_rec['prev']
+        else: break
+            
+    while current_sd_token:
+        sweep_rec = nusc.get('sample_data', current_sd_token)
+        cs_rec = nusc.get('calibrated_sensor', sweep_rec['calibrated_sensor_token'])
+        pose_rec = nusc.get('ego_pose', sweep_rec['ego_pose_token'])
+        pc_filepath = os.path.join(nusc.dataroot, sweep_rec['filename'])
+
+        if not os.path.exists(pc_filepath):
+            points_sensor_frame = np.empty((0, 5), dtype=np.float32)
+        else:
+            pc = LidarPointCloud.from_file(pc_filepath)
+            points_sensor_frame = pc.points.T
+
+        sens_to_ego_rot = Quaternion(cs_rec['rotation']).rotation_matrix
+        sens_to_ego_trans = np.array(cs_rec['translation'])
+        T_sensor_ego = np.eye(4, dtype=np.float32)
+        T_sensor_ego[:3, :3] = sens_to_ego_rot
+        T_sensor_ego[:3, 3] = sens_to_ego_trans
+
+        ego_to_glob_rot = Quaternion(pose_rec['rotation']).rotation_matrix
+        ego_to_glob_trans = np.array(pose_rec['translation'])
+        T_ego_global = np.eye(4, dtype=np.float32)
+        T_ego_global[:3, :3] = ego_to_glob_rot
+        T_ego_global[:3, 3] = ego_to_glob_trans
+
+        T_global_sensor = T_ego_global @ T_sensor_ego
+
+        yield {
+            'points_sensor_frame': points_sensor_frame, # Yield the raw (N, 5) point cloud
+            'T_global_lidar': T_global_sensor,
+            'timestamp': sweep_rec['timestamp'],
+            'calibrated_sensor_token': sweep_rec['calibrated_sensor_token'],
+            'lidar_sd_token': current_sd_token,
+            'is_key_frame': sweep_rec['is_key_frame'],
+            'sample_token': sweep_rec['sample_token'],
+        }
+        
+        current_sd_token = sweep_rec['next']
+
+
+def generate_and_save_point_labels_for_scene_pytorch(
+    nusc: NuScenes,
+    scene_token: str,
+    output_dir: str,
+    gt_velocity_threshold: float,
+    verbose: bool = True
+) -> Optional[str]:
+    """
+    Generates sparse ground truth labels for a scene and saves them to a lean .pt file.
+    The file contains only the *original indices* of dynamic points for each sweep.
+
+    Args:
+        nusc: NuScenes API instance.
+        scene_token (str): The token of the scene to process.
+        output_dir (str): The directory to save the output .pt file.
+        gt_velocity_threshold (float): The speed (m/s) above which a point is considered dynamic.
+        verbose (bool): Whether to print progress messages.
+
+    Returns:
+        Optional[str]: The path to the generated .pt file, or None on failure.
+    """
+    scene_record = nusc.get('scene', scene_token)
+    scene_name = scene_record['name']
+
+    os.makedirs(output_dir, exist_ok=True)
+    output_filename = f"gt_sparse_labels_{scene_name}_v{gt_velocity_threshold}.pt"
+    output_filepath = os.path.join(output_dir, output_filename)
+
+    if verbose:
+        tqdm.write(f"Processing scene for sparse GT labels: {scene_name} (Vel Threshold: {gt_velocity_threshold} m/s)")
+
+    all_sweep_data_dicts = list(get_scene_sweep_data_sequence(nusc, scene_token))
+    if not all_sweep_data_dicts:
+        if verbose: tqdm.write(f"No LiDAR sweeps found for scene {scene_name}. Skipping.")
+        return None
+
+    instance_tokens = find_instances_in_scene(nusc, scene_token, min_annotations=1)
+    if not instance_tokens:
+        if verbose: tqdm.write(f"No instances found in scene {scene_name}. Skipping.")
+        return None
+
+    all_instances_boxes_at_sweeps: Dict[str, List[Optional[NuScenesDataClassesBox]]] = {}
+    for inst_token in instance_tokens:
+        boxes_at_sweeps, _, _, _ = get_interpolated_extrapolated_boxes_for_instance(
+            nusc, inst_token, all_sweep_data_dicts
+        )
+        all_instances_boxes_at_sweeps[inst_token] = boxes_at_sweeps
+    
+    # --- Processing and Data Structuring ---
+    all_dynamic_indices_list = []
+    sweep_boundary_indices = [0] # Marks the start of dynamic indices for each sweep
+
+    sweep_iterator = tqdm(enumerate(all_sweep_data_dicts), total=len(all_sweep_data_dicts), desc="  Generating Sparse GT Labels") if verbose else enumerate(all_sweep_data_dicts)
+
+    for sweep_idx, sweep_data in sweep_iterator:
+        # Load the raw, unfiltered point cloud
+        points_sensor_raw = sweep_data['points_sensor_frame'][:, :3] # Use only XYZ
+        
+        if points_sensor_raw.shape[0] == 0:
+            all_dynamic_indices_list.append(np.array([], dtype=np.int32))
+            sweep_boundary_indices.append(sweep_boundary_indices[-1])
+            continue
+
+        T_global_lidar = sweep_data['T_global_lidar']
+        points_global_raw = transform_points_numpy(points_sensor_raw, T_global_lidar)
+        
+        # This mask will accumulate all dynamic points for the current sweep
+        dynamic_mask_for_sweep = np.zeros(points_global_raw.shape[0], dtype=bool)
+
+        for inst_token, list_of_boxes_for_instance in all_instances_boxes_at_sweeps.items():
+            box_object = list_of_boxes_for_instance[sweep_idx]
+            if box_object is not None:
+                # Check if the object itself is dynamic
+                speed_sq = box_object.velocity[0]**2 + box_object.velocity[1]**2
+                if speed_sq >= gt_velocity_threshold**2:
+                    # If the box is dynamic, find which raw points fall inside it
+                    mask_points_in_box = _get_points_in_box_mask_global_coords(points_global_raw, box_object)
+                    dynamic_mask_for_sweep[mask_points_in_box] = True
+
+        # Find the original indices of the dynamic points for this sweep
+        dynamic_indices_this_sweep = np.where(dynamic_mask_for_sweep)[0].astype(np.int32)
+        
+        all_dynamic_indices_list.append(dynamic_indices_this_sweep)
+        sweep_boundary_indices.append(sweep_boundary_indices[-1] + len(dynamic_indices_this_sweep))
+
+    # --- Final Assembly and Saving ---
+    final_all_dynamic_indices = np.concatenate(all_dynamic_indices_list) if all_dynamic_indices_list else np.array([], dtype=np.int32)
+
+    data_to_save = {
+        'dynamic_point_indices': final_all_dynamic_indices,
+        'sweep_boundary_indices': np.array(sweep_boundary_indices, dtype=np.int64)
+    }
+
+    try:
+        torch.save(data_to_save, output_filepath)
+        if verbose: tqdm.write(f"Successfully saved sparse GT data to {output_filepath}")
+        return output_filepath
+    except Exception as e:
+        if verbose: tqdm.write(f"Error saving PyTorch file {output_filepath}: {e}")
+        return None
+
+
+def find_instances_in_scene(nusc, scene_token, min_annotations=1):
+    """
+    Finds all unique instances in a given scene that have at least a minimum number of annotations.
+    Args:
+        nusc: NuScenes API instance.
+        scene_token (str): The token of the scene to process.
+        min_annotations (int): The minimum number of annotations an instance must have.
+    Returns:
+        list: A list of instance tokens.
+    """
+    scene_record = nusc.get('scene', scene_token)
+    unique_instance_tokens_in_scene = set()
+    
+    current_sample_token = scene_record['first_sample_token']
+    while current_sample_token:
+        sample_record = nusc.get('sample', current_sample_token)
+        for annotation_token in sample_record['anns']:
+            annotation_record = nusc.get('sample_annotation', annotation_token)
+            unique_instance_tokens_in_scene.add(annotation_record['instance_token'])
+        current_sample_token = sample_record['next']
+        if not current_sample_token:
+            break
+            
+    detailed_instances = []
+    for instance_token in unique_instance_tokens_in_scene:
+        instance_record = nusc.get('instance', instance_token)
+        if instance_record['nbr_annotations'] >= min_annotations:
+            detailed_instances.append(instance_token)
+            
+    return detailed_instances
+
+def get_interpolated_extrapolated_boxes_for_instance(nusc, instance_token, target_lidar_sweeps):
+    """
+    For a given instance, finds its annotations (keyframes) and then interpolates
+    or extrapolates its bounding box to the timestamps of all target_lidar_sweeps.
+    Ensures that for keyframe sweeps, the original annotation is used directly.
+    Returned Box objects include name and velocity.
+
+    Args:
+        nusc: NuScenes API instance.
+        instance_token (str): The token of the instance to track.
+        target_lidar_sweeps (list): A list of dictionaries, where each dictionary
+                                    represents a LiDAR sweep and must contain at least
+                                    'timestamp', 'is_key_frame', and 'sample_token' keys.
+
+    Returns:
+        tuple: (
+            list: List of NuScenes Box objects (or None) for each target_lidar_sweep.
+            list: List of annotation tokens (or None) corresponding to the box (original if keyframe).
+            list: List of booleans indicating if the box was interpolated.
+            list: List of booleans indicating if the box was extrapolated.
+        )
+    """
+    instance_rec = nusc.get('instance', instance_token)
+    first_ann_token = instance_rec['first_annotation_token']
+    last_ann_token = instance_rec['last_annotation_token']
+
+    keyframe_annotations = []
+    current_ann_token = first_ann_token
+    while current_ann_token:
+        ann_rec = nusc.get('sample_annotation', current_ann_token)
+        sample_rec = nusc.get('sample', ann_rec['sample_token'])
+        
+        keyframe_annotations.append({
+            'token': ann_rec['token'],
+            'sample_token': ann_rec['sample_token'],
+            'instance_token': ann_rec['instance_token'],
+            'timestamp': sample_rec['timestamp'],
+            'category_name': ann_rec['category_name'],
+            'translation': np.array(ann_rec['translation']),
+            'size': np.array(ann_rec['size']),
+            'rotation': Quaternion(ann_rec['rotation']),
+        })
+        if current_ann_token == last_ann_token:
+            break
+        current_ann_token = ann_rec['next']
+    
+    if not keyframe_annotations:
+        return [None] * len(target_lidar_sweeps), [None] * len(target_lidar_sweeps), \
+               [False] * len(target_lidar_sweeps), [False] * len(target_lidar_sweeps)
+
+    keyframe_annotations.sort(key=lambda x: x['timestamp'])
+    kf_timestamps = np.array([ann['timestamp'] for ann in keyframe_annotations])
+    
+    output_boxes_at_sweeps = [None] * len(target_lidar_sweeps)
+    output_ann_tokens = [None] * len(target_lidar_sweeps)
+    output_is_interpolated = [False] * len(target_lidar_sweeps)
+    output_is_extrapolated = [False] * len(target_lidar_sweeps)
+
+    target_sweep_timestamps = np.array([sweep['timestamp'] for sweep in target_lidar_sweeps])
+
+    KEYFRAME_INTERVAL_US = 500000
+    MAX_EXTRAPOLATION_TIME_US = KEYFRAME_INTERVAL_US * 1.5 # Max 0.75s extrapolation
+
+    for i, target_sweep_info in enumerate(target_lidar_sweeps):
+        target_ts = target_sweep_info['timestamp']
+        # Initialize box_velocity, but it will be overridden if possible
+        box_velocity = np.array([0.0, 0.0, 0.0]) 
+
+        # --- Priority 1: Direct keyframe match using sample_token ---
+        if target_sweep_info['is_key_frame']:
+            target_sample_token = target_sweep_info['sample_token']
+            found_keyframe_ann = next((kf_ann for kf_ann in keyframe_annotations if kf_ann['sample_token'] == target_sample_token), None)
+            
+            if found_keyframe_ann:
+                ann = found_keyframe_ann
+                try:
+                    # Attempt to get velocity using nusc.box_velocity
+                    # This returns velocity in global frame (vx, vy, vz)
+                    velocity_from_sdk = nusc.box_velocity(ann['token']) # ann['token'] is the sample_annotation_token
+                    if not np.any(np.isnan(velocity_from_sdk)): # Check for NaN if instance has only one ann
+                        box_velocity = velocity_from_sdk[:3] # Take vx, vy, vz
+                except AssertionError: # Handles cases like single annotation for instance
+                    # Fallback: if nusc.box_velocity fails (e.g. single ann), try to estimate if possible
+                    if len(keyframe_annotations) > 1:
+                        # Try to find this ann in the list to get prev/next for manual diff
+                        current_kf_idx = -1
+                        for kf_idx, kf in enumerate(keyframe_annotations):
+                            if kf['token'] == ann['token']:
+                                current_kf_idx = kf_idx
+                                break
+                        if current_kf_idx != -1:
+                            if current_kf_idx > 0: # Has a previous
+                                prev_kf = keyframe_annotations[current_kf_idx - 1]
+                                dt = (ann['timestamp'] - prev_kf['timestamp']) / 1e6
+                                if dt > 1e-3:
+                                    box_velocity = (ann['translation'] - prev_kf['translation']) / dt
+                            elif current_kf_idx < len(keyframe_annotations) - 1: # Has a next
+                                next_kf = keyframe_annotations[current_kf_idx + 1]
+                                dt = (next_kf['timestamp'] - ann['timestamp']) / 1e6
+                                if dt > 1e-3:
+                                    box_velocity = (next_kf['translation'] - ann['translation']) / dt
+                    # If still zero, it means it's likely a single annotation instance or other edge case
+                    pass # box_velocity remains default or as calculated by fallback
+
+                output_boxes_at_sweeps[i] = NuScenesDataClassesBox(ann['translation'], ann['size'], ann['rotation'], 
+                                                name=ann['category_name'], token=f"{ann['token']}",
+                                                velocity=box_velocity) # USE THE CALCULATED/SDK VELOCITY
+                output_ann_tokens[i] = ann['token']
+                continue 
+        
+        # --- Priority 2: Exact timestamp match (fallback or for non-keyframe sweeps that align perfectly) ---
+        idx_after = np.searchsorted(kf_timestamps, target_ts, side='left')
+        if idx_after > 0 and kf_timestamps[idx_after - 1] == target_ts:
+            ann = keyframe_annotations[idx_after - 1]
+            try:
+                velocity_from_sdk = nusc.box_velocity(ann['token'])
+                if not np.any(np.isnan(velocity_from_sdk)):
+                    box_velocity = velocity_from_sdk[:3]
+            except AssertionError:
+                 # Similar fallback as above if needed
+                pass # box_velocity remains default
+            
+            output_boxes_at_sweeps[i] = NuScenesDataClassesBox(ann['translation'], ann['size'], ann['rotation'], 
+                                            name=ann['category_name'], token=f"{ann['token']}",
+                                            velocity=box_velocity) # USE THE CALCULATED/SDK VELOCITY
+            output_ann_tokens[i] = ann['token']
+            continue
+
+        # --- Case 3: Interpolation ---
+        if idx_after > 0 and idx_after < len(kf_timestamps):
+            prev_ann = keyframe_annotations[idx_after - 1]
+            next_ann = keyframe_annotations[idx_after]
+            
+            if prev_ann['timestamp'] < target_ts < next_ann['timestamp']: # Strictly between
+                ratio = (target_ts - prev_ann['timestamp']) / (next_ann['timestamp'] - prev_ann['timestamp'])
+                interp_translation = prev_ann['translation'] + ratio * (next_ann['translation'] - prev_ann['translation'])
+                interp_size = prev_ann['size'] 
+                interp_rotation = Quaternion.slerp(prev_ann['rotation'], next_ann['rotation'], ratio)
+                
+                # Estimate velocity for interpolated box
+                dt_interp_sec = (next_ann['timestamp'] - prev_ann['timestamp']) / 1e6
+                if dt_interp_sec > 1e-3:
+                    box_velocity = (next_ann['translation'] - prev_ann['translation']) / dt_interp_sec
+                
+                output_boxes_at_sweeps[i] = NuScenesDataClassesBox(interp_translation, interp_size, interp_rotation, 
+                                                name=prev_ann['category_name'], # Name from prev_ann
+                                                token=f"interp_{prev_ann['token']}_{next_ann['token']}_{i}",
+                                                velocity=box_velocity)
+                output_is_interpolated[i] = True
+                continue
+
+        # --- Case 4: Extrapolation ---
+        extrap_ann_ref = None
+        time_diff_us = 0
+        is_forward_extrap = False
+
+        if target_ts < kf_timestamps[0]:
+            extrap_ann_ref = keyframe_annotations[0]
+            time_diff_us = target_ts - extrap_ann_ref['timestamp']
+        elif target_ts > kf_timestamps[-1]:
+            extrap_ann_ref = keyframe_annotations[-1]
+            time_diff_us = target_ts - extrap_ann_ref['timestamp']
+            is_forward_extrap = True
+        
+        if extrap_ann_ref and abs(time_diff_us) <= MAX_EXTRAPOLATION_TIME_US:
+            extrap_translation = np.copy(extrap_ann_ref['translation'])
+            
+            if len(keyframe_annotations) > 1:
+                if not is_forward_extrap: # Extrapolating backwards from first annotation
+                    ref1, ref2 = keyframe_annotations[0], keyframe_annotations[1]
+                else: # Extrapolating forwards from last annotation
+                    ref1, ref2 = keyframe_annotations[-2], keyframe_annotations[-1]
+                
+                dt_ref_sec = (ref2['timestamp'] - ref1['timestamp']) / 1e6
+                if dt_ref_sec > 1e-3:
+                    velocity_ref = (ref2['translation'] - ref1['translation']) / dt_ref_sec
+                    extrap_translation = extrap_ann_ref['translation'] + velocity_ref * (time_diff_us / 1e6)
+                    box_velocity = velocity_ref # Use this calculated velocity
+            
+            extrap_size = extrap_ann_ref['size']
+            extrap_rotation = extrap_ann_ref['rotation'] # Keep rotation constant for extrapolation
+
+            output_boxes_at_sweeps[i] = NuScenesDataClassesBox(extrap_translation, extrap_size, extrap_rotation,
+                                            name=extrap_ann_ref['category_name'],
+                                            token=f"extrap_{extrap_ann_ref['token']}_{i}",
+                                            velocity=box_velocity)
+            output_is_extrapolated[i] = True
+            
+    return output_boxes_at_sweeps, output_ann_tokens, output_is_interpolated, output_is_extrapolated
+
+
+
+def _get_points_in_box_mask_global_coords(
+    points_global: np.ndarray, 
+    box_global: NuScenesDataClassesBox, 
+    debug_instance_token: Optional[str] = None, 
+    max_points_to_print_debug: int = 5
+) -> np.ndarray:
+    """
+    Checks which points are inside a 3D Oriented Bounding Box (OBB) in global coordinates.
+    Uses an Axis-Aligned Bounding Box (AABB) pre-filter for efficiency.
+
+    Args:
+        points_global (np.ndarray): Array of points, shape (N, 3) in global XYZ.
+        box_global (NuScenesDataClassesBox): The box object, in global coordinates.
+        debug_instance_token (str, optional): If the box_global.token contains this string,
+                                             detailed debug prints will be activated.
+        max_points_to_print_debug (int): Max number of points to print details for during debug.
+
+    Returns:
+        np.ndarray: A boolean array of shape (N,) indicating for each original point
+                    if it's inside the box.
+    """
+    num_original_points = points_global.shape[0]
+    if num_original_points == 0:
+        return np.array([], dtype=bool)
+
+    # Initialize the final mask for all original points as False
+    final_in_box_mask = np.zeros(num_original_points, dtype=bool)
+
+    # --- 1. Broad-phase: AABB Culling ---
+    obb_corners_global = box_global.corners() # Shape (3, 8)
+    aabb_min_global = np.min(obb_corners_global, axis=1) # Min for X, Y, Z
+    aabb_max_global = np.max(obb_corners_global, axis=1) # Max for X, Y, Z
+
+    # Create a mask for points within the AABB of the box
+    mask_in_aabb = (
+        (points_global[:, 0] >= aabb_min_global[0]) & (points_global[:, 0] <= aabb_max_global[0]) &
+        (points_global[:, 1] >= aabb_min_global[1]) & (points_global[:, 1] <= aabb_max_global[1]) &
+        (points_global[:, 2] >= aabb_min_global[2]) & (points_global[:, 2] <= aabb_max_global[2])
+    )
+    
+    candidate_indices = np.where(mask_in_aabb)[0]
+    if candidate_indices.size == 0:
+        return final_in_box_mask # No points even in AABB, so none in OBB
+
+    candidate_points_global = points_global[candidate_indices]
+
+    # --- 2. Narrow-phase: OBB Check (Separating Axis Theorem based on projections) ---
+    # This part is applied only to candidate_points_global
+
+    print_debug_for_this_box = (debug_instance_token is not None and
+                                box_global.token is not None and
+                                debug_instance_token in box_global.token) # Check if token exists
+
+    if print_debug_for_this_box:
+        print(f"\n--- Debugging OBB Projections for Box (Token Fragment: {box_global.token[-10:] if box_global.token else 'N/A'}, Name: {box_global.name}) ---")
+        print(f"  AABB Culling: {num_original_points} total -> {candidate_indices.size} candidates.")
+        print(f"  Box Center (Global): {box_global.center}")
+        print(f"  Box WLH (W,L,H): {box_global.wlh}")
+        print(f"  Box Orientation (Quat w,x,y,z): {box_global.orientation.elements}")
+
+    vec_center_to_candidate_points = candidate_points_global - box_global.center
+
+    # Box axes in global coordinates (from box's rotation matrix)
+    # NuScenes Box: Local X is along Length, Local Y is along Width, Local Z is along Height
+    box_axis_len_global = box_global.rotation_matrix[:, 0] # Local X -> Length
+    box_axis_wid_global = box_global.rotation_matrix[:, 1] # Local Y -> Width
+    box_axis_hgt_global = box_global.rotation_matrix[:, 2] # Local Z -> Height
+
+    # Projections of (candidate_points - center) onto box axes
+    dist_along_len_axis = vec_center_to_candidate_points @ box_axis_len_global
+    dist_along_wid_axis = vec_center_to_candidate_points @ box_axis_wid_global
+    dist_along_hgt_axis = vec_center_to_candidate_points @ box_axis_hgt_global
+
+    # Half dimensions from WLH array: [width, length, height]
+    half_width  = box_global.wlh[0] / 2.0
+    half_length = box_global.wlh[1] / 2.0
+    half_height = box_global.wlh[2] / 2.0
+
+    # Check if projections are within half dimensions
+    mask_candidates_len = np.abs(dist_along_len_axis) <= half_length
+    mask_candidates_wid = np.abs(dist_along_wid_axis) <= half_width
+    mask_candidates_hgt = np.abs(dist_along_hgt_axis) <= half_height
+    
+    mask_candidates_in_obb = mask_candidates_len & mask_candidates_wid & mask_candidates_hgt
+
+    # Map the results from candidate points back to the original point indices
+    final_indices_in_obb = candidate_indices[mask_candidates_in_obb]
+    final_in_box_mask[final_indices_in_obb] = True
+
+    if print_debug_for_this_box:
+        num_printed = 0
+        for i_cand in range(candidate_points_global.shape[0]): # Iterate over candidate indices
+            if num_printed >= max_points_to_print_debug:
+                break
+            original_pt_idx = candidate_indices[i_cand]
+            
+            print(f"  Candidate Point {i_cand} (Original Index: {original_pt_idx}, Global: {candidate_points_global[i_cand]})")
+            print(f"    Proj Length-Axis: {dist_along_len_axis[i_cand]:.3f} (Limit: +/-{half_length:.3f}) -> In: {mask_candidates_len[i_cand]}")
+            print(f"    Proj Width-Axis:  {dist_along_wid_axis[i_cand]:.3f} (Limit: +/-{half_width:.3f}) -> In: {mask_candidates_wid[i_cand]}")
+            print(f"    Proj Height-Axis: {dist_along_hgt_axis[i_cand]:.3f} (Limit: +/-{half_height:.3f}) -> In: {mask_candidates_hgt[i_cand]}")
+            print(f"    Candidate In OBB: {mask_candidates_in_obb[i_cand]} -> Final Mask at Original Idx: {final_in_box_mask[original_pt_idx]}")
+            if mask_candidates_in_obb[i_cand]:
+                 num_printed +=1 # Only count if it's an "in" point for debug brevity
+        print(f"  OBB Check: {candidate_indices.size} candidates -> {np.sum(mask_candidates_in_obb)} in OBB.")
+        print(f"--- End Debugging OBB Projections for Box ---")
+
+    return final_in_box_mask
+
+
+
+    
+
+############################
+FILE: src/utils/__init__.py
+############################
+
+
+############################
+FILE: src/utils/transformations.py
+############################
+
+# src/utils/transformations.py
+import numpy as np
+
+def transform_points_numpy(points_n3: np.ndarray, transf_matrix_4x4: np.ndarray) -> np.ndarray:
+    """
+    Transforms (N,3) points using a 4x4 transformation matrix.
+
+    Args:
+        points_n3 (np.ndarray): Array of N points, each with 3 coordinates.
+        transf_matrix_4x4 (np.ndarray): 4x4 transformation matrix.
+
+    Returns:
+        np.ndarray: Transformed points as an (N,3) array.
+    """
+    if points_n3.ndim == 1: # Single point
+        points_n3 = points_n3.reshape(1, -1)
+    if points_n3.shape[1] != 3:
+        raise ValueError("Input points must be of shape (N,3) or (3,)")
+        
+    points_n4_homogeneous = np.hstack((points_n3, np.ones((points_n3.shape[0], 1)))) 
+    points_transformed_n4 = points_n4_homogeneous @ transf_matrix_4x4.T # (N,4)
+    return points_transformed_n4[:, :3] # Back to (N,3)
+
+############################
+FILE: src/utils/visualize_detector.py
+############################
+
+# visualize_detector.py (Optimized for In-Memory Rendering, preserving original structure)
+
+import open3d as o3d
+import numpy as np
+import logging
+import argparse
+import time
+import ray
+from pathlib import Path
+import shutil
+import cv2
+from tqdm import tqdm
+import yaml
+import torch
+
+# Project-specific imports
+from ..core.m_detector.base import MDetector
+from ..config_loader import MDetectorConfigAccessor
+from ..ray_scripts.ray_actors import NuScenesDataActor
+from ..core.constants import OcclusionResult
+from ..core.m_detector.pre_labelers import ransac_ground_prelabeler
+from ..ray_scripts.shared_utils import deep_update_dict 
+
+# --- Color Constants (Unchanged) ---
+RANSAC_GROUND_COLOR = [0.1, 0.9, 0.1]
+OCCLUDING_COLOR     = [1.0, 0.0, 0.0]
+DEFAULT_COLOR       = [0.7, 0.7, 0.7]
+INITIALIZING_COLOR  = [0.0, 0.7, 1.0]
+
+def map_labels_to_colors(labels: np.ndarray) -> np.ndarray:
+    # This function had a small bug where it used mdet_labels_for_points,
+    # which we removed. It should use final_labels.
+    num_points = len(labels)
+    colors = np.full((num_points, 3), DEFAULT_COLOR, dtype=np.float64)
+    colors[labels == OcclusionResult.PRELABELED_STATIC_GROUND.value] = RANSAC_GROUND_COLOR
+    colors[labels == OcclusionResult.OCCLUDING_IMAGE.value] = OCCLUDING_COLOR
+    # Explicitly color other labels for clarity
+    colors[labels == OcclusionResult.OCCLUDED_BY_IMAGE.value] = DEFAULT_COLOR
+    colors[labels == OcclusionResult.UNDETERMINED.value] = DEFAULT_COLOR
+    return colors
+
+def get_colored_pcd_for_sweep(sweep_data, detector, config_accessor, sweep_index):
+    # (This function is largely the same, but with the critical fix)
+    points_sensor_raw = sweep_data['points_sensor_frame']
+    T_global_sensor = sweep_data['T_global_lidar']
+    filter_params = config_accessor.get_point_pre_filtering_params()
+    min_range, max_range = filter_params['min_range_meters'], filter_params['max_range_meters']
+    ranges = np.linalg.norm(points_sensor_raw[:, :3], axis=1)
+    range_mask = (ranges >= min_range) & (ranges <= max_range)
+    points_to_process_sensor = points_sensor_raw[range_mask]
+    points_to_process_global = (T_global_sensor[:3, :3] @ points_to_process_sensor.T).T + T_global_sensor[:3, 3]
+
+    prelabeled_mask = None
+    ransac_params = config_accessor.get_ransac_ground_params()
+    if ransac_params.get('enabled') and points_to_process_sensor.shape[0] > 0:
+        prelabeled_mask = ransac_ground_prelabeler(points_global=points_to_process_global, points_lidar_frame=points_to_process_sensor, current_di_timestamp=float(sweep_data['timestamp']), ransac_params=ransac_params, device_str=detector.device.type)
+
+    detector.add_sweep(points_global=points_to_process_global.astype(np.float32), pose_global=T_global_sensor.astype(np.float32), timestamp=float(sweep_data['timestamp']), prelabeled_mask=prelabeled_mask)
+    mdet_result = detector.decide_and_process_frame()
+
+    pcd = o3d.geometry.PointCloud()
+    
+    init_sweeps = config_accessor.get_initialization_phase_params()['num_sweeps_for_initial_map']
+    if sweep_index < init_sweeps:
+        pcd.points = o3d.utility.Vector3dVector(points_to_process_global)
+        pcd.paint_uniform_color(INITIALIZING_COLOR)
+    elif mdet_result and mdet_result.get('success'):
+        processed_di = mdet_result.get('processed_di')
+        if processed_di and processed_di.total_points_added_to_di_arrays > 0:
+            final_points = processed_di.original_points_global_coords.cpu().numpy()
+            
+            final_labels = processed_di.mdet_labels_for_points.cpu().numpy()
+
+            pcd.points = o3d.utility.Vector3dVector(final_points)
+            pcd.colors = o3d.utility.Vector3dVector(map_labels_to_colors(final_labels))
+        else:
+            pcd.points = o3d.utility.Vector3dVector(points_to_process_global)
+            pcd.paint_uniform_color(DEFAULT_COLOR)
+            
+    return pcd
+
+def render_scene_to_video_in_memory(config_accessor: MDetectorConfigAccessor, detector: MDetector, config_path: str, output_path: str, fps: int, max_frames: int = None):
+    logging.info(f"Starting in-memory render. Video will be saved to: {output_path}")
+    
+    nuscenes_params = config_accessor.get_nuscenes_params()
+    data_actor = NuScenesDataActor.remote(version=nuscenes_params['version'], dataroot=nuscenes_params['dataroot'], config_path=config_path)
+    scene_index = config_accessor.get_processing_settings().get('scene_indices_to_run', [0])[0]
+    scene_rec = ray.get(data_actor.get_scene_record.remote(scene_index))
+    scene_token = scene_rec['token']
+    lidar_name = 'LIDAR_TOP'
+    all_sweep_tokens = ray.get(data_actor.get_scene_sweep_tokens.remote(scene_token, lidar_name))
+    
+    if max_frames is not None and max_frames > 0:
+        all_sweep_tokens = all_sweep_tokens[:max_frames]
+
+    width, height = 1920, 1080
+    renderer = o3d.visualization.rendering.OffscreenRenderer(width, height)
+    renderer.scene.set_background([0.1, 0.1, 0.1, 1.0])
+    renderer.scene.set_lighting(renderer.scene.LightingProfile.NO_SHADOWS, (0, 0, 0))
+    mat = o3d.visualization.rendering.MaterialRecord()
+    mat.shader = "defaultUnlit"
+    mat.point_size = 2.0
+    
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video_writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+    try:
+        for i, sweep_token in enumerate(tqdm(all_sweep_tokens, desc="Processing and Rendering")):
+            sweep_data = ray.get(data_actor.get_sweep_data_by_token.remote(sweep_token))
+            pcd_to_render = get_colored_pcd_for_sweep(sweep_data, detector, config_accessor, i)
+            
+            vehicle_position = sweep_data['T_global_lidar'][:3, 3]
+            eye = vehicle_position + np.array([-40, -40, 20])
+            center = vehicle_position
+            up = [0, 0, 1]
+            renderer.setup_camera(60.0, center, eye, up)
+            
+            renderer.scene.clear_geometry()
+            renderer.scene.add_geometry(f"pcd_{i}", pcd_to_render, mat)
+            
+            img_o3d = renderer.render_to_image()
+            img_np = np.asarray(img_o3d)
+            video_writer.write(cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR))
+            
+    finally:
+        video_writer.release()
+        logging.info(f"In-memory rendering complete. Video saved to: {output_path}")
+
+def main():
+    parser = argparse.ArgumentParser(description="Visualize M-Detector outputs using Open3D.")
+    parser.add_argument('--config', type=str, default='config/m_detector_config.yaml', help='Path to the base YAML configuration file.')
+    parser.add_argument('--params', type=str, default=None, help='Path to a YAML file with override parameters (e.g., from Optuna).')
+    parser.add_argument('--video-file', type=str, default='mdetector_output.mp4', help='Path to save or play the video file.')
+    parser.add_argument('--fps', type=int, default=20, help='Frames per second for the output video.')
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    if ray.is_initialized(): ray.shutdown()
+    ray.init(logging_level=logging.ERROR)
+    
+    try:
+        config_path = args.config
+        logging.info(f"Loading configuration from: {config_path}")
+        if args.params:
+            logging.info(f"Applying override parameters from: {args.params}")
+            with open(args.config, 'r') as f: base_config = yaml.safe_load(f)
+            with open(args.params, 'r') as f: override_params = yaml.safe_load(f)
+            final_config = deep_update_dict(base_config, override_params)
+            config_accessor = MDetectorConfigAccessor(config_dict=final_config)
+        else:
+            config_accessor = MDetectorConfigAccessor(config_path=config_path)
+        
+        # Use cuda:0 if available, otherwise fallback to cpu
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        detector = MDetector(config_accessor=config_accessor, device=device)
+
+        render_scene_to_video_in_memory(config_accessor, detector, config_path, args.video_file, args.fps)
+
+    except Exception as e:
+        logging.error(f"An error occurred during execution: {e}", exc_info=True)
+    finally:
+        if ray.is_initialized():
+            ray.shutdown()
+            logging.info("Ray has been shut down.")
+
+if __name__ == "__main__":
+    main()
+
+############################
+FILE: src/data_utils/validation_utils_torch.py
+############################
+
+# src/data_utils/validation_utils_torch.py
+
+import os
+import numpy as np
+import torch
+from typing import Dict, Any, Optional
+import re
+import sys
+from nuscenes.nuscenes import NuScenes
+
+# --- Custom Imports ---
+from ..config_loader import MDetectorConfigAccessor
+from ..core.constants import POINT_LABEL_DTYPE
+
+
+def calculate_metrics_for_optuna_trial_in_memory(
+    mdet_results_dict: dict,
+    eval_params: Dict[str, Any],
+    nusc: NuScenes,
+    scene_idx: int
+) -> Dict[str, Any]:
+    """
+    Calculates metrics from a dictionary containing sparse GT and predictions.
+    """
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    
+    total_tp, total_fp, total_fn, total_tn = 0, 0, 0, 0
+
+    validation_data_list = mdet_results_dict['validation_data']
+    mdet_label_val = eval_params["mdet_dynamic_label_value"]
+
+    for sweep_data in validation_data_list:
+        # 1. Get predictions, the index map, and sparse GT for the sweep
+        pred_labels_np = sweep_data['predictions']
+        original_indices_map = sweep_data['original_indices_map']
+        gt_sparse_indices = sweep_data['gt_sparse_indices']
+        
+        num_filtered_points = len(pred_labels_np)
+        if num_filtered_points == 0:
+            continue
+
+        # 2. Create the dense prediction mask for filtered points
+        pred_is_dyn = torch.from_numpy(pred_labels_np).to(device) == mdet_label_val
+
+        # 3. Reconstruct the dense GT mask for filtered points
+        gt_is_dyn = torch.zeros(num_filtered_points, dtype=torch.bool, device=device)
+        
+        # Create a reverse lookup from original index to filtered index
+        # This is the most efficient way to do the mapping
+        map_tensor = torch.from_numpy(original_indices_map.copy()).long().to(device) 
+        gt_sparse_tensor = torch.from_numpy(gt_sparse_indices.copy()).long().to(device)
+        
+        # Find which of our filtered points appear in the sparse GT list
+        # `torch.isin` is highly optimized for this
+        is_in_gt_mask = torch.isin(map_tensor, gt_sparse_tensor)
+        
+        # Set the corresponding positions in our dense GT tensor to True
+        gt_is_dyn[is_in_gt_mask] = True
+
+        # 4. Calculate metrics for the sweep and accumulate
+        sweep_metrics = calculate_metrics(pred_is_dyn, gt_is_dyn)
+        total_tp += sweep_metrics['tp']
+        total_fp += sweep_metrics['fp']
+        total_fn += sweep_metrics['fn']
+        total_tn += sweep_metrics['tn']
+
+    final_metrics = {'tp': total_tp, 'fp': total_fp, 'fn': total_fn, 'tn': total_tn}
+    final_metrics['scene_name'] = nusc.scene[scene_idx]['name']
+    return final_metrics
+
+
+def calculate_metrics(
+    pred_is_dyn: torch.Tensor,
+    gt_is_dyn: torch.Tensor,
+) -> Dict[str, int]:
+    """
+    Core metric calculation logic. Takes two aligned boolean tensors and returns metrics.
+    """
+    tp = torch.sum(gt_is_dyn & pred_is_dyn).item()
+    fp = torch.sum(~gt_is_dyn & pred_is_dyn).item()
+    fn = torch.sum(gt_is_dyn & ~pred_is_dyn).item()
+    tn = torch.sum(~gt_is_dyn & ~pred_is_dyn).item()
+    return {'tp': tp, 'fp': fp, 'fn': fn, 'tn': tn}
+
+############################
+FILE: src/data_utils/__init__.py
+############################
+
+
+############################
+FILE: src/data_utils/nuscenes_helper.py
+############################
+
+# src/data_utils/nuscenes_helper.py
+
+import numpy as np
+from typing import Dict, Optional
+import logging
+import ray
+import torch
+
+# Project-specific imports
+from ..core.m_detector.base import MDetector
+from ..config_loader import MDetectorConfigAccessor
+from ..core.m_detector.pre_labelers import ransac_ground_prelabeler
+from ..core.constants import OcclusionResult
+
+class NuScenesProcessor:
+    """
+    Handles the core logic for processing a single NuScenes scene for one tuning configuration.
+    This class is instantiated within a Ray actor.
+    """
+    def __init__(self, data_actor: ray.actor.ActorHandle, config_accessor: MDetectorConfigAccessor,
+                 progress_actor: Optional[ray.actor.ActorHandle], 
+                 worker_id: int, logger_name: str):
+        """
+        Initializes the processor.
+        """
+        self.data_actor = data_actor
+        self.config_accessor = config_accessor 
+        self.ransac_params = self.config_accessor.get_ransac_ground_params()
+        self.ransac_enabled = self.ransac_params['enabled']
+        
+        self.progress_actor = progress_actor
+        self.worker_id = worker_id
+        
+        self.logger = logging.getLogger(logger_name)
+
+    def _get_prelabeled_ground_mask(self, points_sensor_raw: np.ndarray, points_global_raw: np.ndarray, 
+                                    timestamp: float, device: torch.device) -> Optional[np.ndarray]:
+        """
+        Orchestrates the pre-labeling of ground points. This involves:
+        1. Filtering the raw point cloud to the desired range.
+        2. Running a ground segmentation algorithm (RANSAC) on the filtered points.
+        3. Reconstructing a boolean mask aligned with the original raw point cloud.
+
+        This keeps the core `process_scene` loop clean and maintains separation of concerns.
+
+        Returns:
+            An optional boolean numpy array with the same size as `points_sensor_raw`,
+            where `True` indicates a point pre-labeled as ground.
+        """
+        if not self.ransac_enabled:
+            return None
+
+        # 1. Filter the points. This is the place to modify for future ego-vehicle models.
+        filter_params = self.config_accessor.get_point_pre_filtering_params()
+        ranges = np.linalg.norm(points_sensor_raw, axis=1)
+        filter_mask = (ranges >= filter_params['min_range_meters']) & (ranges <= filter_params['max_range_meters'])
+        
+        points_sensor_filtered = points_sensor_raw[filter_mask]
+        points_global_filtered = points_global_raw[filter_mask]
+        
+        if points_sensor_filtered.shape[0] == 0:
+            return np.zeros(points_sensor_raw.shape[0], dtype=bool)
+
+        # 2. Run RANSAC on the filtered data.
+        ground_mask_filtered = ransac_ground_prelabeler(
+            points_global=points_global_filtered, 
+            points_lidar_frame=points_sensor_filtered,
+            current_di_timestamp=timestamp,
+            ransac_params=self.ransac_params, 
+            device_str=device.type
+        )
+
+        # 3. Reconstruct the mask to align with the raw point cloud.
+        ground_mask_raw = np.zeros(points_sensor_raw.shape[0], dtype=bool)
+        ground_mask_raw[filter_mask] = ground_mask_filtered
+        
+        return ground_mask_raw
+
+    def process_scene(self, scene_index: int, detector: MDetector, task_description: str) -> Optional[Dict[str, np.ndarray]]:
+        scene_rec = ray.get(self.data_actor.get_scene_record.remote(scene_index))
+        scene_token = scene_rec['token']
+        scene_name = scene_rec['name']
+        processing_settings = self.config_accessor.get_processing_settings()
+        skip_frames = processing_settings['skip_frames']
+        max_frames_config = processing_settings['max_frames']
+        lidar_name = 'LIDAR_TOP'
+        all_sweep_tokens = ray.get(self.data_actor.get_scene_sweep_tokens.remote(scene_token, lidar_name=lidar_name))
+        if not all_sweep_tokens: return None
+        start_idx = min(skip_frames, len(all_sweep_tokens))
+        end_idx = len(all_sweep_tokens)
+        if max_frames_config is not None and max_frames_config >= 0:
+            end_idx = min(start_idx + max_frames_config, len(all_sweep_tokens))
+        sweeps_to_process_tokens = all_sweep_tokens[start_idx:end_idx]
+        if not sweeps_to_process_tokens: return None
+        results_for_validation = []
+        sweep_data_futures = [self.data_actor.get_sweep_data_by_token.remote(token) for token in sweeps_to_process_tokens]
+        all_sweep_data = ray.get(sweep_data_futures)
+
+        for i, sweep_data in enumerate(all_sweep_data):
+            points_sensor_raw = sweep_data['points_sensor_frame']
+            if points_sensor_raw.shape[0] == 0:
+                continue
+
+            T_global_sensor = sweep_data['T_global_lidar']
+            points_global_raw = (T_global_sensor[:3, :3] @ points_sensor_raw.T).T + T_global_sensor[:3, 3]
+            
+            prelabeled_mask_raw = self._get_prelabeled_ground_mask(
+                points_sensor_raw=points_sensor_raw,
+                points_global_raw=points_global_raw,
+                timestamp=float(sweep_data['timestamp']),
+                device=detector.device
+            )
+
+            # Pass the raw points and the correctly aligned raw mask to the detector.
+            detector.add_sweep(
+                points_global_raw=points_global_raw.astype(np.float32),
+                points_sensor_raw=points_sensor_raw.astype(np.float32),
+                pose_global=T_global_sensor.astype(np.float32),
+                timestamp=float(sweep_data['timestamp']),
+                prelabeled_mask_raw=prelabeled_mask_raw
+            )
+            mdet_result = detector.decide_and_process_frame()
+            
+            # Package results
+            if mdet_result and mdet_result['success']:
+                processed_di = mdet_result['processed_di']
+                if processed_di and processed_di.total_points_added_to_di_arrays > 0:
+                    prediction_labels = processed_di.mdet_labels_for_points.cpu().numpy()
+                    original_indices_map = processed_di.original_indices_of_filtered_points.cpu().numpy()
+                    
+                    current_sweep_abs_idx = start_idx + i
+                    gt_sparse_indices = ray.get(self.data_actor.get_ground_truth_slice.remote(scene_token, current_sweep_abs_idx))
+
+                    if gt_sparse_indices is None:
+                        continue
+
+                    results_for_validation.append({
+                        'predictions': prediction_labels,
+                        'original_indices_map': original_indices_map,
+                        'gt_sparse_indices': gt_sparse_indices
+                    })
+
+        if not results_for_validation:
+            self.logger.warning(f"No successful M-Detector outputs with matching GT for scene {scene_name}.")
+            return None
+
+        return {
+            'validation_data': results_for_validation,
+            'scene_name': scene_name
+        }
+    
+    def process_scene_for_baking(self, scene_index: int, detector: MDetector):
+        """
+        A generator that processes a scene frame-by-frame and yields the
+        intermediate data needed for the 'tune-refinement' stage.
+        """
+        scene_rec = ray.get(self.data_actor.get_scene_record.remote(scene_index))
+        scene_token = scene_rec['token']
+        lidar_name = 'LIDAR_TOP'
+        all_sweep_tokens = ray.get(self.data_actor.get_scene_sweep_tokens.remote(scene_token, lidar_name=lidar_name))
+        
+        if not all_sweep_tokens:
+            return
+
+        sweep_data_futures = [self.data_actor.get_sweep_data_by_token.remote(token) for token in all_sweep_tokens]
+        all_sweep_data = ray.get(sweep_data_futures)
+
+        for i, sweep_data in enumerate(all_sweep_data):
+            points_sensor_raw = sweep_data['points_sensor_frame']
+            if points_sensor_raw.shape[0] == 0:
+                continue
+
+            T_global_sensor = sweep_data['T_global_lidar']
+            points_global_raw = (T_global_sensor[:3, :3] @ points_sensor_raw.T).T + T_global_sensor[:3, 3]
+            
+            prelabeled_mask_raw = self._get_prelabeled_ground_mask(
+                points_sensor_raw, points_global_raw, float(sweep_data['timestamp']), detector.device
+            )
+
+            di = detector.add_sweep(
+                points_global_raw.astype(np.float32),
+                points_sensor_raw.astype(np.float32),
+                T_global_sensor.astype(np.float32),
+                float(sweep_data['timestamp']),
+                prelabeled_mask_raw
+            )
+            
+            # Check if the detector is ready to process
+            if len(detector.depth_image_library) < detector.min_sweeps_for_processing:
+                continue
+
+            # --- This is the core of the baking process ---
+            lib_len = len(detector.depth_image_library)
+            di_to_process_idx = lib_len - 1
+            di_to_process = detector.depth_image_library.get_image_by_index(di_to_process_idx)
+
+            if di_to_process and di_to_process.total_points_added_to_di_arrays > 0:
+                # 1. Run geometry pipeline
+                labels_before_refinement = detector.get_labels_before_refinement(di_to_process, di_to_process_idx)
+                
+                # 2. Get corresponding ground truth
+                gt_sparse_indices = ray.get(self.data_actor.get_ground_truth_slice.remote(scene_token, i))
+                if gt_sparse_indices is None:
+                    continue
+
+                # 3. Yield all necessary data (on CPU to be pickle-friendly)
+                yield {
+                    'labels_before_refinement': labels_before_refinement.cpu(),
+                    'points_global': di_to_process.original_points_global_coords.cpu(),
+                    'original_indices_map': di_to_process.original_indices_of_filtered_points.cpu().numpy(),
+                    'gt_sparse_indices': gt_sparse_indices
+                }
+
+############################
+FILE: src/data_utils/seeding_utils.py
+############################
+
+# src/utils/seeding_utils.py
+
+import random
+import numpy as np
+import torch
+import os
+
+def set_seed(seed: int):
+    """
+    Sets the seed for all relevant random number generators to ensure reproducibility.
+    
+    Args:
+        seed (int): The integer value to use as the seed.
+    """
+    # Set seed for Python's built-in random module
+    random.seed(seed)
+    
+    # Set seed for NumPy
+    np.random.seed(seed)
+    
+    # Set seed for PyTorch on CPU
+    torch.manual_seed(seed)
+    
+    # Set seed for PyTorch on GPU (if available)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
+        
+        # The two lines below are often needed for full reproducibility with CUDA
+        # They can result in a performance hit, but are essential for deterministic behavior.
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        
+    # Set a hash seed for python for certain hash-based operations
+    os.environ['PYTHONHASHSEED'] = str(seed)
 
