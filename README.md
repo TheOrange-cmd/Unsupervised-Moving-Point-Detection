@@ -31,7 +31,14 @@ The entire experimentation pipeline is managed using **Ray** for parallel proces
 - **OS:** Linux (tested on Ubuntu 22.04).
 - **GPU:** An NVIDIA GPU with CUDA 12.4 compatible drivers.
 - **Conda:** Anaconda or Miniconda package manager.
-- **Poetry:** The Python dependency manager. Install it with `pip install poetry`.
+- **Poetry:** The Python dependency manager. 
+
+To install poetry and configure it to work nicely with conda, run:
+
+```bash
+curl -sSL https://install.python-poetry.org | python3 -
+poetry config virtualenvs.create false
+```
 
 ### Installation Steps
 
