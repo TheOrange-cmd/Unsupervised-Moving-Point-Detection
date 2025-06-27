@@ -1,18 +1,17 @@
-# src/core/m_detector/pre_labelers.py (New File)
+# src/core/m_detector/pre_labelers.py 
+# Note: this file is intended to hold all potential pre-labeler functions. 
+# Currently it only contains RANSAC, but can be extended with other ground segmentation algorithms, or other algorithms that can 
+# confidently filter out certain static objects, e.g. walls, traffic signs, etc. 
 import numpy as np
 import torch
 from typing import Dict, Optional, List, Callable, Tuple
 
-from ..constants import OcclusionResult
-
 # --- RANSAC Ground Detection ---
 @torch.no_grad()
 def ransac_ground_prelabeler(
-    points_global: np.ndarray, # Nx3 global coordinates
-    points_lidar_frame: np.ndarray, # Nx3 lidar frame coordinates (for RANSAC)
-    current_di_timestamp: float, # For context, if needed
+    points_lidar_frame: np.ndarray, # RANSAC is typically done in sensor frame.
     ransac_params: Optional[Dict] = None,
-    device_str: str = 'auto' # 'cpu', 'cuda', or 'auto'
+    device_str: str = 'auto'
 ) -> np.ndarray:
     """
     Identifies ground points using RANSAC flat plane fitting.
@@ -67,7 +66,7 @@ def ransac_ground_prelabeler(
     normals = torch.linalg.cross(v1, v2)
     norm_magnitudes = normals.norm(dim=1, keepdim=True)
     
-    # Avoid division by zero for collinear points
+    # Avoid division by zero for collinear points which result in a zero-magnitude normal vector
     valid_normals_mask = norm_magnitudes.squeeze() > 1e-6
     if not torch.any(valid_normals_mask):
         return np.zeros(points_lidar_frame.shape[0], dtype=bool) # No valid planes found
@@ -90,7 +89,8 @@ def ransac_ground_prelabeler(
     best = inliers.argmax()
     best_plane = plane_parameters[best]
     
-    # Enforce upward normal (normal vector's Z component should be positive in sensor frame)
+    # Enforce a consistent normal vector direction (e.g., pointing "up" in the sensor frame)
+    # This is crucial for correctly identifying points above/below the plane.
     if best_plane[2] < 0:
         best_plane = -best_plane
         

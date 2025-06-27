@@ -4,13 +4,10 @@ import numpy as np
 from typing import Dict, Optional
 import logging
 import ray
-import torch
 
 # Project-specific imports
 from ..core.m_detector.base import MDetector
 from ..config_loader import MDetectorConfigAccessor
-from ..core.m_detector.pre_labelers import ransac_ground_prelabeler
-from ..core.constants import OcclusionResult
 
 class NuScenesProcessor:
     """
@@ -25,66 +22,41 @@ class NuScenesProcessor:
         """
         self.data_actor = data_actor
         self.config_accessor = config_accessor 
-        self.ransac_params = self.config_accessor.get_ransac_ground_params()
-        self.ransac_enabled = self.ransac_params['enabled']
         
         self.progress_actor = progress_actor
         self.worker_id = worker_id
         
         self.logger = logging.getLogger(logger_name)
 
-    def _get_prelabeled_ground_mask(self, points_sensor_raw: np.ndarray, points_global_raw: np.ndarray, 
-                                    timestamp: float, device: torch.device) -> Optional[np.ndarray]:
+    def process_scene(self, scene_index: int, detector: MDetector, task_description: str) -> Optional[Dict[str, np.ndarray]]:
         """
-        Orchestrates the pre-labeling of ground points. This involves:
-        1. Filtering the raw point cloud to the desired range.
-        2. Running a ground segmentation algorithm (RANSAC) on the filtered points.
-        3. Reconstructing a boolean mask aligned with the original raw point cloud.
+        Processes an entire scene sweep-by-sweep using the provided M-Detector instance.
 
-        This keeps the core `process_scene` loop clean and maintains separation of concerns.
+        For each sweep, it loads data, runs pre-labeling, adds the sweep to the
+        detector, and processes it. It collects all valid predictions and their
+        corresponding ground truth data for later validation.
 
         Returns:
-            An optional boolean numpy array with the same size as `points_sensor_raw`,
-            where `True` indicates a point pre-labeled as ground.
+            A dictionary containing the validation data for the entire scene, structured as:
+            {
+                'validation_data': [
+                    {
+                        'predictions': np.ndarray,
+                        'original_indices_map': np.ndarray,
+                        'gt_sparse_indices': np.ndarray
+                    }, ...
+                ],
+                'scene_name': str
+            }
+            Returns None if no valid data could be processed.
         """
-        if not self.ransac_enabled:
-            return None
-
-        # 1. Filter the points. This is the place to modify for future ego-vehicle models.
-        filter_params = self.config_accessor.get_point_pre_filtering_params()
-        ranges = np.linalg.norm(points_sensor_raw, axis=1)
-        filter_mask = (ranges >= filter_params['min_range_meters']) & (ranges <= filter_params['max_range_meters'])
-        
-        points_sensor_filtered = points_sensor_raw[filter_mask]
-        points_global_filtered = points_global_raw[filter_mask]
-        
-        if points_sensor_filtered.shape[0] == 0:
-            return np.zeros(points_sensor_raw.shape[0], dtype=bool)
-
-        # 2. Run RANSAC on the filtered data.
-        ground_mask_filtered = ransac_ground_prelabeler(
-            points_global=points_global_filtered, 
-            points_lidar_frame=points_sensor_filtered,
-            current_di_timestamp=timestamp,
-            ransac_params=self.ransac_params, 
-            device_str=device.type
-        )
-
-        # 3. Reconstruct the mask to align with the raw point cloud.
-        ground_mask_raw = np.zeros(points_sensor_raw.shape[0], dtype=bool)
-        ground_mask_raw[filter_mask] = ground_mask_filtered
-        
-        return ground_mask_raw
-
-    def process_scene(self, scene_index: int, detector: MDetector, task_description: str) -> Optional[Dict[str, np.ndarray]]:
         scene_rec = ray.get(self.data_actor.get_scene_record.remote(scene_index))
         scene_token = scene_rec['token']
         scene_name = scene_rec['name']
         processing_settings = self.config_accessor.get_processing_settings()
         skip_frames = processing_settings['skip_frames']
         max_frames_config = processing_settings['max_frames']
-        lidar_name = 'LIDAR_TOP'
-        all_sweep_tokens = ray.get(self.data_actor.get_scene_sweep_tokens.remote(scene_token, lidar_name=lidar_name))
+        all_sweep_tokens = ray.get(self.data_actor.get_scene_sweep_tokens.remote(scene_token))
         if not all_sweep_tokens: return None
         start_idx = min(skip_frames, len(all_sweep_tokens))
         end_idx = len(all_sweep_tokens)
@@ -103,28 +75,20 @@ class NuScenesProcessor:
 
             T_global_sensor = sweep_data['T_global_lidar']
             points_global_raw = (T_global_sensor[:3, :3] @ points_sensor_raw.T).T + T_global_sensor[:3, 3]
-            
-            prelabeled_mask_raw = self._get_prelabeled_ground_mask(
-                points_sensor_raw=points_sensor_raw,
-                points_global_raw=points_global_raw,
-                timestamp=float(sweep_data['timestamp']),
-                device=detector.device
-            )
 
-            # Pass the raw points and the correctly aligned raw mask to the detector.
+            # Pass the raw points to the detector.
             detector.add_sweep(
                 points_global_raw=points_global_raw.astype(np.float32),
                 points_sensor_raw=points_sensor_raw.astype(np.float32),
                 pose_global=T_global_sensor.astype(np.float32),
-                timestamp=float(sweep_data['timestamp']),
-                prelabeled_mask_raw=prelabeled_mask_raw
+                timestamp=float(sweep_data['timestamp'])
             )
-            mdet_result = detector.decide_and_process_frame()
+            mdet_result = detector.process_latest_sweep()
             
             # Package results
             if mdet_result and mdet_result['success']:
                 processed_di = mdet_result['processed_di']
-                if processed_di and processed_di.total_points_added_to_di_arrays > 0:
+                if processed_di and processed_di.num_points > 0:
                     prediction_labels = processed_di.mdet_labels_for_points.cpu().numpy()
                     original_indices_map = processed_di.original_indices_of_filtered_points.cpu().numpy()
                     
@@ -156,8 +120,7 @@ class NuScenesProcessor:
         """
         scene_rec = ray.get(self.data_actor.get_scene_record.remote(scene_index))
         scene_token = scene_rec['token']
-        lidar_name = 'LIDAR_TOP'
-        all_sweep_tokens = ray.get(self.data_actor.get_scene_sweep_tokens.remote(scene_token, lidar_name=lidar_name))
+        all_sweep_tokens = ray.get(self.data_actor.get_scene_sweep_tokens.remote(scene_token))
         
         if not all_sweep_tokens:
             return
@@ -172,17 +135,12 @@ class NuScenesProcessor:
 
             T_global_sensor = sweep_data['T_global_lidar']
             points_global_raw = (T_global_sensor[:3, :3] @ points_sensor_raw.T).T + T_global_sensor[:3, 3]
-            
-            prelabeled_mask_raw = self._get_prelabeled_ground_mask(
-                points_sensor_raw, points_global_raw, float(sweep_data['timestamp']), detector.device
-            )
 
             di = detector.add_sweep(
                 points_global_raw.astype(np.float32),
                 points_sensor_raw.astype(np.float32),
                 T_global_sensor.astype(np.float32),
-                float(sweep_data['timestamp']),
-                prelabeled_mask_raw
+                float(sweep_data['timestamp'])
             )
             
             # Check if the detector is ready to process
@@ -194,7 +152,7 @@ class NuScenesProcessor:
             di_to_process_idx = lib_len - 1
             di_to_process = detector.depth_image_library.get_image_by_index(di_to_process_idx)
 
-            if di_to_process and di_to_process.total_points_added_to_di_arrays > 0:
+            if di_to_process and di_to_process.num_points > 0:
                 # 1. Run geometry pipeline
                 labels_before_refinement = detector.get_labels_before_refinement(di_to_process, di_to_process_idx)
                 

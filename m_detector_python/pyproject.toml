@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "m-detector-python"
+version = "0.1.0"
+description = "Unsupervised Moving Point Detection in LiDAR"
+authors = ["Daniel Rugge <d.j.rugge@student.tudelft.nl>"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "~3.9"
+
+# Packages from PyPI
+open3d = ">=0.17.0"
+nuscenes-devkit = "*"
+numpy = "<2.0"
+pandas = "*"
+matplotlib = "*"
+pyyaml = "*"
+scipy = "*"
+scikit-learn = "*"
+hdbscan = "*"
+ray = {extras = ["all"], version = "*"}
+optuna = "*"
+
+# Packages from the custom 'pytorch' source defined below
+torch = {version = "2.6.0", source = "pytorch"}
+torchvision = {version = "0.21.0", source = "pytorch"}
+torchaudio = {version = "2.6.0", source = "pytorch"}
+
+# The exact URL for torch-scatter wheel
+torch-scatter = {url = "https://data.pyg.org/whl/torch-2.6.0%2Bcu124/torch_scatter-2.1.2%2Bpt26cu124-cp39-cp39-linux_x86_64.whl"}
+
+
+# This section defines the PyTorch repository
+[[tool.poetry.source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu124"
+priority = "explicit"

@@ -36,15 +36,12 @@ class MDetectorConfigAccessor:
         return self._config_data['mdetector_output_paths']
 
     def get_validation_params(self) -> dict:
-        filt_cfg = self.get_point_pre_filtering_params()
         val_cfg = self._config_data['validation_params']
         
         eval_params = {
             "mdet_label_field_name": "mdet_label",
             "mdet_dynamic_label_value": DYNAMIC_LABEL_VALUE,
-            "coordinate_tolerance_for_verification": 1e-3,
-            "mdet_min_point_range_meters": filt_cfg['min_range_meters'],
-            "mdet_max_point_range_meters": filt_cfg['max_range_meters'],
+            "coordinate_tolerance_for_verification": val_cfg['coordinate_tolerance_for_verification'],
             "evaluate_only_keyframes": False,
             "gt_velocity_threshold": val_cfg['gt_velocity_threshold']
         }
@@ -67,17 +64,17 @@ class MDetectorConfigAccessor:
         """Gets the parameters for the precise, point-to-point check used in event tests."""
         return self._get_m_detector_base()['detailed_occlusion_check']
 
-    def get_event_detection_logic_params(self) -> Dict[str, Any]:
-        return self._get_m_detector_base()['event_detection_logic']
+    def get_geometric_tests_params(self) -> Dict[str, Any]:
+        return self._get_m_detector_base()['geometric_tests']
     
-    def get_test4_perpendicular_params(self) -> Dict[str, Any]:
-        return self.get_event_detection_logic_params()['test4_perpendicular']
+    def get_initial_occlusion_pass_params(self) -> Dict[str, Any]:
+        return self.get_geometric_tests_params()['initial_occlusion_pass']
         
-    def get_test2_parallel_away_params(self) -> Dict[str, Any]:
-        return self.get_event_detection_logic_params()['test2_parallel_away']
+    def get_parallel_motion_away_params(self) -> Dict[str, Any]:
+        return self.get_geometric_tests_params()['event_tests']['parallel_motion_away']
 
-    def get_test3_parallel_towards_params(self) -> Dict[str, Any]:
-        return self.get_event_detection_logic_params()['test3_parallel_towards']
+    def get_perpendicular_motion_params(self) -> Dict[str, Any]:
+        return self.get_geometric_tests_params()['event_tests']['perpendicular_motion']
 
     def get_map_consistency_params(self) -> Dict[str, Any]:
         return self._get_m_detector_base()['map_consistency']
@@ -120,11 +117,6 @@ class MDetectorConfigAccessor:
         Gets the logging configuration section. Returns an empty dict if not found.
         """
         return self._config_data['logging_settings']
-
-    # # --- Direct accessors ---
-    # def get_library_size(self, default: int = 20) -> int:
-    #     di_params = self.get_depth_image_params()
-    #     return di_params['library_size']
     
     def get_raw_config(self) -> Dict[str, Any]:
         return self._config_data

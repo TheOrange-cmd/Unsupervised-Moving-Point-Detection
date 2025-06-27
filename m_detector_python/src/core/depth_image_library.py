@@ -1,40 +1,46 @@
 # src/core/depth_image_library.py
 
 import collections
-from typing import List, Optional, Deque, Tuple, Any, Union
+from typing import List, Optional, Deque, Tuple, Any
 
-# Import both classes and create a Union type
-from .depth_image import DepthImage as DepthImageLegacy
-from .depth_image import DepthImage as DepthImageTorch
-
-# This tells the type checker that the library can hold either version.
-DepthImageTypes = Union[DepthImageLegacy, DepthImageTorch]
+from .depth_image import DepthImage
 
 class DepthImageLibrary:
     """
-    Manages a library of DepthImage objects, typically with a fixed maximum size.
-    This version is generic and can hold either legacy or torch-based DepthImage objects.
+    Manages a rolling library of DepthImage objects with a fixed maximum size.
+
+    This class acts as the short-term memory for the M-Detector, holding a deque
+    of the most recent LiDAR sweeps, each encapsulated in a DepthImage object.
     """
     def __init__(self, max_size: int):
+        """
+        Initializes the library.
+
+        Args:
+            max_size (int): The maximum number of DepthImage objects to store.
+                            Once the deque is full, older images are discarded.
+        """
         if not isinstance(max_size, int) or max_size <= 0:
             raise ValueError("max_size must be a positive integer.")
         self.max_size: int = max_size
-        # The deque will hold objects of type DepthImageTypes
-        self._images: Deque[DepthImageTypes] = collections.deque(maxlen=max_size)
+        self._images: Deque[DepthImage] = collections.deque(maxlen=max_size)
 
-    def add_image(self, depth_image: Any) -> None: # Changed hint to Any for flexibility
-        """
-        Adds a new DepthImage to the library.
-        """
-        # The check is now more flexible. It ensures the object is one of our two types.
-        # This allows the same library code to be used by both systems.
-        if not isinstance(depth_image, (DepthImageLegacy, DepthImageTorch)):
-            raise TypeError(f"Only DepthImageLegacy or DepthImageTorch objects can be added. Got {type(depth_image)}.")
+    def add_image(self, depth_image: DepthImage) -> None:
+        """Adds a new DepthImage to the end of the library."""
+        if not isinstance(depth_image, DepthImage):
+            raise TypeError(f"Only DepthImage objects can be added. Got {type(depth_image)}.")
         self._images.append(depth_image)
 
-    def get_image_by_index(self, index: int) -> Optional[DepthImageTypes]:
+    def get_image_by_index(self, index: int) -> Optional[DepthImage]:
         """
-        Retrieve a DepthImage by its index in the internal deque.
+        Retrieves a DepthImage by its index in the internal deque.
+
+        Args:
+            index (int): The index of the image to retrieve.
+
+        Returns:
+            Optional[DepthImage]: The DepthImage object at the given index, or None
+                                  if the index is out of bounds.
         """
         if not self._images:
             return None
@@ -43,12 +49,17 @@ class DepthImageLibrary:
         except IndexError:
             return None
 
-    # --- Methods that need to be careful about the object type ---
-    
-    def get_relevant_past_images(self, num_sweeps: int) -> List[Tuple[int, Any]]:
+    def get_relevant_past_images(self, num_sweeps: int) -> List[Tuple[int, DepthImage]]:
         """
-        Retrieves a specified number of the most recent past images from the library.
-        Returns a list of (index, DepthImage) tuples.
+        Retrieves a specified number of the most recent past images, which are
+        used as the historical reference for occlusion checks.
+
+        Args:
+            num_sweeps (int): The number of recent past images to retrieve.
+
+        Returns:
+            List[Tuple[int, DepthImage]]: A list of (index, DepthImage) tuples,
+                                          sorted from most recent to least recent.
         """
         if not self._images or num_sweeps <= 0:
             return []
@@ -63,38 +74,53 @@ class DepthImageLibrary:
             actual_index_in_deque = num_available + image_index_from_end
             relevant_dis.append((actual_index_in_deque, self._images[image_index_from_end]))
             
-        # The list is already sorted from most recent to least recent.
         return relevant_dis
 
+    def get_relevant_future_images(self, num_sweeps: int) -> List[Tuple[int, DepthImage]]:
+        """
+        Retrieves a specified number of the nearest future images from the library.
+        This is currently unused but provides utility for planned bidirectional processing.
 
-    # ... other methods like get_relevant_future_images, __len__, etc., remain the same ...
-    # They operate on the deque and don't need to know the internal details of the DI objects.
-    # The provided code for the rest of the file is fine.
-    def get_relevant_future_images(self, current_timestamp: float, time_window_s: float) -> List[Tuple[int, DepthImageTypes]]:
+        Args:
+            num_sweeps (int): The number of future images to retrieve relative to the
+                              end of the deque.
+
+        Returns:
+            List[Tuple[int, DepthImage]]: A list of (index, DepthImage) tuples for future
+                                          images, sorted from nearest future to furthest.
         """
-        Retrieves future images within a specified time window from the current_timestamp.
-        Returns a list of (original_index_in_deque, DepthImage) tuples, sorted by
-        timestamp closest to current_timestamp first (i.e., nearest future images first).
-        """
-        relevant_dis: List[Tuple[int, DepthImageTypes]] = []
-        for i, di_candidate in enumerate(self._images):
-            if di_candidate.timestamp > current_timestamp and \
-               (di_candidate.timestamp - current_timestamp) <= time_window_s * 1e6:
-                relevant_dis.append((i, di_candidate))
+        # This implementation assumes the "current" frame is at index -num_sweeps-1
+        # and we are looking at frames after it. 
+        if not self._images or num_sweeps <= 0 or len(self._images) <= num_sweeps:
+            return []
+
+        num_available = len(self._images)
+        relevant_dis = []
         
-        relevant_dis.sort(key=lambda x: x[1].timestamp - current_timestamp)
-        return relevant_dis
+        # Iterate from the sweep just after the "current" one to the end.
+        for i in range(num_sweeps):
+            # Index from the end: -1 is the last, -2 is second to last...
+            image_index_from_end = -1 - i
+            actual_index_in_deque = num_available + image_index_from_end
+            relevant_dis.append((actual_index_in_deque, self._images[image_index_from_end]))
+        
+        # The list is already sorted from furthest future to nearest. Reverse it.
+        return relevant_dis[::-1]
 
     def __len__(self) -> int:
+        """Returns the current number of images in the library."""
         return len(self._images)
 
-    def get_all_images(self) -> List[DepthImageTypes]:
+    def get_all_images(self) -> List[DepthImage]:
+        """Returns a list of all images currently in the library."""
         return list(self._images)
 
     def is_full(self) -> bool:
+        """Checks if the library has reached its maximum capacity."""
         return len(self._images) == self.max_size
 
     def clear(self) -> None:
+        """Removes all images from the library."""
         self._images.clear()
 
     def __str__(self) -> str:

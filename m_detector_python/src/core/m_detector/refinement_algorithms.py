@@ -1,4 +1,4 @@
-# FILE: src/core/m_detector/refinement_algorithms.py (FINAL, MIGRATED)
+# src/core/m_detector/refinement_algorithms.py
 
 from enum import Enum
 import logging
@@ -15,7 +15,6 @@ from ..depth_image import DepthImage
 logger = logging.getLogger(__name__)
 
 class ClusteringAlgorithm(Enum):
-    # We will only implement HDBSCAN with the new library as it is superior
     HDBSCAN = "hdbscan"
 
 
@@ -24,6 +23,26 @@ def _refine_with_hdbscan_convex_hull(
     current_di: DepthImage,
     cluster_params: dict
 ) -> torch.Tensor:
+    """
+    Refines dynamic point labels using HDBSCAN clustering followed by convex hull expansion.
+
+    This two-step process first identifies dense clusters of dynamic points using
+    HDBSCAN, filtering out sparse noise. Then, for each valid cluster, it computes
+    its 3D convex hull and re-labels all points (including previously undetermined
+    ones) that fall within this hull as dynamic.
+
+    CPU based HDBSCAN was used as libraries with GPU versions were difficult to install in the current environment. 
+    Future developers might try refactoring this to GPU, or using a different clustering method,
+      as the current approach failed to improve the results ayways. 
+
+    Args:
+        labels (torch.Tensor): The current point labels. Shape: (N,).
+        current_di (DepthImage): The DepthImage object for the current sweep.
+        cluster_params (dict): Configuration for the clustering algorithm.
+
+    Returns:
+        torch.Tensor: The refined labels tensor. Shape: (N,).
+    """
     dynamic_mask = (labels == OcclusionResult.OCCLUDING_IMAGE.value)
     if not torch.any(dynamic_mask):
         return labels
@@ -51,7 +70,7 @@ def _refine_with_hdbscan_convex_hull(
     clusterer = CPU_HDBSCAN(
         min_cluster_size=min_cluster_size,
         min_samples=min_points_param, # The CPU library uses 'min_samples'
-        cluster_selection_epsilon=cluster_selection_epsilon, # Pass the new parameter here
+        cluster_selection_epsilon=cluster_selection_epsilon,
         core_dist_n_jobs=-1 # Use all available CPU cores
     )
     cluster_labels_np = clusterer.fit_predict(dynamic_points_np)
@@ -62,7 +81,7 @@ def _refine_with_hdbscan_convex_hull(
 
     refined_labels = labels.clone() # Start with a copy of the original labels
 
-    # --- NEW LOGIC: Handle HDBSCAN noise points (-1 label) ---
+    # Handle HDBSCAN noise points (-1 label) 
     # Identify the original indices of points that were initially dynamic candidates
     # but were classified as noise by HDBSCAN.
     original_indices_of_dynamic_candidates = torch.where(dynamic_mask)[0]
@@ -76,7 +95,6 @@ def _refine_with_hdbscan_convex_hull(
     if len(indices_to_revert_to_undetermined) > 0:
         refined_labels[indices_to_revert_to_undetermined] = OcclusionResult.UNDETERMINED.value
         logger.debug(f"Reverted {len(indices_to_revert_to_undetermined)} points from OCCLUDING_IMAGE to UNDETERMINED (HDBSCAN noise).")
-    # --- END NEW LOGIC ---
 
     unique_cluster_ids = np.unique(cluster_labels_np) # Use np.unique on numpy array for consistency
     
@@ -99,6 +117,7 @@ def _refine_with_hdbscan_convex_hull(
         # Get the global coordinates for points in this specific cluster
         cluster_points_np = current_di.original_points_global_coords[original_indices_for_cluster].cpu().numpy()
 
+        # A 3D convex hull requires at least 4 points (d+1).
         if len(cluster_points_np) < 4: # Convex hull requires at least 4 points for 3D
             logger.debug(f"Skipping Convex Hull for cluster {cluster_id}: not enough points ({len(cluster_points_np)}).")
             # Points in small clusters (that pass min_cluster_size but fail convex hull)
@@ -143,7 +162,17 @@ def apply_clustering_and_refinement(
     refinement_params: dict
 ) -> torch.Tensor:
     """
-    Main entry point for the frame refinement stage.
+    Main entry point for the frame refinement stage, dispatching to the
+    configured clustering algorithm.
+
+    Args:
+        labels (torch.Tensor): The labels tensor after all geometric tests.
+        current_di (DepthImage): The current DepthImage object.
+        refinement_params (dict): Configuration for the entire refinement stage,
+                                  including the 'enabled' flag and algorithm choice.
+
+    Returns:
+        torch.Tensor: The final, refined labels tensor.
     """
     if not refinement_params['enabled']:
         return labels
@@ -157,8 +186,6 @@ def apply_clustering_and_refinement(
     logger.debug(f"Applying frame refinement using algorithm: {algo_name}")
 
     if algo_name == ClusteringAlgorithm.HDBSCAN.value:
-        # --- MODIFICATION: The key 'hdbscan' should now point to CPU params ---
-        # The logic here remains the same, it just calls the CPU version now.
         algo_params = clustering_config[algo_name]
         return _refine_with_hdbscan_convex_hull(labels, current_di, algo_params)
     else:

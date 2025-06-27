@@ -15,3 +15,7 @@ m_detector_python/backup
 *.out
 *.h5
 *.pt
+
+# Python byte-compiled / optimized files
+__pycache__/
+*.py[cod]

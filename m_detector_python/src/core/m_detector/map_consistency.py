@@ -11,15 +11,16 @@ from itertools import combinations
 
 logger_mcc_perf = logging.getLogger("MCC_PERF_DEBUG")
 
+# Tolerance for floating point inaccuracies
+BARYCENTRIC_WEIGHT_TOLERANCE = 1e-9
+
 if TYPE_CHECKING:
     from ..depth_image import DepthImage
     from .base import MDetector
 
 def is_map_consistent(self: 'MDetector',
                       points_global_batch: torch.Tensor,
-                      origin_di: 'DepthImage',
-                      current_timestamp: float,
-                      caller_id: str = "unknown") -> torch.Tensor:
+                      origin_di: 'DepthImage') -> torch.Tensor:
     """
     Hybrid GPU-CPU map consistency check.
     """
@@ -76,10 +77,6 @@ def is_map_consistent(self: 'MDetector',
 
         interp_candidate_indices_gpu = active_indices[~pixel_has_content_mask]
         if self.mc_interp_enabled and interp_candidate_indices_gpu.numel() > 0:
-            # num_pts_for_cpu = interp_candidate_indices_gpu.numel()
-            # if num_pts_for_cpu > 100:
-                # logger_mcc_perf.warning(f"[{caller_id}] DI TS {di_hist.timestamp:.2f}: Sending {num_pts_for_cpu} points to CPU for interpolation.")
-            
             phi_target_cpu = sph_coords_target[interp_candidate_indices_gpu, 0].cpu().numpy()
             theta_target_cpu = sph_coords_target[interp_candidate_indices_gpu, 1].cpu().numpy()
             
@@ -191,7 +188,7 @@ def interpolate_surface_depth_at_angle(
             continue 
 
         # If the target point is within the triangle formed by the neighbors, interpolate
-        if np.all(weights >= -1e-9): # Allow for small floating point inaccuracies
+        if np.all(weights >= -BARYCENTRIC_WEIGHT_TOLERANCE): # Allow for small floating point inaccuracies
             interpolated_depth = (weights[0] * p1_data[2] + 
                                   weights[1] * p2_data[2] + 
                                   weights[2] * p3_data[2])

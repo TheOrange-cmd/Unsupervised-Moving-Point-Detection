@@ -1,41 +1,34 @@
+# src/core/constants.py
+
 """
 Core constants used throughout the M-Detector project, such as Enums.
 """
 
-# core/constants.py
-
 from enum import Enum
-import numpy as np
 
 class OcclusionResult(Enum):
     """
     Enum for the result of occlusion checks, indicating the relationship
-    of a point from a 'current' scan with respect to data in a 'reference' (e.g., historical) scan.
+    of a point from a 'current' scan with respect to data in a 'reference' scan.
     """
-    OCCLUDING_IMAGE = 0   # Current point is in front of data in the reference image (suggests current point is dynamic).
-    OCCLUDED_BY_IMAGE = 1 # Current point is behind data in the reference image (suggests current point is static).
-    EMPTY_IN_IMAGE = 2    # Current point projects to an area with no data in the reference image (ambiguous).
-    UNDETERMINED = 3      # Cannot determine the occlusion relationship (e.g., point outside FoV, or within epsilon thresholds).
-    PRELABELED_STATIC_GROUND = 4 # Labeled static by RANSAC - ignore for processing, but do use it as static label for consistency checks
+    # Point is in front of the reference map. The primary indicator of a dynamic point.
+    OCCLUDING_IMAGE = 0
+    
+    # Point is behind the reference map. Strong indicator of a static point.
+    OCCLUDED_BY_IMAGE = 1
+    
+    # Point projects to an empty area in the reference map. Ambiguous case.
+    EMPTY_IN_IMAGE = 2
+    
+    # Occlusion status could not be determined (e.g., out of FoV, edge cases).
+    UNDETERMINED = 3
+    
+    # Point was pre-labeled as static ground by an upstream process (e.g., RANSAC).
+    # These points are excluded from dynamic checks but used for map consistency.
+    PRELABELED_STATIC_GROUND = 4
 
 # --- Centralized Algorithm Constants ---
+
 # The integer value representing a dynamic point throughout the system.
-# This is the single source of truth.
+# This is the single source of truth for what constitutes a "dynamic" label.
 DYNAMIC_LABEL_VALUE = OcclusionResult.OCCLUDING_IMAGE.value
-
-POINT_LABEL_DTYPE = np.dtype([
-    # Sensor-frame coordinates (for on-the-fly filtering during evaluation)
-    ('x_sensor', np.float32),
-    ('y_sensor', np.float32),
-    ('z_sensor', np.float32),
-
-    # Global-frame coordinates (for verification and direct use in metrics)
-    ('x', np.float32),    
-    ('y', np.float32),  
-    ('z', np.float32),    
-    ('instance_token', 'S32'),  # 32-byte string for instance token
-    ('category_name', 'S64'),   # 64-byte string for category name (e.g., 'vehicle.car')
-    ('velocity_x', np.float32), # Global velocity x of the object the point belongs to
-    ('velocity_y', np.float32), # Global velocity y
-    ('velocity_z', np.float32)  # Global velocity z (will often be 0 for our 2D velocity source)
-])

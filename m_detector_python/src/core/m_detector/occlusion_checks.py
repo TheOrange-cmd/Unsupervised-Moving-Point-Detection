@@ -1,46 +1,31 @@
 # src/core/m_detector/occlusion_checks.py
 
-import numpy as np
 import torch
-from typing import Tuple, Optional, List, Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from ..constants import OcclusionResult
 from .adaptive_epsilon_utils import calculate_adaptive_epsilon
-from ..depth_image import DepthImage
-
-import logging
-logger_oc = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .base import MDetector
+    from ..depth_image import DepthImage
 
-def check_occlusion_batch(self,
+def check_occlusion_batch(self: 'MDetector',
                           points_global_batch: torch.Tensor,
-                          historical_depth_image: DepthImage) -> torch.Tensor:
+                          historical_depth_image: 'DepthImage') -> torch.Tensor:
     """
-    Performs a fast, coarse-grained (broad-phase) occlusion check for a batch of points 
+    Performs a fast, coarse-grained (broad-phase) occlusion check for a batch of points
     against an entire historical depth image.
 
-    This function acts as a rapid filter to classify points into general occlusion 
-    categories. It compares each point to a neighborhood of pixels in the historical 
-    image rather than to individual points, making it highly efficient. It is intended 
-    to be the first stage in a two-stage occlusion detection process.
-
-    Workflow:
-    1. Projects all 3D points onto the 2D grid of the historical depth image.
-    2. For each valid projection, defines a rectangular neighborhood of pixels.
-    3. Gathers pre-computed min/max depth values from all pixels in the neighborhood.
-    4. Compares the point's depth against the aggregated neighborhood depth to classify it as
-       OCCLUDED_BY_IMAGE, OCCLUDING_IMAGE, or EMPTY_IN_IMAGE.
+    This function acts as a rapid filter, comparing each point to a neighborhood of
+    pixels in the historical image rather than to individual points.
 
     Args:
-        points_global_batch (torch.Tensor): A tensor of shape (N, 3) containing the 3D points 
-                                            to check, in global coordinates.
-        historical_depth_image (DepthImage): The historical depth image data structure, 
-                                             which contains pre-aggregated depth information.
+        points_global_batch (torch.Tensor): Points to check, in global coordinates. Shape: (N, 3).
+        historical_depth_image (DepthImage): The historical DI to check against.
 
     Returns:
-        torch.Tensor: A 1D tensor of shape (N,) with integer values from the 
-                      OcclusionResult enum, classifying each point.
+        torch.Tensor: Integer labels from OcclusionResult for each point. Shape: (N,).
     """
     batch_size = points_global_batch.shape[0]
     device = self.device
@@ -145,34 +130,20 @@ def check_occlusion_point_level_detailed_batch(
     occlusion_type_to_check: str,
 ) -> torch.Tensor:
     """
-    Performs a precise, fine-grained (narrow-phase) occlusion check between paired
-    points from an evaluation set and a historical set.
+    Performs a precise, fine-grained (narrow-phase) occlusion check between paired points.
 
-    This function is designed to be a high-precision verification step, used *after* a
-    coarse check has identified potential occlusion candidates. It directly compares a
-    point with its historical counterpart, using strict angular matching and an adaptive
-    depth threshold that accounts for sensor error at different distances.
-
-    Workflow:
-    1. Projects both batches of points onto the historical image grid in a single call.
-    2. Filters out pairs where one or both points failed to project.
-    3. Performs a strict angular check to ensure the two points lie on the same ray.
-    4. For angularly-matched pairs, calculates an adaptive depth epsilon based on distance.
-    5. Performs the final depth comparison to verify the specific occlusion type requested.
+    This high-precision step is used after a coarse check has identified candidates.
+    It uses strict angular matching and an adaptive depth threshold.
 
     Args:
-        points_eval_global (torch.Tensor): (N, 3) tensor of points to evaluate.
-        d_anchors_of_points_eval (torch.Tensor): (N,) tensor of anchor depths for the evaluation
-                                                 points, used for adaptive epsilon calculation.
-        points_hist_cand_global (torch.Tensor): (N, 3) tensor of historical candidate points,
-                                                paired one-to-one with `points_eval_global`.
-        historical_di (DepthImage): The historical depth image, used for projection.
-        occlusion_type_to_check (str): The specific relationship to verify. Must be either
-                                       "OCCLUDING" or "OCCLUDED_BY".
+        points_eval_global (torch.Tensor): Points to evaluate. Shape: (N, 3).
+        d_anchors_of_points_eval (torch.Tensor): Anchor depths for eval points. Shape: (N,).
+        points_hist_cand_global (torch.Tensor): Paired historical candidate points. Shape: (N, 3).
+        historical_di (DepthImage): The historical DI used for projection.
+        occlusion_type_to_check (str): Relationship to verify ("OCCLUDING" or "OCCLUDED_BY").
 
     Returns:
-        torch.Tensor: A 1D boolean tensor of shape (N,) where `True` indicates that the
-                      specified occlusion condition was met for that pair of points.
+        torch.Tensor: Boolean mask where True indicates the condition was met. Shape: (N,).
     """
     batch_size = points_eval_global.shape[0]
     final_results = torch.zeros(batch_size, dtype=torch.bool, device=self.device)
