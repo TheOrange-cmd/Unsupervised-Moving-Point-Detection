@@ -152,6 +152,18 @@ class InteractiveVisualizer:
     def __init__(self, window_name: str = "Interactive Analysis", width: int = 1920, height: int = 1080, fps: int = 20):
         self.vis = o3d.visualization.VisualizerWithKeyCallback()
         self.vis.create_window(window_name=window_name, width=width, height=height)
+
+        # Check if the window was successfully created before proceeding.
+        opt = self.vis.get_render_option()
+        if opt is None:
+            raise RuntimeError(
+                "Failed to create an Open3D window. This usually means you are running in an environment "
+                "without a graphical display.\n\n"
+                "Common Solutions:\n"
+                "1. If using SSH, connect with X11 forwarding: 'ssh -X user@hostname'\n"
+                "2. If using Docker, ensure it's configured to access the host's display.\n"
+                "3. If using WSL, ensure you have a running X server (like VcXsrv) or are using WSLg.\n"
+            )
         
         # --- State for Animation Control ---
         self.is_paused = True

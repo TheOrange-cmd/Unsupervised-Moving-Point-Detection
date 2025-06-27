@@ -141,7 +141,7 @@ This stage tunes the core parameters of the detection algorithm, such as occlusi
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Run the full geometric tuning
-python -m scripts.run_experiment \
+poetry run python scripts/run_experiment.py \
     --mode tune-full \
     --study-name geo_study_v1 \
     --n-trials 500
@@ -156,7 +156,7 @@ This stage takes the best parameters from the geo_study_v1 study, runs the geome
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Run the full geometric tuning
-python -m scripts.run_experiment \
+poetry run python scripts/run_experiment.py \
     --mode bake \
     --study-name "Baking geo_study_v1" \
     --source-study-name geo_study_v1
@@ -169,7 +169,7 @@ This final stage loads the baked data and tunes only the frame refinement parame
 Note: The --bake-id will be printed at the end of the bake command. Use that ID here.
 
 ```bash
-python -m scripts.run_experiment \
+poetry run python scripts/run_experiment.py \
     --mode tune-refinement \
     --study-name refinement_on_geo_v1 \
     --n-trials 1000 \
@@ -189,7 +189,7 @@ First, extract the best-performing hyperparameters from your Optuna study databa
 ```bash
 poetry run python scripts/export_best_params.py \
     --storage "sqlite:///path/to/your/database.db" \
-    --study-name "your_study_name" \
+    --study-name "geo_study_v1" \
     --output-file "best_params_from_study.yaml"
 ```
 

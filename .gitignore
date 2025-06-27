@@ -9,12 +9,14 @@ m_detector_python/logs/
 m_detector_python/optuna_studies/
 m_detector_python/mcc_perf_logs
 m_detector_python/backup
+m_detector_python/results
 
 # Specific large file types
 *.pkl
 *.out
 *.h5
 *.pt
+*.mp4
 
 # Python byte-compiled / optimized files
 __pycache__/

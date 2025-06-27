@@ -177,8 +177,87 @@ Action Points:
         Suggestion: Think about creating a base DatasetProcessor class with abstract methods (get_sweep_data, get_scene_tokens, etc.). Then, NuScenesProcessor would inherit from it. This would make adding a TruckScenesProcessor in the future much cleaner. This is a lower priority but good to keep in mind during other refactoring.
 
 
-New problems:
+New problems/thoughts:
 
 See if we can merge the label generation data loader with the nuscenes helper dataloader for m detector / abstract similar utilities to avoid code duplication? 
 
 Move the seeding utils to utils instead of data_utils? 
+
+Maybe we can look into merging the code used baking process in the tuning pipeline with the baking process we have in the visualization pipeline? 
+
+
+
+Revised and Merged Plan for Phase 2
+
+Goal: Solidify the main scripts, data handling processes, and project organization to make them robust, extensible, and free of unnecessary dependencies. This phase will explicitly decouple the core prediction pipeline from the ground truth evaluation pipeline.
+Action Point 1: Create a Decoupled Data Loading Hierarchy
+
+This is the most critical step and replaces the previous "Unify Data Loading" point with a more robust, two-tiered design.
+
+    Task: Create a new file, src/data_utils/data_loader.py, that will house two new classes responsible for loading NuScenes data. This separates the logic for pure data fetching from ground truth handling.
+
+    Class 1: SweepLoader (The Prediction Foundation)
+        Responsibility: Its only job is to load the data required for prediction. It will know nothing about annotations, instances, or ground truth boxes.
+        Methods: It will contain the core logic for iterating through a scene's sweeps (e.g., get_scene_sweeps) and yielding SweepData objects (point clouds, poses, timestamps).
+        Usage: This will be the base class used by any workflow that does not need ground truth.
+
+    Class 2: GroundTruthLoader (The Evaluation Extension)
+        Responsibility: It will handle all logic related to evaluation and ground truth.
+        Design: It will inherit from SweepLoader to get the base data-fetching capabilities.
+        Methods: It will add methods for loading instance annotations, interpolating GT boxes (get_interpolated_boxes_for_instance), and loading our generated sparse GT point labels from the .pt files.
+        Usage: This will be used by any workflow that needs to compare predictions against ground truth (tuning, error analysis, GT visualization).
+
+Action Point 2: Refactor All Existing Pipelines to Use the New Loaders
+
+With the new data loaders in place, we will refactor all existing scripts and classes to use the appropriate one. This will make their dependencies explicit and clean up duplicated code.
+
+    Task: Update the following components:
+
+        Label Generation (scripts/generate_labels.py):
+            Refactoring: The SceneProcessor class within this script will be refactored to use the new GroundTruthLoader. This makes sense, as its entire purpose is to process annotations and GT data.
+
+        Tuning Pipeline (src/data_utils/nuscenes_helper.py):
+            Refactoring: The NuScenesProcessor class, which is used by the Ray-based tuners, will be updated to use the GroundTruthLoader. This is necessary because the tuning process fundamentally relies on comparing predictions to GT labels to calculate an IoU score.
+
+        GT-Dependent Visualization & Analysis:
+            scripts/visualize_gt.py: Will use GroundTruthLoader to get GT boxes and dynamic points for visualization.
+            scripts/analyze_errors_interactive.py: Will use GroundTruthLoader to get both the processed predictions and the GT data needed for precise TP/FP/FN error coloring.
+            scripts/process_scene.py: This script's purpose is to "bake" results for the error analysis script, so it will also use GroundTruthLoader to ensure the GT data is aligned and available.
+
+Action Point 3: Create a Decoupled, Prediction-Only Workflow
+
+This new action point directly addresses your goal of running the detector on data without needing our generated GT label files.
+
+    Task 1: Create a New scripts/predict.py Script
+        Purpose: To run the M-Detector on a NuScenes scene and generate prediction files, without requiring any ground truth annotations or label files.
+        Implementation:
+            It will take arguments like --config, --params, --scene-index, and --output-path.
+            It will instantiate the base SweepLoader class. This is the key to decoupling—it will not have access to any GT-related methods.
+            It will loop through the SweepData yielded by the SweepLoader.
+            For each sweep, it will run detector.add_sweep() and detector.process_latest_sweep().
+            It will save the results (points, final labels, original indices) to a .pt file, just like process_scene.py.
+
+    Task 2: Create a New scripts/visualize_predictions.py Script
+        Purpose: To create a video from the output of predict.py.
+        Implementation:
+            This script will be a simplified version of visualize_mdetector.py.
+            It will take the .pt file from predict.py as input.
+            It will use ColorMapper to color points based only on the detector's output (e.g., red for predicted dynamic, grey for predicted static).
+            It will not attempt to load GT boxes or perform error analysis coloring. This makes it a pure prediction visualizer.
+
+Action Point 4: Implement Configuration File Validation
+
+This is a critical robustness improvement carried over from the previous plan.
+
+    Task: Add a validation system to the MDetectorConfigAccessor.
+    Details: This system will be invoked immediately after loading the config.yaml. It will verify the presence, type, and (where applicable) the range of all critical parameters. Using a library like Pydantic is the recommended, industry-standard approach for creating declarative, self-documenting, and easy-to-maintain validation models. This will prevent KeyError and TypeError exceptions deep within the code.
+
+Action Point 5: Finalize Project Organization
+
+This is the final cleanup step, also carried over from the previous plan.
+
+    Task: Perform a final review of the file structure.
+    Sub-Tasks:
+        Move src/data_utils/seeding_utils.py to src/utils/seeding_utils.py and update all imports, as it is a general utility.
+        Ensure all user-facing, executable scripts reside in the top-level scripts/ directory.
+        Confirm that the responsibilities of src/core, src/utils, and src/data_utils are clear and well-defined after the refactoring.

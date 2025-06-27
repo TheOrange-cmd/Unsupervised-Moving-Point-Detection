@@ -1,2070 +1,1196 @@
 ############################
-FILE: src/core/depth_image_library.py
+FILE: scripts/visualize_gt.py
 ############################
 
-# src/core/depth_image_library.py
+# scripts/visualize_gt.py
 
-import collections
-from typing import List, Optional, Deque, Tuple, Any
-
-from .depth_image import DepthImage
-
-class DepthImageLibrary:
-    """
-    Manages a rolling library of DepthImage objects with a fixed maximum size.
-
-    This class acts as the short-term memory for the M-Detector, holding a deque
-    of the most recent LiDAR sweeps, each encapsulated in a DepthImage object.
-    """
-    def __init__(self, max_size: int):
-        """
-        Initializes the library.
-
-        Args:
-            max_size (int): The maximum number of DepthImage objects to store.
-                            Once the deque is full, older images are discarded.
-        """
-        if not isinstance(max_size, int) or max_size <= 0:
-            raise ValueError("max_size must be a positive integer.")
-        self.max_size: int = max_size
-        self._images: Deque[DepthImage] = collections.deque(maxlen=max_size)
-
-    def add_image(self, depth_image: DepthImage) -> None:
-        """Adds a new DepthImage to the end of the library."""
-        if not isinstance(depth_image, DepthImage):
-            raise TypeError(f"Only DepthImage objects can be added. Got {type(depth_image)}.")
-        self._images.append(depth_image)
-
-    def get_image_by_index(self, index: int) -> Optional[DepthImage]:
-        """
-        Retrieves a DepthImage by its index in the internal deque.
-
-        Args:
-            index (int): The index of the image to retrieve.
-
-        Returns:
-            Optional[DepthImage]: The DepthImage object at the given index, or None
-                                  if the index is out of bounds.
-        """
-        if not self._images:
-            return None
-        try:
-            return self._images[index]
-        except IndexError:
-            return None
-
-    def get_relevant_past_images(self, num_sweeps: int) -> List[Tuple[int, DepthImage]]:
-        """
-        Retrieves a specified number of the most recent past images, which are
-        used as the historical reference for occlusion checks.
-
-        Args:
-            num_sweeps (int): The number of recent past images to retrieve.
-
-        Returns:
-            List[Tuple[int, DepthImage]]: A list of (index, DepthImage) tuples,
-                                          sorted from most recent to least recent.
-        """
-        if not self._images or num_sweeps <= 0:
-            return []
-        
-        num_available = len(self._images)
-        num_to_get = min(num_sweeps, num_available)
-        
-        relevant_dis = []
-        for i in range(num_to_get):
-            # Index from the end: -1 is the last item, -2 is the second to last, etc.
-            image_index_from_end = -1 - i
-            actual_index_in_deque = num_available + image_index_from_end
-            relevant_dis.append((actual_index_in_deque, self._images[image_index_from_end]))
-            
-        return relevant_dis
-
-    def get_relevant_future_images(self, num_sweeps: int) -> List[Tuple[int, DepthImage]]:
-        """
-        Retrieves a specified number of the nearest future images from the library.
-        This is currently unused but provides utility for planned bidirectional processing.
-
-        Args:
-            num_sweeps (int): The number of future images to retrieve relative to the
-                              end of the deque.
-
-        Returns:
-            List[Tuple[int, DepthImage]]: A list of (index, DepthImage) tuples for future
-                                          images, sorted from nearest future to furthest.
-        """
-        # This implementation assumes the "current" frame is at index -num_sweeps-1
-        # and we are looking at frames after it. 
-        if not self._images or num_sweeps <= 0 or len(self._images) <= num_sweeps:
-            return []
-
-        num_available = len(self._images)
-        relevant_dis = []
-        
-        # Iterate from the sweep just after the "current" one to the end.
-        for i in range(num_sweeps):
-            # Index from the end: -1 is the last, -2 is second to last...
-            image_index_from_end = -1 - i
-            actual_index_in_deque = num_available + image_index_from_end
-            relevant_dis.append((actual_index_in_deque, self._images[image_index_from_end]))
-        
-        # The list is already sorted from furthest future to nearest. Reverse it.
-        return relevant_dis[::-1]
-
-    def __len__(self) -> int:
-        """Returns the current number of images in the library."""
-        return len(self._images)
-
-    def get_all_images(self) -> List[DepthImage]:
-        """Returns a list of all images currently in the library."""
-        return list(self._images)
-
-    def is_full(self) -> bool:
-        """Checks if the library has reached its maximum capacity."""
-        return len(self._images) == self.max_size
-
-    def clear(self) -> None:
-        """Removes all images from the library."""
-        self._images.clear()
-
-    def __str__(self) -> str:
-        return f"DepthImageLibrary(size={len(self._images)}, max_size={self.max_size})"
-
-############################
-FILE: src/core/__init__.py
-############################
-
-# src/core/__init__.py
-from .depth_image import DepthImage
-from .depth_image_library import DepthImageLibrary
-
-__all__ = ['DepthImage', 'DepthImageLibrary']
-
-############################
-FILE: src/core/constants.py
-############################
-
-# src/core/constants.py
-
-"""
-Core constants used throughout the M-Detector project, such as Enums.
-"""
-
-from enum import Enum
-
-class OcclusionResult(Enum):
-    """
-    Enum for the result of occlusion checks, indicating the relationship
-    of a point from a 'current' scan with respect to data in a 'reference' scan.
-    """
-    # Point is in front of the reference map. The primary indicator of a dynamic point.
-    OCCLUDING_IMAGE = 0
-    
-    # Point is behind the reference map. Strong indicator of a static point.
-    OCCLUDED_BY_IMAGE = 1
-    
-    # Point projects to an empty area in the reference map. Ambiguous case.
-    EMPTY_IN_IMAGE = 2
-    
-    # Occlusion status could not be determined (e.g., out of FoV, edge cases).
-    UNDETERMINED = 3
-    
-    # Point was pre-labeled as static ground by an upstream process (e.g., RANSAC).
-    # These points are excluded from dynamic checks but used for map consistency.
-    PRELABELED_STATIC_GROUND = 4
-
-# --- Centralized Algorithm Constants ---
-
-# The integer value representing a dynamic point throughout the system.
-# This is the single source of truth for what constitutes a "dynamic" label.
-DYNAMIC_LABEL_VALUE = OcclusionResult.OCCLUDING_IMAGE.value
-
-############################
-FILE: src/core/depth_image.py
-############################
-
-# src/core/depth_image.py
-
+import sys
+import argparse
+from pathlib import Path
 import numpy as np
 import torch
-from typing import Tuple, Optional, Dict, List, Any
-import logging
-from torch_scatter import scatter_min, scatter_max, scatter_add, scatter
-
-from .constants import OcclusionResult
-from ..utils.point_cloud_utils import filter_points
-
-logger = logging.getLogger(__name__)
-
-# A small constant to avoid division by zero or floating point issues.
-FLOAT_PRECISION_GUARD = 1e-6
-
-class DepthImage:
-    """
-    Represents a single LiDAR sweep as a spherical projection (depth image).
-
-    This class is the core data structure for a single frame. It stores not only the
-    raw point cloud data but also the 2D spherical projection, which includes
-    pre-aggregated min/max depth and point counts per pixel. This pre-aggregation
-    is key to the performance of the coarse occlusion checks.
-    """
-    def __init__(self,
-                 image_pose_global: np.ndarray,
-                 depth_image_params: Dict[str, Any],
-                 timestamp: float,
-                 device: torch.device):
-        """
-        Initializes the DepthImage for a single sweep.
-
-        Args:
-            image_pose_global (np.ndarray): The 4x4 pose matrix that transforms points
-                                            from the sensor's frame to the global frame.
-            depth_image_params (Dict[str, Any]): Configuration for the spherical projection.
-            timestamp (float): The timestamp of the sweep in microseconds.
-            device (torch.device): The PyTorch device (e.g., 'cuda:0' or 'cpu') for tensors.
-        """
-        self.device = device
-        self.image_pose_global: torch.Tensor = torch.from_numpy(image_pose_global).float().to(self.device)
-        self.timestamp: float = timestamp
-
-        # --- Spherical Projection Parameters ---
-        self.res_h_rad: float = np.deg2rad(depth_image_params['resolution_h_deg'])
-        self.res_v_rad: float = np.deg2rad(depth_image_params['resolution_v_deg'])
-        self.phi_min_rad: float = depth_image_params['phi_min_rad']
-        self.phi_max_rad: float = depth_image_params['phi_max_rad']
-        self.theta_min_rad: float = depth_image_params['theta_min_rad']
-        self.theta_max_rad: float = depth_image_params['theta_max_rad']
-        self.num_pixels_h: int = int(np.ceil((self.phi_max_rad - self.phi_min_rad) / self.res_h_rad))
-        self.num_pixels_v: int = int(np.ceil((self.theta_max_rad - self.theta_min_rad) / self.res_v_rad))
-
-        # --- Core Data Tensors ---
-        # Stores the minimum depth of any point projecting to a pixel.
-        self.pixel_min_depth: torch.Tensor = torch.full((self.num_pixels_v, self.num_pixels_h), float('inf'), dtype=torch.float32, device=self.device)
-        # Stores the maximum depth of any point projecting to a pixel.
-        self.pixel_max_depth: torch.Tensor = torch.full((self.num_pixels_v, self.num_pixels_h), float('-inf'), dtype=torch.float32, device=self.device)
-        # Stores the number of points projecting to each pixel.
-        self.pixel_count: torch.Tensor = torch.zeros((self.num_pixels_v, self.num_pixels_h), dtype=torch.int32, device=self.device)
-        
-        # --- Point Cloud Data (Populated by add_points_batch) ---
-        self.num_points: int = 0
-        self.original_points_global_coords: Optional[torch.Tensor] = None
-        self.mdet_labels_for_points: Optional[torch.Tensor] = None
-        self.original_indices_of_filtered_points: Optional[torch.Tensor] = None
-        self.local_sph_coords_for_points: Optional[torch.Tensor] = None
-        
-        # --- Pre-computed Transformation ---
-        self.matrix_local_from_global: torch.Tensor = torch.inverse(self.image_pose_global)
-
-        # --- Pixel-to-Point-Index Mapping ---
-        # A tensor storing original point indices, sorted by their flattened pixel location.
-        self.pixel_original_indices_tensor: Optional[torch.Tensor] = None
-        # A map where each entry [start, count] corresponds to a slice in the above tensor.
-        self.pixel_map_tensor = torch.full((self.num_pixels_v * self.num_pixels_h, 2), -1, dtype=torch.long, device=self.device)
-
-        # --- Caching for Static Point Mask ---
-        self.static_points_mask: Optional[torch.Tensor] = None
-        self._static_labels_used_for_cache: Optional[List[int]] = None
-
-    def is_prepared_for_projection(self) -> bool:
-        """Checks if the DI has been populated with points and is ready for use."""
-        return self.num_points > 0 and self.local_sph_coords_for_points is not None
-
-    def project_points_batch(self, points_global_batch: torch.Tensor) -> \
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Projects a batch of 3D points in global coordinates into this DI's local frame
-        and calculates their spherical coordinates and pixel indices.
-
-        Args:
-            points_global_batch (torch.Tensor): Points to project, shape (N, 3).
-
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]: A tuple containing:
-                - points_local (N, 3): Points in the DI's local sensor frame.
-                - sph_coords (N, 3): Spherical coordinates (phi, theta, depth).
-                - pixel_indices (N, 2): Pixel coordinates (v, h).
-                - valid_mask (N,): Boolean mask indicating which points projected successfully.
-        """
-        batch_size = points_global_batch.shape[0]
-        if not isinstance(points_global_batch, torch.Tensor):
-            points_global_batch = torch.from_numpy(points_global_batch).float()
-        points_global_batch = points_global_batch.to(self.device)
-
-        # Homogeneous transformation to local frame
-        points_global_h = torch.hstack([
-            points_global_batch,
-            torch.ones((batch_size, 1), dtype=torch.float32, device=self.device)
-        ])
-        points_local_h = points_global_h @ self.matrix_local_from_global.T
-        points_local_all = points_local_h[:, :3]
-
-        # Calculate spherical coordinates
-        depths = torch.linalg.norm(points_local_all, dim=1)
-        valid_mask = torch.zeros(batch_size, dtype=torch.bool, device=self.device)
-        sph_coords_all = torch.zeros((batch_size, 3), dtype=torch.float32, device=self.device)
-        pixel_indices_all = torch.zeros((batch_size, 2), dtype=torch.long, device=self.device)
-
-        has_valid_depth_mask = depths > FLOAT_PRECISION_GUARD
-        if not torch.any(has_valid_depth_mask):
-            return points_local_all, sph_coords_all, pixel_indices_all, valid_mask
-
-        pl_valid_depth = points_local_all[has_valid_depth_mask]
-        d_valid_depth = depths[has_valid_depth_mask]
-        x, y, z = pl_valid_depth.T
-        phi = torch.atan2(y, x)
-        theta = torch.asin(torch.clip(z / d_valid_depth, -1.0, 1.0))
-
-        # Filter points that are within the LiDAR's field of view
-        in_fov_mask_subset = (
-            (phi >= self.phi_min_rad - FLOAT_PRECISION_GUARD) & (phi <= self.phi_max_rad + FLOAT_PRECISION_GUARD) &
-            (theta >= self.theta_min_rad - FLOAT_PRECISION_GUARD) & (theta <= self.theta_max_rad + FLOAT_PRECISION_GUARD)
-        )
-        original_indices_of_valid_points = torch.where(has_valid_depth_mask)[0][in_fov_mask_subset]
-        if original_indices_of_valid_points.numel() == 0:
-            return points_local_all, sph_coords_all, pixel_indices_all, valid_mask
-
-        valid_mask[original_indices_of_valid_points] = True
-        sph_coords_all[original_indices_of_valid_points, 0] = phi[in_fov_mask_subset]
-        sph_coords_all[original_indices_of_valid_points, 1] = theta[in_fov_mask_subset]
-        sph_coords_all[original_indices_of_valid_points, 2] = d_valid_depth[in_fov_mask_subset]
-        
-        # Convert spherical coordinates to pixel indices
-        phi_norm = phi[in_fov_mask_subset] - self.phi_min_rad
-        theta_norm = theta[in_fov_mask_subset] - self.theta_min_rad
-        h_idx = (phi_norm / self.res_h_rad).long()
-        v_idx = (theta_norm / self.res_v_rad).long()
-        h_idx.clamp_(0, self.num_pixels_h - 1)
-        v_idx.clamp_(0, self.num_pixels_v - 1)
-        pixel_indices_all[original_indices_of_valid_points, 0] = v_idx
-        pixel_indices_all[original_indices_of_valid_points, 1] = h_idx
-        
-        return points_local_all, sph_coords_all, pixel_indices_all, valid_mask
-
-    def add_points_batch(self,
-                         points_global_raw: np.ndarray,
-                         points_sensor_raw: np.ndarray,
-                         filter_params: Dict[str, Any],
-                         initial_labels_raw: Optional[np.ndarray] = None) -> int:
-        """
-        Populates the DepthImage with a point cloud from a single sweep.
-
-        This method performs range filtering, projects the points to create the
-        spherical depth image, and pre-aggregates min/max depths and counts per pixel.
-
-        Args:
-            points_global_raw (np.ndarray): Raw point cloud in global frame, shape (N, 3).
-            points_sensor_raw (np.ndarray): Raw point cloud in sensor frame, shape (N, 3).
-            filter_params (Dict[str, Any]): Parameters for point pre-filtering (e.g., min/max range).
-            initial_labels_raw (Optional[np.ndarray]): Optional initial labels (e.g., from RANSAC), shape (N,).
-
-        Returns:
-            int: The number of points remaining after filtering.
-        """
-        if points_global_raw.shape[0] == 0:
-            self.num_points = 0
-            return 0
-
-        # Filter out ego vehicle and extreme range points
-        filter_mask = filter_points(points_sensor_raw, filter_params)
-        
-        self.original_indices_of_filtered_points = torch.from_numpy(np.where(filter_mask)[0]).int().to(self.device)
-        
-        points_global_filtered = points_global_raw[filter_mask]
-        self.num_points = points_global_filtered.shape[0]
-
-        if self.num_points == 0:
-            return 0
-            
-        self.original_points_global_coords = torch.from_numpy(points_global_filtered).float().to(self.device)
-        
-        # Assign initial labels, falling back to UNDETERMINED
-        if initial_labels_raw is not None:
-            initial_labels_filtered = initial_labels_raw[filter_mask]
-            self.mdet_labels_for_points = torch.from_numpy(initial_labels_filtered).to(self.device)
-        else:
-            self.mdet_labels_for_points = torch.full((self.num_points,), OcclusionResult.UNDETERMINED.value, dtype=torch.int8, device=self.device)
-
-        # Project points and populate the spherical grid tensors
-        _points_local, sph_coords, pixel_indices, valid_mask = \
-            self.project_points_batch(self.original_points_global_coords)
-        self.local_sph_coords_for_points = sph_coords
-        
-        valid_original_indices = torch.where(valid_mask)[0]
-        if valid_original_indices.numel() > 0:
-            valid_pixels = pixel_indices[valid_original_indices]
-            valid_depths = sph_coords[valid_original_indices, 2]
-            flat_pixel_indices = valid_pixels[:, 0] * self.num_pixels_h + valid_pixels[:, 1]
-
-            # Use torch_scatter for efficient, parallel aggregation
-            scatter_min(valid_depths, flat_pixel_indices, out=self.pixel_min_depth.view(-1))
-            scatter_max(valid_depths, flat_pixel_indices, out=self.pixel_max_depth.view(-1))
-            scatter_add(torch.ones_like(valid_depths, dtype=torch.int32), flat_pixel_indices, out=self.pixel_count.view(-1))
-            
-            # Build the pixel-to-point index map
-            sorted_flat_pixels, sorted_indices = torch.sort(flat_pixel_indices)
-            self.pixel_original_indices_tensor = valid_original_indices[sorted_indices]
-            unique_pixels, counts = torch.unique_consecutive(sorted_flat_pixels, return_counts=True)
-            start_indices = torch.cat([torch.tensor([0], device=self.device), torch.cumsum(counts, dim=0)[:-1]])
-            start_count_pairs = torch.stack([start_indices, counts], dim=1)
-            scatter(start_count_pairs, unique_pixels.long(), dim=0, out=self.pixel_map_tensor)
-
-        # Invalidate any cached static mask
-        self.static_points_mask = None
-        self._static_labels_used_for_cache = None
-            
-        return self.num_points
-    
-    def get_original_points_global(self) -> Optional[np.ndarray]:
-        """Returns the filtered global points as a NumPy array."""
-        if self.original_points_global_coords is None:
-            return None
-        return self.original_points_global_coords.cpu().numpy()
-
-    def get_all_point_labels(self) -> Optional[np.ndarray]:
-        """Returns the current point labels as a NumPy array."""
-        if self.mdet_labels_for_points is None:
-            return None
-        return self.mdet_labels_for_points.cpu().numpy()
-        
-    def get_static_points_mask(self, static_config_values: List[int]) -> Optional[torch.Tensor]:
-        """
-        Returns a boolean mask indicating which points are considered static.
-        Caches the result to avoid re-computation.
-
-        Args:
-            static_config_values (List[int]): A list of integer label values
-                                              that are considered static.
-
-        Returns:
-            Optional[torch.Tensor]: A boolean tensor mask of shape (num_points,).
-        """
-        if self.mdet_labels_for_points is None:
-            return None
-        # Return cached mask if the defining labels haven't changed
-        if self.static_points_mask is not None and self._static_labels_used_for_cache == static_config_values:
-            return self.static_points_mask
-
-        static_values_tensor = torch.tensor(static_config_values, device=self.device, dtype=self.mdet_labels_for_points.dtype)
-        # Check if each point's label is in the list of static values
-        self.static_points_mask = torch.any(self.mdet_labels_for_points.unsqueeze(1) == static_values_tensor, dim=1)
-        self._static_labels_used_for_cache = static_config_values
-        return self.static_points_mask
-
-    def get_points_global_by_idx(self, indices: torch.Tensor) -> torch.Tensor:
-        """Retrieves global coordinates for points at given indices."""
-        return self.original_points_global_coords[indices]
-
-    def get_depths_by_idx(self, indices: torch.Tensor) -> torch.Tensor:
-        """Retrieves local depths for points at given indices."""
-        return self.local_sph_coords_for_points[indices, 2]
-
-    def unproject_pixels_batch(self, pixel_indices: torch.Tensor) -> torch.Tensor:
-        """
-        Unprojects a batch of 2D pixel indices back into 3D global coordinates.
-        It uses the `pixel_max_depth` to reconstruct the 3D point.
-
-        Args:
-            pixel_indices (torch.Tensor): Pixel coordinates to unproject, shape (N, 2).
-
-        Returns:
-            torch.Tensor: The corresponding 3D points in global frame, shape (N, 3).
-        """
-        v_idx = pixel_indices[:, 0]
-        h_idx = pixel_indices[:, 1]
-        depths = self.pixel_max_depth[v_idx, h_idx]
-
-        # Convert pixel indices back to spherical angles
-        phi = (h_idx.float() + 0.5) * self.res_h_rad + self.phi_min_rad
-        theta = (v_idx.float() + 0.5) * self.res_v_rad + self.theta_min_rad
-        
-        # Spherical to Cartesian conversion (local frame)
-        cos_theta = torch.cos(theta)
-        x_local = depths * cos_theta * torch.cos(phi)
-        y_local = depths * cos_theta * torch.sin(phi)
-        z_local = depths * torch.sin(theta)
-        points_local = torch.stack([x_local, y_local, z_local], dim=1)
-        
-        # Transform from local to global frame
-        points_local_h = torch.hstack([
-            points_local,
-            torch.ones((points_local.shape[0], 1), dtype=torch.float32, device=self.device)
-        ])
-        points_global_h = points_local_h @ self.image_pose_global.T
-        return points_global_h[:, :3]
-
-############################
-FILE: src/core/m_detector/event_tests.py
-############################
-
-# src/core/m_detector/event_tests.py
-
-import torch
-from typing import TYPE_CHECKING
-from ..constants import OcclusionResult
-import logging
-
-if TYPE_CHECKING:
-    from .base import MDetector
-
-# A safety cap to prevent performance degradation in poorly tuned trials.
-PERPENDICULAR_MOTION_CANDIDATE_CAP = 5000 
-
-def execute_parallel_motion_away_test(mdetector_instance: 'MDetector',
-                                  current_labels: torch.Tensor,
-                                  di_to_process_idx: int) -> torch.Tensor:
-    """
-    Corrects mislabeled static points on objects moving away from the sensor.
-
-    This test addresses a key failure mode: when an object moves directly away,
-    its points are labeled as 'OCCLUDED_BY_IMAGE' by the initial pass, making it
-    appear static. This test identifies these points by verifying the recursive
-    occlusion property described in the M-Detector paper (Fig. 3b).
-
-    Args:
-        mdetector_instance (MDetector): The main detector instance.
-        current_labels (torch.Tensor): The current labels for all points. Shape: (N,).
-        di_to_process_idx (int): The index of the current DI in the library.
-
-    Returns:
-        torch.Tensor: The updated labels tensor. Shape: (N,).
-    """
-    device = mdetector_instance.device
-    current_di = mdetector_instance.depth_image_library.get_image_by_index(di_to_process_idx)
-    
-    # 1. Correctly select candidates: points mislabeled as static (OCCLUDED_BY_IMAGE).
-    candidate_indices = torch.where(current_labels == OcclusionResult.OCCLUDED_BY_IMAGE.value)[0]
-    if candidate_indices.numel() == 0:
-        return current_labels
-
-    points_to_check_global = current_di.get_points_global_by_idx(candidate_indices)
-    d_anchors_of_points_to_check = current_di.get_depths_by_idx(candidate_indices)
-    
-    # This mask will track if a candidate point satisfies the recursive occlusion property.
-    # We initialize to True and set to False if any check fails.
-    is_recursively_occluded = torch.ones(candidate_indices.shape[0], dtype=torch.bool, device=device)
-
-    # 2. Iterate through recent historical DIs to check for consistent occlusion.
-    # We need at least two historical frames to check the recursive property.
-    history_length = mdetector_instance.parallel_motion_history_length
-    if history_length < 1:
-        return current_labels  # Cannot perform this test without history.
-
-    for k in range(history_length):
-        hist_di_idx = di_to_process_idx - 1 - k
-        if hist_di_idx < 0: break
-        
-        historical_di = mdetector_instance.depth_image_library.get_image_by_index(hist_di_idx)
-        if not historical_di or not historical_di.is_prepared_for_projection():
-            is_recursively_occluded[:] = False # If a DI is missing, the chain is broken.
-            break
-
-        # 3. Find the corresponding historical point candidate in the neighborhood.
-        _, _, px_indices, valid_mask = historical_di.project_points_batch(points_to_check_global)
-        
-        # If a point cannot be projected, it fails the consistency check.
-        is_recursively_occluded[~valid_mask] = False
-        if not torch.any(is_recursively_occluded): break # Early exit if no candidates remain
-
-        # We only need to continue checking for points that are still valid candidates.
-        active_mask = is_recursively_occluded & valid_mask
-        if not torch.any(active_mask): break
-
-        valid_px_indices = px_indices[active_mask]
-        n_v, n_h = mdetector_instance.neighbor_search_pixels_v, mdetector_instance.neighbor_search_pixels_h
-        dv = torch.arange(-n_v, n_v + 1, device=device); dh = torch.arange(-n_h, n_h + 1, device=device)
-        grid_dv, grid_dh = torch.meshgrid(dv, dh, indexing='ij')
-        offsets = torch.stack([grid_dv.flatten(), grid_dh.flatten()], dim=1)
-        neighborhood_pixels = valid_px_indices.unsqueeze(1) + offsets
-        neighborhood_pixels[:, :, 0].clamp_(0, historical_di.num_pixels_v - 1)
-        neighborhood_pixels[:, :, 1].clamp_(0, historical_di.num_pixels_h - 1)
-        
-        flat_indices = neighborhood_pixels[..., 0] * historical_di.num_pixels_h + neighborhood_pixels[..., 1]
-        # For "moving away", the historical point should be CLOSER, so we check against MIN depth.
-        neighborhood_min_depths = historical_di.pixel_min_depth.view(-1)[flat_indices]
-        neighborhood_min_depths[historical_di.pixel_count.view(-1)[flat_indices] == 0] = torch.inf
-        
-        _, min_depth_indices_in_neighborhood = torch.min(neighborhood_min_depths, dim=1)
-        hist_cand_pixels = torch.gather(neighborhood_pixels, 1, min_depth_indices_in_neighborhood.view(-1, 1, 1).expand(-1, 1, 2)).squeeze(1)
-        hist_cands_global = historical_di.unproject_pixels_batch(hist_cand_pixels)
-
-        # 4. Perform the detailed check: is our current point occluded by this historical point?
-        occluded_mask_batch = mdetector_instance.check_occlusion_point_level_detailed_batch(
-            points_eval_global=points_to_check_global[active_mask],
-            d_anchors_of_points_eval=d_anchors_of_points_to_check[active_mask],
-            points_hist_cand_global=hist_cands_global,
-            historical_di=historical_di,
-            occlusion_type_to_check="OCCLUDED_BY"
-        )
-        
-        # Update the master mask: if a point was not occluded in this frame, it fails the test.
-        temp_active_mask = torch.zeros_like(is_recursively_occluded)
-        temp_active_mask[active_mask] = occluded_mask_batch
-        is_recursively_occluded &= temp_active_mask
-
-        if not torch.any(is_recursively_occluded): break # Early exit
-
-    # 5. Final Decision: Any candidate that was consistently occluded through history is flipped to dynamic.
-    final_indices_to_update = candidate_indices[is_recursively_occluded]
-    
-    new_labels = current_labels.clone()
-    new_labels[final_indices_to_update] = OcclusionResult.OCCLUDING_IMAGE.value
-    return new_labels
-
-def execute_perpendicular_motion_test(mdetector_instance: 'MDetector',
-                                       current_labels: torch.Tensor,
-                                       di_to_process_idx: int) -> torch.Tensor:
-    """
-    Identifies points that are occluding previously known static points.
-
-    This test handles objects moving perpendicularly to the sensor's line of sight.
-    It checks if currently undetermined points are occluding parts of the map that
-    were confidently labeled as static in the recent past.
-
-    Args:
-        mdetector_instance (MDetector): The main detector instance.
-        current_labels (torch.Tensor): The current labels for all points. Shape: (N,).
-        di_to_process_idx (int): The index of the current DI in the library.
-
-    Returns:
-        torch.Tensor: The updated labels tensor. Shape: (N,).
-    """
-    device = mdetector_instance.device
-    current_di = mdetector_instance.depth_image_library.get_image_by_index(di_to_process_idx)
-    
-    # 1. Select candidate points: those that are still 'UNDETERMINED'.
-    candidate_indices = torch.where(current_labels == OcclusionResult.UNDETERMINED.value)[0]
-    if candidate_indices.numel() == 0:
-        return current_labels
-    
-    if candidate_indices.numel() > PERPENDICULAR_MOTION_CANDIDATE_CAP:
-        logging.warning(f"Test 3: Skipping due to excessive candidates ({candidate_indices.numel()} > {PERPENDICULAR_MOTION_CANDIDATE_CAP}).")
-        return current_labels
-
-    points_to_check_global = current_di.get_points_global_by_idx(candidate_indices)
-    d_anchors_of_points_to_check = current_di.get_depths_by_idx(candidate_indices)
-    
-    # This mask will track if a candidate point occludes a static point in ANY historical frame.
-    is_occluding_final = torch.zeros(candidate_indices.shape[0], dtype=torch.bool, device=device)
-
-    # 2. Iterate through recent historical depth images.
-    history_length = mdetector_instance.perpendicular_motion_history_length
-    if history_length < 1:
-        return current_labels 
-    for k in range(history_length):
-        hist_di_idx = di_to_process_idx - 1 - k
-        if hist_di_idx < 0: continue
-        
-        historical_di = mdetector_instance.depth_image_library.get_image_by_index(hist_di_idx)
-        if not historical_di or not historical_di.is_prepared_for_projection(): continue
-
-        # Get the mask of all confidently static points from the historical frame.
-        static_mask_hist = historical_di.get_static_points_mask(mdetector_instance.static_labels_for_map_check_values)
-        if static_mask_hist is None or not torch.any(static_mask_hist):
-            continue
-
-        # 3. Project the current undetermined points into the historical frame.
-        _, _, px_indices, valid_mask = historical_di.project_points_batch(points_to_check_global)
-        if not torch.any(valid_mask):
-            continue
-        
-        active_candidate_indices = torch.where(valid_mask)[0]
-        is_occluding_batch = torch.zeros(active_candidate_indices.shape[0], dtype=torch.bool, device=device)
-
-        # Define the pixel neighborhood search grid.
-        n_v, n_h = mdetector_instance.neighbor_search_pixels_v, mdetector_instance.neighbor_search_pixels_h
-        dv = torch.arange(-n_v, n_v + 1, device=device)
-        dh = torch.arange(-n_h, n_h + 1, device=device)
-        grid_dv, grid_dh = torch.meshgrid(dv, dh, indexing='ij')
-        offsets = torch.stack([grid_dv.flatten(), grid_dh.flatten()], dim=1)
-
-        # 4. For each candidate, check if it occludes any static points in its neighborhood.
-        # A loop here is clearer and often more efficient than complex tensor ops for this sparse problem.
-        for i, cand_original_idx in enumerate(active_candidate_indices):
-            # Get the pixel location of this candidate in the historical frame.
-            cand_pixel = px_indices[cand_original_idx]
-            
-            # Find all pixels in its neighborhood.
-            neighborhood_pixels = cand_pixel + offsets
-            neighborhood_pixels[:, 0].clamp_(0, historical_di.num_pixels_v - 1)
-            neighborhood_pixels[:, 1].clamp_(0, historical_di.num_pixels_h - 1)
-            flat_neighborhood_indices = neighborhood_pixels[:, 0] * historical_di.num_pixels_h + neighborhood_pixels[:, 1]
-            
-            # Use the pre-built map to get all original point indices within this pixel neighborhood.
-            map_entries = historical_di.pixel_map_tensor[flat_neighborhood_indices]
-            valid_map_entries = map_entries[map_entries[:, 1] > 0] # Filter out empty pixels
-            if valid_map_entries.numel() == 0:
-                continue
-
-            # Gather all historical point indices from the neighborhood.
-            hist_indices_in_neighborhood = torch.cat([
-                historical_di.pixel_original_indices_tensor[start:start+count]
-                for start, count in valid_map_entries
-            ])
-
-            # Filter these neighbors to keep only the ones marked as STATIC.
-            static_neighbor_mask = static_mask_hist[hist_indices_in_neighborhood]
-            static_hist_indices = hist_indices_in_neighborhood[static_neighbor_mask]
-            if static_hist_indices.numel() == 0:
-                continue
-
-            # 5. Perform the detailed occlusion check for this one candidate against its many static neighbors.
-            point_eval_global = points_to_check_global[cand_original_idx].expand(static_hist_indices.numel(), -1)
-            d_anchor_eval = d_anchors_of_points_to_check[cand_original_idx].expand(static_hist_indices.numel())
-            points_hist_cand_global = historical_di.original_points_global_coords[static_hist_indices]
-
-            occlusion_results = mdetector_instance.check_occlusion_point_level_detailed_batch(
-                points_eval_global=point_eval_global,
-                d_anchors_of_points_eval=d_anchor_eval,
-                points_hist_cand_global=points_hist_cand_global,
-                historical_di=historical_di,
-                occlusion_type_to_check="OCCLUDING"
-            )
-
-            # If it occludes ANY of its local static neighbors, we're done with this point.
-            if torch.any(occlusion_results):
-                is_occluding_batch[i] = True
-
-        # Update the final result mask for this historical DI.
-        is_occluding_final[active_candidate_indices] |= is_occluding_batch
-
-    # 6. Final decision: Update labels for points that occluded a static point.
-    final_indices_to_update = candidate_indices[is_occluding_final]
-    new_labels = current_labels.clone()
-    new_labels[final_indices_to_update] = OcclusionResult.OCCLUDING_IMAGE.value
-    return new_labels
-
-############################
-FILE: src/core/m_detector/adaptive_epsilon_utils.py
-############################
-
-# src/core/m_detector/adaptive_epsilon_utils.py
-
-import torch
-
-
-def calculate_adaptive_epsilon(
-    d_anchors: torch.Tensor,
-    base_epsilon: float,
-    enabled: bool,
-    dthr: float,
-    kthr: float,
-    dmax: float,
-    dmin: float
-) -> torch.Tensor:
-    """
-    Calculates an adaptive epsilon value for a batch of points based on their anchor depths.
-    The argument names (dthr, kthr, etc.) are intentionally matched with the keys in the 
-    config file to allow for dictionary unpacking.
-
-    Args:
-        d_anchors (torch.Tensor): A 1D tensor of anchor depths for each point.
-        base_epsilon (float): The base epsilon value.
-        enabled (bool): Whether the adaptive logic is enabled.
-        dthr (float): Depth threshold for applying the linear scaling factor.
-        kthr (float): Scaling factor for depths beyond the threshold.
-        dmax (float): The maximum possible epsilon value.
-        dmin (float): The minimum possible epsilon value.
-
-    Returns:
-        torch.Tensor: A 1D tensor of calculated epsilon values, same size as d_anchors.
-    """
-    if not enabled:
-        # If not enabled, return a tensor of the base epsilon value
-        return torch.full_like(d_anchors, base_epsilon)
-
-    # All calculations are now PyTorch tensor operations
-    # Use the corrected argument names that match the config keys
-    factor = 1.0 + kthr * (d_anchors - dthr)
-    
-    # Create a mask for where the adaptive logic should apply
-    mask = d_anchors > dthr
-    
-    # Initialize epsilons with the base value
-    eps = torch.full_like(d_anchors, base_epsilon)
-    
-    # Apply the adaptive factor only where the mask is True
-    eps[mask] = base_epsilon * factor[mask]
-    
-    # Clamp the results to be within the min/max bounds
-    return torch.clamp(eps, min=dmin, max=dmax)
-
-############################
-FILE: src/core/m_detector/base.py
-############################
-
-# src/core/m_detector/base.py
-
-import logging
-from typing import Dict, Any, Optional, List
-import time
-
-import numpy as np
-import torch
-
-from ..depth_image import DepthImage
-from ..depth_image_library import DepthImageLibrary
-from ..constants import OcclusionResult
+import open3d as o3d
+from tqdm import tqdm
+
+# --- Path Setup ---
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+# --- Core Project Imports ---
 from src.config_loader import MDetectorConfigAccessor
+from src.utils.visualization import ColorMapper, BoxDrawer, VideoRenderer
+from src.utils.point_cloud_utils import filter_points, transform_points_numpy
+from nuscenes.nuscenes import NuScenes
+from scripts.generate_labels import SceneProcessor, SweepData
 
-logger = logging.getLogger(__name__)
-
-class MDetector:
-    """
-    Main class for the Moving Point Detector (M-Detector).
-
-    This class orchestrates the entire detection pipeline, from managing the
-    history of LiDAR sweeps (DepthImages) to applying the sequence of geometric
-    tests and refinements to label points as moving or static.
-    """
-
-    # --- Method Bindings from other files ---
-    # This pattern keeps the base class file clean while logically grouping methods.
-    from .occlusion_checks import (
-        check_occlusion_batch,
-        check_occlusion_point_level_detailed_batch
-    )
-    from .map_consistency import (
-        is_map_consistent, 
-        _perform_direct_comparison_gpu
-    )
-    from .processing import (
-        forward,
-        _perform_initial_occlusion_pass,
-        _apply_map_consistency_check,
-        _run_event_test_sequence,
-        _apply_frame_refinement,
-        _forward_geometric_only,
-        _run_single_event_test_with_mcc
-    )
-    from .event_tests import (
-        execute_parallel_motion_away_test, 
-        execute_perpendicular_motion_test
-    )
-
-    def __init__(self,
-                 config_accessor: MDetectorConfigAccessor,
-                 device: Optional[torch.device] = None,
-                 logger_name: Optional[str] = None):
-        """
-        Initializes the M-Detector instance.
-
-        Args:
-            config_accessor (MDetectorConfigAccessor): An accessor object to retrieve all
-                                                       configuration parameters.
-            device (Optional[torch.device]): The PyTorch device to run computations on.
-                                             Defaults to CPU if not specified.
-            logger_name (Optional[str]): A specific name for the logger instance.
-        """
-        self.config = config_accessor
-        self.device = device if device else torch.device('cpu')
-        
-        log_name_to_use = logger_name if logger_name else f"{__name__}"
-        self.logger = logging.getLogger(log_name_to_use)
-
-        # --- Core Components ---
-        init_params = self.config.get_initialization_phase_params()
-        self.depth_image_library = DepthImageLibrary(
-            max_size=init_params['num_sweeps_for_initial_map'] + 1
-        )
-        self.depth_image_params = self.config.get_depth_image_params()
-
-        # --- Load all algorithm parameters from config ---
-        self._load_configuration()
-
-    def _load_configuration(self):
-        """Loads parameters from the config accessor into instance attributes for performance."""
-        
-        # General
-        init_params = self.config.get_initialization_phase_params()
-        self.min_sweeps_for_processing = init_params['num_sweeps_for_initial_map']
-
-        # Occlusion Checks
-        occ_params = self.config.get_occlusion_determination_params()
-        self.epsilon_depth_occlusion = occ_params['epsilon_depth']
-        self.neighbor_search_pixels_v = occ_params['pixel_neighborhood_v']
-        self.neighbor_search_pixels_h = occ_params['pixel_neighborhood_h']
-
-        # Detailed Occlusion Check (for Event Tests)
-        detailed_check_params = self.config.get_detailed_occlusion_check_params()
-        self.detailed_check_epsilon_depth = detailed_check_params['epsilon_depth']
-        self.detailed_check_angular_threshold_h_rad = np.deg2rad(detailed_check_params['angular_neighborhood_h_deg'])
-        self.detailed_check_angular_threshold_v_rad = np.deg2rad(detailed_check_params['angular_neighborhood_v_deg'])
-        
-        # Adaptive Epsilon
-        self.adaptive_eps_config_occ_depth = self.config.get_adaptive_epsilon_config_for_occlusion_depth()
-
-        # Geometric Test Parameters ---
-        geo_tests_config = self.config.get_geometric_tests_params()
-
-        # Initial Pass (formerly Test 1 & 4)
-        initial_pass_params = geo_tests_config['initial_occlusion_pass']
-        self.initial_pass_history_length = initial_pass_params['history_length']
-        self.initial_pass_min_occlusion_count = initial_pass_params['min_occlusion_count']
-
-        # Event Tests (formerly Test 2 & 3)
-        event_tests_params = geo_tests_config['event_tests']
-        
-        parallel_away_params = event_tests_params['parallel_motion_away']
-        self.parallel_motion_history_length = parallel_away_params['history_length']
-        self.parallel_motion_apply_mcc = parallel_away_params['apply_mcc_filter']
-
-        perpendicular_params = event_tests_params['perpendicular_motion']
-        self.perpendicular_motion_history_length = perpendicular_params['history_length']
-        self.perpendicular_motion_apply_mcc = perpendicular_params['apply_mcc_filter']
-
-        # Map Consistency Check (MCC)
-        self.mcc_config = self.config.get_map_consistency_params()
-        self.map_consistency_enabled = self.mcc_config['enabled']
-        self.num_past_sweeps_for_mcc = self.mcc_config['num_past_sweeps_for_mcc'] 
-        self.static_labels_for_map_check_enums = [
-            OcclusionResult["OCCLUDED_BY_IMAGE"], OcclusionResult["PRELABELED_STATIC_GROUND"], 
-        ]
-        self.static_labels_for_map_check_values = [
-            label.value for label in self.static_labels_for_map_check_enums
-        ]
-        self.mc_static_confidence_threshold = self.mcc_config['static_confidence_threshold']
-
-        # Epsilons
-        self.epsilon_phi_map_rad = np.deg2rad(self.mcc_config['epsilon_phi_deg'])
-        self.epsilon_theta_map_rad = np.deg2rad(self.mcc_config['epsilon_theta_deg'])
-        self.epsilon_depth_forward_map = self.mcc_config['epsilon_depth_forward_m']
-        self.epsilon_depth_backward_map = self.mcc_config['epsilon_depth_backward_m']
-        self.adaptive_eps_config_mc_fwd = self.config.get_adaptive_epsilon_config_for_map_consistency_forward()
-        self.adaptive_eps_config_mc_bwd = self.config.get_adaptive_epsilon_config_for_map_consistency_backward()
-
-        # Interpolation in empty regions
-        self.mc_interp_enabled = self.mcc_config['interpolation_enabled']
-        self.mc_interp_max_neighbors = self.mcc_config['interpolation_max_neighbors_to_consider']
-        self.mc_interp_max_triplets = self.mcc_config['interpolation_max_triplets_to_try']
-
-    def add_sweep(self,
-                  points_global_raw: np.ndarray,
-                  points_sensor_raw: np.ndarray,
-                  pose_global: np.ndarray,
-                  timestamp: float,
-                  prelabeled_mask_raw: Optional[np.ndarray] = None) -> DepthImage:
-        """
-        Adds a new LiDAR sweep to the detector's history.
-
-        This method creates a new DepthImage, populates it with the provided
-        point cloud, and adds it to the internal library.
-
-        Args:
-            points_global_raw (np.ndarray): Raw point cloud in global frame, shape (N, 3).
-            points_sensor_raw (np.ndarray): Raw point cloud in sensor frame, shape (N, 3).
-            pose_global (np.ndarray): 4x4 pose matrix for this sweep.
-            timestamp (float): Timestamp of the sweep in microseconds.
-            prelabeled_mask_raw (Optional[np.ndarray]): Boolean mask for pre-labeled
-                                                       ground points, shape (N,).
-        
-        Returns:
-            DepthImage: The newly created and populated DepthImage object.
-        """
-        start_time = time.time()
-
-        di = DepthImage(
-            image_pose_global=pose_global,
-            depth_image_params=self.depth_image_params,
-            timestamp=timestamp,
-            device=self.device
-        )
-
-        # Convert the boolean RANSAC mask to an integer label array for the DI.
-        initial_labels_raw = None
-        if prelabeled_mask_raw is not None:
-            initial_labels_raw = np.full(points_global_raw.shape[0], OcclusionResult.UNDETERMINED.value, dtype=np.int8)
-            initial_labels_raw[prelabeled_mask_raw] = OcclusionResult.PRELABELED_STATIC_GROUND.value
-
-        # Add the points to the DI
-        num_added = di.add_points_batch(
-            points_global_raw,
-            points_sensor_raw,
-            self.config.get_point_pre_filtering_params(),
-            initial_labels_raw
-        )
-        self.depth_image_library.add_image(di)
-
-        end_time = time.time()
-        self.logger.debug(
-            f"ADD_SWEEP: Added DI with {num_added} points. "
-            f"TS: {timestamp:.2f}, Lib size: {len(self.depth_image_library)}. "
-            f"Took {(end_time - start_time) * 1000:.2f} ms."
-        )
-        return di
-
-    def process_latest_sweep(self) -> Dict[str, Any]:
-        """
-        Processes the most recently added sweep in the depth image library.
-
-        This method checks if there is sufficient historical data, retrieves the
-        latest sweep, and then executes the full forward pass of the M-Detector
-        algorithm on it.
-
-        Returns:
-            Dict[str, Any]: A dictionary containing the processing results.
-                            If successful, includes 'success': True, 'processed_di',
-                            and label counts. If not ready, includes 'success': False
-                            and a 'reason' string.
-        """
-        # 1. Check if the library has enough history to provide context.
-        lib_len = len(self.depth_image_library)
-        if lib_len < self.min_sweeps_for_processing:
-            return {
-                'success': False,
-                'reason': f"Cannot process: Library size ({lib_len}) is less than min required ({self.min_sweeps_for_processing})."
-            }
-
-        # 2. Retrieve the most recent sweep to be processed.
-        # The DI to process is always the last one in the causal sequence.
-        di_to_process_idx = lib_len - 1
-        current_di = self.depth_image_library.get_image_by_index(di_to_process_idx)
-
-        if current_di is None:
-            reason = f"Could not retrieve DI at index {di_to_process_idx} from library."
-            self.logger.error(f"PROCESS_SWEEP_ERROR: {reason}")
-            # This indicates a critical logic error, so we should raise an exception.
-            raise RuntimeError(reason)
-
-        self.logger.debug(f"PROCESS_SWEEP_READY: Processing DI at index {di_to_process_idx} (TS: {current_di.timestamp:.2f}).")
-
-        # 3. Execute the forward pass and time it.
-        start_time = time.time()
-        result_dict = self.forward(current_di, di_to_process_idx)
-        end_time = time.time()
-        
-        self.logger.debug(f"PROCESS_SWEEP_TIMING: Forward pass for DI @ TS {current_di.timestamp:.2f} took {(end_time - start_time) * 1000:.2f} ms.")
-        
-        return result_dict
+def create_gt_visualization_geometries(
+    sweep_data: SweepData, 
+    gt_boxes_for_sweep: list, 
+    gt_dynamic_indices: np.ndarray,
+    filter_params: dict,
+    color_mapper: ColorMapper,
+    box_drawer: BoxDrawer
+) -> dict:
+    """Creates a dictionary of Open3D geometries for a single frame of GT visualization."""
+    geometries = {}
+    points_sensor_raw = sweep_data.points_sensor_frame[:, :3]
+    points_global_raw = transform_points_numpy(points_sensor_raw, sweep_data.T_global_lidar)
+    keep_mask = filter_points(points_sensor_raw, filter_params)
     
-    def get_labels_before_refinement(self, current_di: 'DepthImage', current_di_idx_in_lib: int) -> torch.Tensor:
-        """
-        Runs the geometric pipeline but stops before the final refinement step.
-        This is used by the 'bake' process to cache intermediate results.
-
-        Args:
-            current_di (DepthImage): The DI to process.
-            current_di_idx_in_lib (int): The index of the DI in the library.
-
-        Returns:
-            torch.Tensor: The labels after all geometric tests, shape (N,).
-        """
-        return self._forward_geometric_only(current_di, current_di_idx_in_lib)
-
-############################
-FILE: src/core/m_detector/__init__.py
-############################
-
-# src/core/m_detector/__init__.py
-from .base import MDetector
-from ..constants import OcclusionResult
-
-# Export the main class and enums at the module level
-__all__ = ['MDetector', 'OcclusionResult']
-
-############################
-FILE: src/core/m_detector/refinement_algorithms.py
-############################
-
-# src/core/m_detector/refinement_algorithms.py
-
-from enum import Enum
-import logging
-import numpy as np
-import torch
-from scipy.spatial import ConvexHull, Delaunay
-from hdbscan import HDBSCAN as CPU_HDBSCAN
-import torch
-import numpy as np
-
-from ..constants import OcclusionResult
-from ..depth_image import DepthImage
-
-logger = logging.getLogger(__name__)
-
-class ClusteringAlgorithm(Enum):
-    HDBSCAN = "hdbscan"
-
-
-def _refine_with_hdbscan_convex_hull(
-    labels: torch.Tensor,
-    current_di: DepthImage,
-    cluster_params: dict
-) -> torch.Tensor:
-    """
-    Refines dynamic point labels using HDBSCAN clustering followed by convex hull expansion.
-
-    This two-step process first identifies dense clusters of dynamic points using
-    HDBSCAN, filtering out sparse noise. Then, for each valid cluster, it computes
-    its 3D convex hull and re-labels all points (including previously undetermined
-    ones) that fall within this hull as dynamic.
-
-    CPU based HDBSCAN was used as libraries with GPU versions were difficult to install in the current environment. 
-    Future developers might try refactoring this to GPU, or using a different clustering method,
-      as the current approach failed to improve the results ayways. 
-
-    Args:
-        labels (torch.Tensor): The current point labels. Shape: (N,).
-        current_di (DepthImage): The DepthImage object for the current sweep.
-        cluster_params (dict): Configuration for the clustering algorithm.
-
-    Returns:
-        torch.Tensor: The refined labels tensor. Shape: (N,).
-    """
-    dynamic_mask = (labels == OcclusionResult.OCCLUDING_IMAGE.value)
-    if not torch.any(dynamic_mask):
-        return labels
-
-    dynamic_points_global_torch = current_di.original_points_global_coords[dynamic_mask].contiguous()
-    min_points_param = cluster_params['min_points']
-    min_cluster_size = cluster_params['min_cluster_size']
-
-    # Extract cluster_selection_epsilon 
-    cluster_selection_epsilon = cluster_params['cluster_selection_epsilon']
-
-    if dynamic_points_global_torch.shape[0] < min_points_param:
-        logger.debug(f"Skipping HDBSCAN: Not enough points ({dynamic_points_global_torch.shape[0]}) "
-                     f"to meet min_points of {min_points_param}.")
-        return labels
-    if not torch.all(torch.isfinite(dynamic_points_global_torch)):
-        logger.warning("Detected non-finite values (NaN or inf) in points for clustering. Skipping refinement.")
-        return labels
-
-    # ---- CPU HDBSCAN ----
-    # 1. Move data from GPU tensor to CPU numpy array
-    dynamic_points_np = dynamic_points_global_torch.cpu().numpy()
+    colors = np.full((len(points_global_raw), 3), color_mapper.FILTERED_OUT)
     
-    # 2. Instantiate and run the CPU clusterer. Note the parameter `min_samples`.
-    clusterer = CPU_HDBSCAN(
-        min_cluster_size=min_cluster_size,
-        min_samples=min_points_param, # The CPU library uses 'min_samples'
-        cluster_selection_epsilon=cluster_selection_epsilon,
-        core_dist_n_jobs=-1 # Use all available CPU cores
-    )
-    cluster_labels_np = clusterer.fit_predict(dynamic_points_np)
-    
-    # 3. Convert the resulting numpy labels back to a torch tensor on the correct device.
-    cluster_labels_torch = torch.from_numpy(cluster_labels_np).to(labels.device)
-    # ---- End CPU HDBSCAN ----
-
-    refined_labels = labels.clone() # Start with a copy of the original labels
-
-    # Handle HDBSCAN noise points (-1 label) 
-    # Identify the original indices of points that were initially dynamic candidates
-    # but were classified as noise by HDBSCAN.
-    original_indices_of_dynamic_candidates = torch.where(dynamic_mask)[0]
-    
-    # Create a mask for noise points within the `dynamic_points_global_torch` subset
-    noise_indices_in_dynamic_subset = (cluster_labels_torch == -1)
-    
-    # Get the actual indices in the *original* `labels` tensor that correspond to these noise points
-    indices_to_revert_to_undetermined = original_indices_of_dynamic_candidates[noise_indices_in_dynamic_subset]
-    
-    if len(indices_to_revert_to_undetermined) > 0:
-        refined_labels[indices_to_revert_to_undetermined] = OcclusionResult.UNDETERMINED.value
-        logger.debug(f"Reverted {len(indices_to_revert_to_undetermined)} points from OCCLUDING_IMAGE to UNDETERMINED (HDBSCAN noise).")
-
-    unique_cluster_ids = np.unique(cluster_labels_np) # Use np.unique on numpy array for consistency
-    
-    num_clusters = len(unique_cluster_ids) - (1 if -1 in unique_cluster_ids else 0)
-    if num_clusters > 0:
-        logger.debug(f"Found {num_clusters} dynamic clusters using CPU HDBSCAN.")
-
-    all_points_global_np = current_di.original_points_global_coords.cpu().numpy()
-
-    for cluster_id in unique_cluster_ids:
-        if cluster_id == -1:
-            continue # Noise points already handled above
-
-        # Get mask relative to the dynamic_points_global_torch (subset of original points)
-        points_in_cluster_mask_in_dynamic_subset = (cluster_labels_torch == cluster_id)
+    if np.any(keep_mask):
+        # 1. Get the original indices of the points that survived filtering 
+        original_indices_of_kept_points = np.where(keep_mask)[0]
         
-        # Get the actual original indices corresponding to this cluster
-        original_indices_for_cluster = original_indices_of_dynamic_candidates[points_in_cluster_mask_in_dynamic_subset]
+        # 2. Find which of these kept points are also in the list of dynamic GT indices.
+        is_dynamic_mask_for_kept = np.isin(original_indices_of_kept_points, gt_dynamic_indices)
         
-        # Get the global coordinates for points in this specific cluster
-        cluster_points_np = current_di.original_points_global_coords[original_indices_for_cluster].cpu().numpy()
-
-        # A 3D convex hull requires at least 4 points (d+1).
-        if len(cluster_points_np) < 4: # Convex hull requires at least 4 points for 3D
-            logger.debug(f"Skipping Convex Hull for cluster {cluster_id}: not enough points ({len(cluster_points_np)}).")
-            # Points in small clusters (that pass min_cluster_size but fail convex hull)
-            # will retain their original labels or UNDETERMINED if they were noise.
-            # They are NOT re-labeled as OCCLUDING_IMAGE.value.
-            continue
-
-        try:
-            hull = ConvexHull(cluster_points_np)
-            # The Delaunay triangulation should be on the vertices of the convex hull, not all points.
-            delaunay_hull = Delaunay(hull.points[hull.vertices])
-        except Exception as e:
-            logger.debug(f"Could not form convex hull for cluster {cluster_id}: {e}")
-            # If hull fails, these points should not be confirmed dynamic
-            continue
-
-        min_coords = np.min(cluster_points_np, axis=0)
-        max_coords = np.max(cluster_points_np, axis=0)
+        # 3. Get the corresponding blue/grey colors for the kept points.
+        colors_for_kept_points = color_mapper.get_gt_colors(is_dynamic_mask_for_kept)
         
-        # Find points from the *entire original point cloud* that are within the bounding box
-        candidate_mask_np = np.all((all_points_global_np >= min_coords) & (all_points_global_np <= max_coords), axis=1)
-        candidate_indices_np = np.where(candidate_mask_np)[0]
-        points_to_check_np = all_points_global_np[candidate_indices_np]
+        # 4. Apply these colors to the main color array.
+        colors[keep_mask] = colors_for_kept_points
 
-        if len(points_to_check_np) == 0:
-            continue
-
-        points_in_hull_mask = delaunay_hull.find_simplex(points_to_check_np) >= 0
-        final_indices_to_update_np = candidate_indices_np[points_in_hull_mask]
-
-        if len(final_indices_to_update_np) > 0:
-            final_indices_torch = torch.from_numpy(final_indices_to_update_np).long().to(labels.device)
-            # Re-label all points within the convex hull of the cluster as dynamic
-            refined_labels[final_indices_torch] = OcclusionResult.OCCLUDING_IMAGE.value
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points_global_raw)
+    pcd.colors = o3d.utility.Vector3dVector(colors)
+    if len(pcd.points) > 0:
+        pcd.estimate_normals()
+    geometries['pcd'] = pcd
+    
+    for i, box in enumerate(gt_boxes_for_sweep):
+        geometries[f"gt_box_{i}"] = box_drawer.get_box_obb_wireframe(box, color=color_mapper.GT_DYNAMIC)
             
-    return refined_labels
+    return geometries
 
+def main():
+    """Main entry point for the ground truth visualization script."""
+    parser = argparse.ArgumentParser(description="Generate a video visualizing NuScenes ground truth with filtering.")
+    parser.add_argument('--config', type=str, required=True, help='Path to the main YAML configuration file.')
+    parser.add_argument('--scene-index', type=int, required=True, help='The index of the scene to visualize.')
+    parser.add_argument('--output-path', type=str, default='gt_visualization.mp4', help='Path to save the output video file.')
+    parser.add_argument('--fps', type=int, default=20, help='Frames per second for the output video.')
+    args = parser.parse_args()
 
-def apply_clustering_and_refinement(
-    labels: torch.Tensor,
-    current_di: DepthImage,
-    refinement_params: dict
-) -> torch.Tensor:
-    """
-    Main entry point for the frame refinement stage, dispatching to the
-    configured clustering algorithm.
-
-    Args:
-        labels (torch.Tensor): The labels tensor after all geometric tests.
-        current_di (DepthImage): The current DepthImage object.
-        refinement_params (dict): Configuration for the entire refinement stage,
-                                  including the 'enabled' flag and algorithm choice.
-
-    Returns:
-        torch.Tensor: The final, refined labels tensor.
-    """
-    if not refinement_params['enabled']:
-        return labels
-
-    clustering_config = refinement_params['clustering']
-    algo_name = clustering_config['algorithm']
+    config_accessor = MDetectorConfigAccessor(args.config)
+    nusc_params = config_accessor.get_nuscenes_params()
+    nusc = NuScenes(version=nusc_params['version'], dataroot=nusc_params['dataroot'], verbose=False)
     
-    if not algo_name or algo_name == 'none':
-        return labels
-
-    logger.debug(f"Applying frame refinement using algorithm: {algo_name}")
-
-    if algo_name == ClusteringAlgorithm.HDBSCAN.value:
-        algo_params = clustering_config[algo_name]
-        return _refine_with_hdbscan_convex_hull(labels, current_di, algo_params)
-    else:
-        logger.error(f"Unknown or unsupported clustering algorithm specified: {algo_name}")
-        return labels
-
-############################
-FILE: src/core/m_detector/processing.py
-############################
-
-# src/core/m_detector/processing.py
-
-import torch
-from typing import Dict, Callable
-
-from ..depth_image import DepthImage
-from ..constants import OcclusionResult
-
-from .refinement_algorithms import apply_clustering_and_refinement
-
-# This file is bound to the MDetector class, so `self` refers to an MDetector instance.
-
-def _perform_initial_occlusion_pass(self, current_di: DepthImage, current_di_idx_in_lib: int) -> torch.Tensor:
-    """
-    Performs the initial occlusion check against historical depth images (Test 1)
-    and applies the perpendicular motion heuristic (Test 4).
-    """
-    # Collect the relevant undetermined points
-    num_points = current_di.num_points
-    all_points_global = current_di.original_points_global_coords
-
-    raw_occlusion_results = torch.full(
-        (num_points, self.initial_pass_history_length),
-        OcclusionResult.UNDETERMINED.value, dtype=torch.int8, device=self.device
-    )
-    # Go through the relevant historical depth images and call the course grained occlusion check
-    for k in range(self.initial_pass_history_length):
-        hist_di_idx = current_di_idx_in_lib - 1 - k
-        if hist_di_idx < 0: break
-        historical_di = self.depth_image_library.get_image_by_index(hist_di_idx)
-        if historical_di and historical_di.is_prepared_for_projection():
-            raw_occlusion_results[:, k] = self.check_occlusion_batch(all_points_global, historical_di)
-
-    # Mark the points that are occluding consistently: X/M total relevant historical depth images show occlusion
-    preliminary_labels = raw_occlusion_results[:, 0].clone()
-    occluding_counts = torch.sum(raw_occlusion_results == OcclusionResult.OCCLUDING_IMAGE.value, dim=1)
-    test4_passed_mask = (occluding_counts >= self.initial_pass_min_occlusion_count)
-    preliminary_labels[test4_passed_mask] = OcclusionResult.OCCLUDING_IMAGE.value
+    color_mapper = ColorMapper(); box_drawer = BoxDrawer()
     
-    return preliminary_labels
-
-
-def _apply_map_consistency_check(self, labels: torch.Tensor, active_mask: torch.Tensor, current_di: DepthImage) -> torch.Tensor:
-    """
-    Applies the Map Consistency Check (MCC) to filter out points that are likely
-    part of the static map, despite appearing dynamic from the initial pass.
-    """
-    dynamic_candidates_mask = (labels == OcclusionResult.OCCLUDING_IMAGE.value) & active_mask
+    scene_rec = nusc.scene[args.scene_index]
+    scene_token = scene_rec['token']
     
-    if torch.any(dynamic_candidates_mask):
-        points_for_mcc = current_di.original_points_global_coords[dynamic_candidates_mask]
-        # 1. Get the confidence scores (a float tensor) from the MCC function.
-        mcc_confidence_scores = self.is_map_consistent(points_for_mcc, current_di)
-        
-        # 2. Create the boolean mask by comparing the scores to the threshold.
-        mcc_is_static_mask = mcc_confidence_scores >= self.mc_static_confidence_threshold
-        indices_to_revert = torch.where(dynamic_candidates_mask)[0][mcc_is_static_mask]
-        labels[indices_to_revert] = OcclusionResult.OCCLUDED_BY_IMAGE.value
-        
-    return labels
-
-
-def _apply_frame_refinement(self, labels: torch.Tensor, current_di: DepthImage) -> torch.Tensor:
-    """
-    This function is a simple wrapper that calls the modular refinement logic.
-    """
-    refinement_params = self.config.get_frame_refinement_params()
-    return apply_clustering_and_refinement(labels, current_di, refinement_params)
-
-
-def _run_single_event_test_with_mcc(
-    self,
-    labels: torch.Tensor,
-    active_mask: torch.Tensor,
-    current_di: DepthImage,
-    current_di_idx_in_lib: int,
-    event_test_func: Callable,
-    target_label: OcclusionResult,
-    apply_mcc: bool,
-    test_name: str
-) -> torch.Tensor:
-    """
-    Generic helper to run an event test and optionally filter its results with MCC.
-
-    This function encapsulates the pattern of:
-    1. Finding eligible points with a specific label.
-    2. Running a given event test function on them.
-    3. Taking the dynamic candidates produced by the test.
-    4. If configured, running the Map Consistency Check on those candidates.
-    5. Updating the main labels tensor with the final, high-confidence dynamic points.
-
-    Args:
-        labels (torch.Tensor): The main labels tensor to be modified.
-        active_mask (torch.Tensor): Mask of points eligible for any processing.
-        current_di (DepthImage): The current DI being processed.
-        current_di_idx_in_lib (int): The index of the current DI.
-        event_test_func (Callable): The specific event test function to execute.
-        target_label (OcclusionResult): The label to select as input for the test.
-        apply_mcc (bool): If True, run MCC on the test's output.
-        test_name (str): A name for logging purposes.
-
-    Returns:
-        torch.Tensor: The modified labels tensor.
-    """
-    # 1. Find points eligible for this specific test.
-    eligible_mask = (labels == target_label.value) & active_mask
-    if not torch.any(eligible_mask):
-        return labels # No candidates, no work to do.
-
-    # 2. Create a temporary input tensor for the event test function.
-    test_input_labels = torch.full_like(labels, -1) # -1 means not a candidate
-    test_input_labels[eligible_mask] = target_label.value
-
-    # 3. Run the provided event test to generate initial candidates.
-    test_output_labels = event_test_func(test_input_labels, current_di_idx_in_lib)
+    print(f"Loading data for scene: {scene_rec['name']}...")
     
-    # 4. Identify the candidates that the test flagged as potentially dynamic.
-    dynamic_candidates_mask = (test_output_labels == OcclusionResult.OCCLUDING_IMAGE.value)
-    if not torch.any(dynamic_candidates_mask):
-        return labels # The test found no dynamic points.
-
-    # 5. Optionally filter these candidates with the Map Consistency Check.
-    if apply_mcc and self.map_consistency_enabled:
-        points_for_mcc = current_di.original_points_global_coords[dynamic_candidates_mask]
-        mcc_scores = self.is_map_consistent(points_for_mcc, current_di)
-        is_static_mask = mcc_scores >= self.mc_static_confidence_threshold
-        
-        # The final dynamic points are those that were NOT filtered out by MCC.
-        final_dynamic_indices = torch.where(dynamic_candidates_mask)[0][~is_static_mask]
-    else:
-        # If MCC is disabled, all candidates from the test are considered final.
-        final_dynamic_indices = torch.where(dynamic_candidates_mask)[0]
-
-    # 6. Update the main label tensor with the confirmed dynamic points.
-    if final_dynamic_indices.numel() > 0:
-        labels[final_dynamic_indices] = OcclusionResult.OCCLUDING_IMAGE.value
-        self.logger.debug(f"{test_name}: Confirmed {final_dynamic_indices.numel()} new dynamic points.")
-        
-    return labels
-
-def _run_event_test_sequence(self, labels: torch.Tensor, active_mask: torch.Tensor, current_di: DepthImage, current_di_idx_in_lib: int) -> torch.Tensor:
-    """
-    Runs the sequence of specialized event tests.
+    #Use the centralized processor for all data loading ---
+    scene_processor = SceneProcessor(nusc, config_accessor)
+    all_sweeps = scene_processor.get_scene_sweeps(scene_token)
+    if not all_sweeps:
+        print(f"No sweeps found for scene {scene_rec['name']}. Exiting.")
+        return
     
-    Each test identifies new dynamic point candidates
-    from different initial states ('OCCLUDED_BY_IMAGE' or 'UNDETERMINED') and
-    subjects them to an optional, final quality check with the Map Consistency Check.
-    """
-    # Run test for parallel motion away
-    labels_after_parallel = self._run_single_event_test_with_mcc(
-        labels,
-        active_mask,
-        current_di,
-        current_di_idx_in_lib,
-        event_test_func=self.execute_parallel_motion_away_test,
-        target_label=OcclusionResult.OCCLUDED_BY_IMAGE,
-        apply_mcc=self.parallel_motion_apply_mcc, 
-        test_name="Parallel Motion Away"
-    )
-    
-    # Run test for perpendicular motion
-    labels_after_perpendicular = self._run_single_event_test_with_mcc(
-        labels_after_parallel,
-        active_mask,
-        current_di,
-        current_di_idx_in_lib,
-        event_test_func=self.execute_perpendicular_motion_test, 
-        target_label=OcclusionResult.UNDETERMINED,
-        apply_mcc=self.perpendicular_motion_apply_mcc, 
-        test_name="Perpendicular Motion"
-    )
-            
-    return labels_after_perpendicular
-
-
-def forward(self, current_di: DepthImage, current_di_idx_in_lib: int) -> Dict:
-    """
-    Main forward pass for the M-Detector, orchestrating the sequence of tests.
-    """
-    # Call the geometric pass and then apply refinement.
-    labels_before_refinement = self._forward_geometric_only(current_di, current_di_idx_in_lib)
-    
-    # Apply the final refinement step
-    final_labels = self._apply_frame_refinement(labels_before_refinement, current_di)
-
-    # Assign the fully-processed, final, refined labels to the DI object.
-    current_di.mdet_labels_for_points = final_labels
-    
-    # --- Logging and Return ---
-    num_points = current_di.num_points
-    label_counts = torch.bincount(final_labels.cpu(), minlength=len(OcclusionResult)).numpy()
-    label_counts_dict = {OcclusionResult(i).name: count for i, count in enumerate(label_counts) if count > 0}
-    self.logger.debug(f"Processed DI (TS: {current_di.timestamp}, Idx: {current_di_idx_in_lib}): "
-                 f"Labeled {num_points} points. Counts: {label_counts_dict}")
-
-    return {
-        'points_labeled': num_points,
-        'label_counts': dict(enumerate(label_counts)),
-        'success': True,
-        'timestamp': current_di.timestamp,
-        'processed_di': current_di
+    # Re-interpolate boxes on the fly using the shared logic
+    instance_tokens = scene_processor.get_scene_instances(scene_token, min_annotations=1)
+    instance_boxes = {
+        token: scene_processor.interpolator.get_boxes_for_sweeps(token, all_sweeps)
+        for token in tqdm(instance_tokens, desc="Interpolating GT boxes")
     }
-
-def _forward_geometric_only(self, current_di: DepthImage, current_di_idx_in_lib: int) -> torch.Tensor:
-    """
-    A special version of the forward pass that returns the labels
-    right before the frame refinement step.
-    """
-    num_points = current_di.num_points
-    if num_points == 0:
-        return current_di.mdet_labels_for_points.clone()
-
-    final_labels = current_di.mdet_labels_for_points.clone()
-    active_mask = (final_labels != OcclusionResult.PRELABELED_STATIC_GROUND.value)
-
-    if not torch.any(active_mask):
-        return final_labels
-
-    # --- Run all geometric stages ---
-    preliminary_labels = self._perform_initial_occlusion_pass(current_di, current_di_idx_in_lib)
-    labels_after_mcc = self._apply_map_consistency_check(preliminary_labels, active_mask, current_di)
-    labels_after_events = self._run_event_test_sequence(labels_after_mcc, active_mask, current_di, current_di_idx_in_lib)
-    
-    # Combine results into the final label tensor
-    final_labels[active_mask] = labels_after_events[active_mask]
-    
-    # --- RETURN BEFORE REFINEMENT ---
-    return final_labels
-
-############################
-FILE: src/core/m_detector/pre_labelers.py
-############################
-
-# src/core/m_detector/pre_labelers.py 
-# Note: this file is intended to hold all potential pre-labeler functions. 
-# Currently it only contains RANSAC, but can be extended with other ground segmentation algorithms, or other algorithms that can 
-# confidently filter out certain static objects, e.g. walls, traffic signs, etc. 
-import numpy as np
-import torch
-from typing import Dict, Optional, List, Callable, Tuple
-
-# --- RANSAC Ground Detection ---
-@torch.no_grad()
-def ransac_ground_prelabeler(
-    points_lidar_frame: np.ndarray, # RANSAC is typically done in sensor frame.
-    ransac_params: Optional[Dict] = None,
-    device_str: str = 'auto'
-) -> np.ndarray:
-    """
-    Identifies ground points using RANSAC flat plane fitting.
-
-    Args:
-        points_global (np.ndarray): Global point cloud (Nx3).
-        points_lidar_frame (np.ndarray): LiDAR point cloud in LiDAR frame (Nx3).
-                                         RANSAC is typically done in sensor frame.
-        current_di_timestamp (float): Timestamp of the current DI.
-        ransac_params (dict): Hyperparameters for ground removal.
-        device_str (str): 'cpu', 'cuda', or 'auto'.
-
-    Returns:
-        np.ndarray: Boolean mask (N,) where True indicates a ground point.
-    """
-    if points_lidar_frame.shape[0] == 0:
-        return np.array([], dtype=bool)
-
-    if device_str == 'auto':
-        device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    else:
-        device = torch.device(device_str)
-
-    # Convert Nx3 to Nx4 for the RANSAC function
-    pc_lidar_torch = torch.from_numpy(points_lidar_frame).float().to(device)
-    ones_col = torch.ones((pc_lidar_torch.shape[0], 1), device=device, dtype=pc_lidar_torch.dtype)
-    pc_lidar_torch_h = torch.cat([pc_lidar_torch, ones_col], dim=1)
-    assert pc_lidar_torch_h.ndim == 2 and pc_lidar_torch_h.shape[1] == 4, \
-        f'pc_lidar must have shape (N,4), got {tuple(pc_lidar_torch_h.shape)}'
-    
-    R = ransac_params['xyradius_threshold']
-    zmin = ransac_params['z_min_threshold']
-    zmax = ransac_params['z_max_threshold']
-
-    # Filter for ground disk in lidar frame
-    bool_xyz_disk = ((pc_lidar_torch_h[:, 0]**2 + pc_lidar_torch_h[:, 1]**2 <= R**2) &
-                     (pc_lidar_torch_h[:, 2] >= zmin) &
-                     (pc_lidar_torch_h[:, 2] <= zmax))
-    
-    grounddisk_pc_lidar = pc_lidar_torch_h[bool_xyz_disk]
-
-    if grounddisk_pc_lidar.shape[0] < 3: # Not enough points for RANSAC
-        return np.zeros(points_lidar_frame.shape[0], dtype=bool)
-
-    T = ransac_params['num_trials']
-    # Ensure enough unique points for sampling if grounddisk is small
-    num_points_in_disk = grounddisk_pc_lidar.shape[0]
-    ids = torch.randint(0, num_points_in_disk, (T, 3), device=device)
-    
-    triplets = grounddisk_pc_lidar[ids,:3] # Use x,y,z for plane fitting
-    v1, v2 = triplets[:,1]-triplets[:,0], triplets[:,2]-triplets[:,0]
-    normals = torch.linalg.cross(v1, v2)
-    norm_magnitudes = normals.norm(dim=1, keepdim=True)
-    
-    # Avoid division by zero for collinear points which result in a zero-magnitude normal vector
-    valid_normals_mask = norm_magnitudes.squeeze() > 1e-6
-    if not torch.any(valid_normals_mask):
-        return np.zeros(points_lidar_frame.shape[0], dtype=bool) # No valid planes found
-
-    normals = normals[valid_normals_mask]
-    norm_magnitudes = norm_magnitudes[valid_normals_mask]
-    triplets = triplets[valid_normals_mask] # Filter triplets accordingly
-
-    normals = normals / norm_magnitudes.clamp(min=1e-6) # Normalize valid normals
-    ds = -(normals * triplets[:,0]).sum(dim=1, keepdim=True)
-    plane_parameters = torch.cat([normals, ds], dim=1)
-    
-    # Compute residuals against all points in the disk (using x,y,z only for distance)
-    res = plane_parameters.matmul(torch.cat([grounddisk_pc_lidar[:,:3], torch.ones((num_points_in_disk,1), device=device)], dim=1).T)
-    inliers = (res.abs() <= ransac_params['inlier_threshold']).sum(dim=1)
-    
-    if inliers.shape[0] == 0: # No valid planes had inliers (e.g. if all normals were zero)
-         return np.zeros(points_lidar_frame.shape[0], dtype=bool)
-
-    best = inliers.argmax()
-    best_plane = plane_parameters[best]
-    
-    # Enforce a consistent normal vector direction (e.g., pointing "up" in the sensor frame)
-    # This is crucial for correctly identifying points above/below the plane.
-    if best_plane[2] < 0:
-        best_plane = -best_plane
         
-    # Get boolean mask for ALL original points (pc_lidar_torch_h)
-    distances = best_plane.matmul(pc_lidar_torch_h.T) # Distances for all points
-    bool_ground_torch = distances.abs() <= ransac_params['ground_threshold'] # Use abs for distance to plane
+    gt_vel_thresh = config_accessor.get_validation_params()['gt_velocity_threshold']
+    gt_file_path = Path(nusc_params['label_path']) / f"gt_sparse_labels_{scene_rec['name']}_v{gt_vel_thresh}.pt"
+    if not gt_file_path.exists():
+        print(f"Ground truth file not found at {gt_file_path}. Please generate labels first.")
+        return
+        
+    print(f"Loading sparse GT indices from {gt_file_path}...")
+    gt_data = torch.load(gt_file_path, weights_only=False, map_location='cpu')
     
-    return bool_ground_torch.cpu().numpy()
+    gt_all_indices = gt_data['dynamic_point_indices']
+    gt_boundaries = gt_data['sweep_boundary_indices']
+    
+    filter_params = config_accessor.get_point_pre_filtering_params()
+    print(f"Rendering {len(all_sweeps)} frames to {args.output_path}...")
+    
+    renderer = VideoRenderer(output_path=args.output_path, fps=args.fps)
+    
+    for i, sweep in enumerate(tqdm(all_sweeps, desc="Rendering Frames")):
+        # Get the GT boxes for this sweep (dynamic only)
+        gt_boxes_for_sweep = [
+            boxes[i] for boxes in instance_boxes.values() 
+            if boxes[i] and np.linalg.norm(boxes[i].velocity[:2]) >= gt_vel_thresh
+        ]
+        
+        start_idx, end_idx = gt_boundaries[i], gt_boundaries[i+1]
+        gt_dynamic_indices_for_sweep = gt_all_indices[start_idx:end_idx]
+        
+        geometries = create_gt_visualization_geometries(
+            sweep, gt_boxes_for_sweep, gt_dynamic_indices_for_sweep,
+            filter_params, color_mapper, box_drawer
+        )
+        
+        ego_position = sweep.T_global_lidar[:3, 3]
+        camera_params = {
+            'center': ego_position,
+            'eye': ego_position + np.array([-40, -40, 20]), 
+            'up': np.array([0, 0, 1])
+        }
+            
+        renderer.render_frame(geometries, camera_params)
+        
+    renderer.close()
 
-
-# Type for a pre-labeler function
-PreLabelerCallable = Callable[[np.ndarray, np.ndarray, float, Optional[Dict]], np.ndarray]
-
-# List of active pre-labelers (can be extended)
-ACTIVE_PRE_LABELERS: List[Tuple[str, PreLabelerCallable, Optional[Dict]]] = [
-    ("ransac_ground", ransac_ground_prelabeler, None), # Params can be loaded from main config
-    # Add other pre-labelers here, e.g., ("segmentation_based_static", some_other_func, params_for_it)
-]
+if __name__ == '__main__':
+    main()
 
 ############################
-FILE: src/core/m_detector/map_consistency.py
+FILE: scripts/analyze_errors_interactive.py
 ############################
 
-# src/core/m_detector/map_consistency.py
+# scripts/analyze_errors_interactive.py
 
-from __future__ import annotations
-import torch
-from typing import TYPE_CHECKING, Optional, List
-from ..constants import OcclusionResult
-from .adaptive_epsilon_utils import calculate_adaptive_epsilon
+import sys
+import argparse
+from pathlib import Path
 import numpy as np
+import torch
+from tqdm import tqdm
+from nuscenes.nuscenes import NuScenes
+import open3d as o3d
+
+# --- Path Setup ---
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+# --- Core Project Imports ---
+from src.config_loader import MDetectorConfigAccessor
+from src.utils.visualization import ColorMapper, BoxDrawer, InteractiveVisualizer
+from src.core.constants import OcclusionResult
+from scripts.generate_labels import SceneProcessor
+
+def prepare_visualization_frames(
+    processed_data: list,
+    gt_data: dict,
+    instance_boxes: dict,
+    color_mapper: ColorMapper,
+    box_drawer: BoxDrawer,
+    gt_vel_thresh: float
+):
+    """Prepares frames for the interactive visualizer with precise error coloring."""
+    cached_frames = []
+    gt_all_indices = gt_data['dynamic_point_indices']
+    gt_boundaries = gt_data['sweep_boundary_indices']
+    
+    for i, frame_data in enumerate(tqdm(processed_data, desc="Preparing visualization frames")):
+        geometries = {}
+        
+        if frame_data['points'].shape[0] > 0:
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(frame_data['points'])
+            
+            # --- START OF CHANGE ---
+            # Use the newly saved original_indices for precise error analysis
+            pred_is_dyn = (frame_data['labels'] == OcclusionResult.OCCLUDING_IMAGE.value)
+            
+            # 1. Get the GT dynamic indices for the complete, raw sweep
+            start_idx, end_idx = gt_boundaries[i], gt_boundaries[i+1]
+            gt_dynamic_indices_for_raw_sweep = gt_all_indices[start_idx:end_idx]
+            
+            # 2. Get the original indices of the points the detector actually processed
+            original_indices_processed = frame_data['original_indices']
+            
+            # 3. Create a boolean mask for GT labels that is perfectly aligned with the processed points
+            #    `np.isin` checks which of our processed points' original indices are in the GT list.
+            gt_is_dyn = np.isin(original_indices_processed, gt_dynamic_indices_for_raw_sweep)
+            
+            # 4. Generate precise TP/FP/FN/TN colors
+            error_colors = color_mapper.get_error_analysis_colors(pred_is_dyn, gt_is_dyn)
+            pcd.colors = o3d.utility.Vector3dVector(error_colors)
+            # --- END OF CHANGE ---
+            
+            geometries['pcd'] = pcd
+        else:
+            geometries['pcd'] = o3d.geometry.PointCloud()
+
+        # Add ground truth bounding boxes for context
+        gt_boxes_for_sweep = [
+            boxes[i] for boxes in instance_boxes.values() 
+            if boxes[i] and np.linalg.norm(boxes[i].velocity[:2]) >= gt_vel_thresh
+        ]
+        for j, box in enumerate(gt_boxes_for_sweep):
+            geometries[f"gt_box_{j}"] = box_drawer.get_box_obb_wireframe(box, color=color_mapper.GT_DYNAMIC)
+        
+        cached_frames.append({'geometries': geometries})
+        
+    return cached_frames
+
+def main():
+    parser = argparse.ArgumentParser(description="Interactively analyze processed M-Detector results.")
+    parser.add_argument('--config', type=str, required=True, help='Path to the main YAML config file.')
+    parser.add_argument('--scene-index', type=int, required=True, help='The index of the scene to analyze.')
+    parser.add_argument('--processed-file', type=str, required=True, help='Path to the pre-processed .pt results file.')
+    parser.add_argument('--fps', type=int, default=20, help='Frames per second for the interactive animation.')
+    args = parser.parse_args()
+
+    config_accessor = MDetectorConfigAccessor(args.config)
+    color_mapper = ColorMapper()
+    box_drawer = BoxDrawer()
+    
+    nusc_params = config_accessor.get_nuscenes_params()
+    nusc = NuScenes(version=nusc_params['version'], dataroot=nusc_params['dataroot'], verbose=False)
+    scene_processor = SceneProcessor(nusc=nusc, config_accessor=config_accessor)
+    
+    scene_rec = nusc.scene[args.scene_index]
+    all_sweeps = scene_processor.get_scene_sweeps(scene_rec['token'])
+
+    gt_vel_thresh = config_accessor.get_validation_params()['gt_velocity_threshold']
+    gt_file_path = Path(nusc_params['label_path']) / f"gt_sparse_labels_{scene_rec['name']}_v{gt_vel_thresh}.pt"
+    if not gt_file_path.exists():
+        print(f"FATAL: Ground truth file not found at {gt_file_path}. Cannot perform error analysis.")
+        return
+    gt_data = torch.load(gt_file_path, map_location='cpu', weights_only=False)
+
+    instance_tokens = scene_processor.get_scene_instances(scene_rec['token'], min_annotations=1)
+    instance_boxes = {token: scene_processor.interpolator.get_boxes_for_sweeps(token, all_sweeps) for token in instance_tokens}
+
+    print(f"Loading processed data from {args.processed_file}...")
+    processed_data = torch.load(args.processed_file, weights_only=False)
+    
+    cached_frames = prepare_visualization_frames(processed_data, gt_data, instance_boxes, color_mapper, box_drawer, gt_vel_thresh)
+
+    visualizer = InteractiveVisualizer(window_name="M-Detector Interactive Error Analysis", fps=args.fps)
+    visualizer.run_animation_loop(cached_frames)
+
+if __name__ == '__main__':
+    main()
+
+############################
+FILE: scripts/run_experiment.py
+############################
+
+# src/tuning/run_experiment.py 
+
+# Filter annoying warnings
+import warnings
+warnings.filterwarnings("ignore", message="The cuda.cuda module is deprecated", category=FutureWarning)
+warnings.filterwarnings("ignore", message="The cuda.cudart module is deprecated", category=FutureWarning)
+
+import os
+import sys
+import argparse
+import ray
 import logging
-from itertools import combinations
-
-logger_mcc_perf = logging.getLogger("MCC_PERF_DEBUG")
-
-# Tolerance for floating point inaccuracies
-BARYCENTRIC_WEIGHT_TOLERANCE = 1e-9
-
-if TYPE_CHECKING:
-    from ..depth_image import DepthImage
-    from .base import MDetector
-
-def is_map_consistent(self: 'MDetector',
-                      points_global_batch: torch.Tensor,
-                      origin_di: 'DepthImage') -> torch.Tensor:
-    """
-    Hybrid GPU-CPU map consistency check.
-    """
-    batch_size = points_global_batch.shape[0]
-    device = self.device
-
-    if not self.map_consistency_enabled or batch_size == 0:
-        return torch.zeros(batch_size, dtype=torch.bool, device=device)
-
-    _, sph_coords_origin, _, valid_origin_mask = origin_di.project_points_batch(points_global_batch)
-
-    # If none of the points are valid in their own frame (highly unlikely), we can exit.
-    if not torch.any(valid_origin_mask):
-        return torch.zeros(batch_size, dtype=torch.bool, device=device)
-    
-    # This d_anchors tensor now correctly corresponds to the points_global_batch.
-    d_anchors = sph_coords_origin[:, 2]
-    # --- END OF FIX ---
-
-    consistent_matches_count = torch.zeros(batch_size, dtype=torch.int32, device=device)
-    dis_checked_count = torch.zeros(batch_size, dtype=torch.int32, device=device)
-
-    relevant_dis = self.depth_image_library.get_relevant_past_images(num_sweeps=self.num_past_sweeps_for_mcc)
-    if not relevant_dis:
-        return torch.zeros(batch_size, dtype=torch.bool, device=device)
-
-    # --- Loop through historical DIs ---
-    for _, di_hist in relevant_dis:
-        if not di_hist.is_prepared_for_projection():
-            continue
-
-        _, sph_coords_target, pixel_indices_target, valid_mask = di_hist.project_points_batch(points_global_batch)
-        
-        if not torch.any(valid_mask):
-            continue
-
-        static_mask_hist = di_hist.get_static_points_mask(self.static_labels_for_map_check_values)
-        if static_mask_hist is None or not torch.any(static_mask_hist):
-            continue
-            
-        active_indices = torch.where(valid_mask)[0]
-        dis_checked_count[active_indices] += 1
-        
-        v_coords = pixel_indices_target[active_indices, 0]
-        h_coords = pixel_indices_target[active_indices, 1]
-        pixel_has_content_mask = di_hist.pixel_count[v_coords, h_coords] > 0
-        
-        direct_comp_indices = active_indices[pixel_has_content_mask]
-        if direct_comp_indices.numel() > 0:
-            matches_gpu = _perform_direct_comparison_gpu(self,
-                direct_comp_indices, sph_coords_target, d_anchors, di_hist, static_mask_hist
-            )
-            consistent_matches_count[direct_comp_indices[matches_gpu]] += 1
-
-        interp_candidate_indices_gpu = active_indices[~pixel_has_content_mask]
-        if self.mc_interp_enabled and interp_candidate_indices_gpu.numel() > 0:
-            phi_target_cpu = sph_coords_target[interp_candidate_indices_gpu, 0].cpu().numpy()
-            theta_target_cpu = sph_coords_target[interp_candidate_indices_gpu, 1].cpu().numpy()
-            
-            interp_results_mask_cpu = np.zeros(interp_candidate_indices_gpu.numel(), dtype=bool)
-            for i in range(interp_candidate_indices_gpu.numel()):
-                interpolated_depth = interpolate_surface_depth_at_angle(
-                    target_phi_rad=phi_target_cpu[i],
-                    target_theta_rad=theta_target_cpu[i],
-                    historical_di=di_hist,
-                    static_labels_for_map_check_values=self.static_labels_for_map_check_values,
-                    epsilon_phi_rad_search=self.epsilon_phi_map_rad,
-                    epsilon_theta_rad_search=self.epsilon_theta_map_rad,
-                    max_neighbors_to_consider=self.mc_interp_max_neighbors,
-                    max_triplets_to_try=self.mc_interp_max_triplets
-                )
-                if interpolated_depth is not None:
-                    depth_target = sph_coords_target[interp_candidate_indices_gpu[i], 2].item()
-                    d_anchor_target = d_anchors[interp_candidate_indices_gpu[i]].item()
-                    
-                    eps_fwd = calculate_adaptive_epsilon(torch.tensor([d_anchor_target]), self.epsilon_depth_forward_map, **self.adaptive_eps_config_mc_fwd).item()
-                    eps_bwd = calculate_adaptive_epsilon(torch.tensor([d_anchor_target]), self.epsilon_depth_backward_map, **self.adaptive_eps_config_mc_bwd).item()
-
-                    if (interpolated_depth - eps_bwd) <= depth_target <= (interpolated_depth + eps_fwd):
-                        interp_results_mask_cpu[i] = True
-
-            interp_results_mask_gpu = torch.from_numpy(interp_results_mask_cpu).to(device)
-            consistent_matches_count[interp_candidate_indices_gpu[interp_results_mask_gpu]] += 1
-
-    static_confidence_scores = torch.zeros(batch_size, dtype=torch.float32, device=device)
-    
-    # Create a mask to avoid division by zero
-    checked_mask = dis_checked_count > 0
-    
-    # Calculate the ratio only for points that were checked at least once
-    static_confidence_scores[checked_mask] = consistent_matches_count[checked_mask].float() / dis_checked_count[checked_mask].float()
-    
-    return static_confidence_scores
-
-def interpolate_surface_depth_at_angle(
-    target_phi_rad: float,
-    target_theta_rad: float,
-    historical_di: 'DepthImage',
-    static_labels_for_map_check_values: List[int],
-    epsilon_phi_rad_search: float,
-    epsilon_theta_rad_search: float,
-    max_neighbors_to_consider: int,
-    max_triplets_to_try: int
-) -> Optional[float]:
-    """
-    Interpolates the depth of a static surface at a given angle using barycentric coordinates.
-    This function is designed to run on the CPU and is hardened to accept a DepthImage
-    object that may contain GPU tensors.
-
-    Returns:
-        The interpolated depth as a float, or None if interpolation is not possible.
-    """
-    all_sph_coords_hist_cpu = historical_di.local_sph_coords_for_points.cpu().numpy()
-    all_labels_hist_cpu = historical_di.mdet_labels_for_points.cpu().numpy()
-
-    # 1. Find candidate static neighboring points using the CPU numpy arrays
-    angular_mask_phi = np.abs(all_sph_coords_hist_cpu[:, 0] - target_phi_rad) <= epsilon_phi_rad_search
-    angular_mask_theta = np.abs(all_sph_coords_hist_cpu[:, 1] - target_theta_rad) <= epsilon_theta_rad_search
-    angular_mask = angular_mask_phi & angular_mask_theta
-    
-    static_values_tensor = np.array(static_labels_for_map_check_values, dtype=all_labels_hist_cpu.dtype)
-    static_mask = np.isin(all_labels_hist_cpu, static_values_tensor)
-
-    valid_neighbor_indices = np.where(angular_mask & static_mask)[0]
-
-    if len(valid_neighbor_indices) < 3:
-        return None
-
-    # 2. Collect data for these neighbors
-    # Use the CPU arrays for all subsequent operations
-    neighbor_data_tuples = [
-        (all_sph_coords_hist_cpu[idx, 0], all_sph_coords_hist_cpu[idx, 1], all_sph_coords_hist_cpu[idx, 2])
-        for idx in valid_neighbor_indices
-    ]
-    
-    # Sort neighbors by angular distance to the target
-    neighbor_data_tuples.sort(key=lambda p_data: abs(target_phi_rad - p_data[0]) + abs(target_theta_rad - p_data[1]))
-
-    # Limit the number of neighbors to reduce complexity
-    if len(neighbor_data_tuples) > max_neighbors_to_consider:
-        neighbor_data_tuples = neighbor_data_tuples[:max_neighbors_to_consider]
-    
-    if len(neighbor_data_tuples) < 3:
-        return None
-
-    # 3. Iterate through triplets of neighbors to find a valid plane
-    triplet_count = 0
-    for p1_data, p2_data, p3_data in combinations(neighbor_data_tuples, 3):
-        if triplet_count >= max_triplets_to_try:
-            break
-        triplet_count += 1
-
-        # Using float64 for linalg.solve for better precision
-        A_matrix = np.array([
-            [p1_data[0], p2_data[0], p3_data[0]],
-            [p1_data[1], p2_data[1], p3_data[1]],
-            [1,          1,          1         ]
-        ], dtype=np.float64)
-        b_vector = np.array([target_phi_rad, target_theta_rad, 1], dtype=np.float64)
-
-        try:
-            weights = np.linalg.solve(A_matrix, b_vector)
-        except np.linalg.LinAlgError:
-            # This happens if the three points are collinear in angular space
-            continue 
-
-        # If the target point is within the triangle formed by the neighbors, interpolate
-        if np.all(weights >= -BARYCENTRIC_WEIGHT_TOLERANCE): # Allow for small floating point inaccuracies
-            interpolated_depth = (weights[0] * p1_data[2] + 
-                                  weights[1] * p2_data[2] + 
-                                  weights[2] * p3_data[2])
-            return float(interpolated_depth)
-            
-    return None
-
-
-def _perform_direct_comparison_gpu(self: 'MDetector', indices, sph_coords_target, d_anchors, di_hist, static_mask_hist):
-    """Helper to contain the GPU-based direct comparison logic."""
-    device = self.device
-    
-    phi_target = sph_coords_target[indices, 0].unsqueeze(1)
-    theta_target = sph_coords_target[indices, 1].unsqueeze(1)
-    depth_target = sph_coords_target[indices, 2].unsqueeze(1)
-
-    static_sph_coords_hist = di_hist.local_sph_coords_for_points[static_mask_hist]
-    phi_static = static_sph_coords_hist[:, 0]
-    theta_static = static_sph_coords_hist[:, 1]
-    depth_static = static_sph_coords_hist[:, 2]
-
-    is_angular_neighbor = (torch.abs(phi_target - phi_static) <= self.epsilon_phi_map_rad) & \
-                          (torch.abs(theta_target - theta_static) <= self.epsilon_theta_map_rad)
-
-    eps_fwd = calculate_adaptive_epsilon(d_anchors[indices], self.epsilon_depth_forward_map, **self.adaptive_eps_config_mc_fwd).unsqueeze(1)
-    eps_bwd = calculate_adaptive_epsilon(d_anchors[indices], self.epsilon_depth_backward_map, **self.adaptive_eps_config_mc_bwd).unsqueeze(1)
-    
-    is_depth_consistent = (depth_target >= depth_static - eps_bwd) & (depth_target <= depth_static + eps_fwd)
-    
-    is_consistent_match = is_angular_neighbor & is_depth_consistent
-    return torch.any(is_consistent_match, dim=1)
-
-############################
-FILE: src/core/m_detector/occlusion_checks.py
-############################
-
-# src/core/m_detector/occlusion_checks.py
-
-import torch
-from typing import TYPE_CHECKING
-
-from ..constants import OcclusionResult
-from .adaptive_epsilon_utils import calculate_adaptive_epsilon
-
-if TYPE_CHECKING:
-    from .base import MDetector
-    from ..depth_image import DepthImage
-
-def check_occlusion_batch(self: 'MDetector',
-                          points_global_batch: torch.Tensor,
-                          historical_depth_image: 'DepthImage') -> torch.Tensor:
-    """
-    Performs a fast, coarse-grained (broad-phase) occlusion check for a batch of points
-    against an entire historical depth image.
-
-    This function acts as a rapid filter, comparing each point to a neighborhood of
-    pixels in the historical image rather than to individual points.
-
-    Args:
-        points_global_batch (torch.Tensor): Points to check, in global coordinates. Shape: (N, 3).
-        historical_depth_image (DepthImage): The historical DI to check against.
-
-    Returns:
-        torch.Tensor: Integer labels from OcclusionResult for each point. Shape: (N,).
-    """
-    batch_size = points_global_batch.shape[0]
-    device = self.device
-
-    # Ensure input is a PyTorch tensor on the correct device
-    if not isinstance(points_global_batch, torch.Tensor):
-        points_global_batch = torch.from_numpy(points_global_batch).float()
-    points_global_batch = points_global_batch.to(device)
-
-    # --- 1. Project points onto the historical image ---
-    _, sph_coords, pixel_coords, is_valid_projection_mask = historical_depth_image.project_points_batch(points_global_batch)
-    
-    # Initialize results, assuming points are occluded by default. This will be refined.
-    results = torch.full((batch_size,), OcclusionResult.OCCLUDED_BY_IMAGE.value, dtype=torch.int32, device=device)
-    
-    # Get the indices of points that projected successfully into the image frame.
-    valid_indices = torch.where(is_valid_projection_mask)[0]
-
-    # If no points project into the image, we can return early.
-    if valid_indices.numel() == 0:
-        return results
-
-    # --- 2. Define search neighborhoods for all valid points ---
-    valid_pixels = pixel_coords[valid_indices]
-    valid_depths = sph_coords[valid_indices, 2]
-
-    # Create a 2D grid of offsets (e.g., a 3x3 grid for n_v=1, n_h=1)
-    n_v, n_h = self.neighbor_search_pixels_v, self.neighbor_search_pixels_h
-    dv = torch.arange(-n_v, n_v + 1, device=device)
-    dh = torch.arange(-n_h, n_h + 1, device=device)
-    grid_dv, grid_dh = torch.meshgrid(dv, dh, indexing='ij')
-    offsets = torch.stack([grid_dv.flatten(), grid_dh.flatten()], dim=1)
-
-    # Use broadcasting to create a neighborhood grid for each valid point.
-    # Shape: (num_valid_points, num_neighborhood_pixels, 2)
-    neighborhood_pixels = valid_pixels.unsqueeze(1) + offsets
-
-    # Prevent neighborhood indices from going out of bounds of the image dimensions.
-    neighborhood_pixels[:, :, 0].clamp_(0, historical_depth_image.num_pixels_v - 1)
-    neighborhood_pixels[:, :, 1].clamp_(0, historical_depth_image.num_pixels_h - 1)
-
-    # --- 3. Gather historical data from neighborhoods ---
-    # Convert 2D neighborhood coordinates to 1D indices for efficient, vectorized lookup.
-    v_coords = neighborhood_pixels[:, :, 0]
-    h_coords = neighborhood_pixels[:, :, 1]
-    flat_indices = v_coords * historical_depth_image.num_pixels_h + h_coords
-
-    # Fetch pre-aggregated data from the historical image using the flat indices.
-    hist_counts_flat = historical_depth_image.pixel_count.view(-1)
-    hist_min_depth_flat = historical_depth_image.pixel_min_depth.view(-1)
-    hist_max_depth_flat = historical_depth_image.pixel_max_depth.view(-1)
-
-    neighborhood_counts = hist_counts_flat[flat_indices]
-    neighborhood_min_depths = hist_min_depth_flat[flat_indices]
-    neighborhood_max_depths = hist_max_depth_flat[flat_indices]
-
-    # --- 4. Classify points based on neighborhood data ---
-    # A neighborhood pixel is valid only if it contained points in the historical image.
-    has_data_mask = neighborhood_counts > 0
-    any_data_in_neighborhood = torch.any(has_data_mask, dim=1)
-
-    # If a point's entire neighborhood was empty, classify it as such.
-    results[valid_indices[~any_data_in_neighborhood]] = OcclusionResult.EMPTY_IN_IMAGE.value
-
-    # Proceed only with points whose neighborhoods contained some data.
-    if torch.any(any_data_in_neighborhood):
-        points_with_data_mask = any_data_in_neighborhood
-
-        # To find the true min/max depth, we must ignore empty pixels.
-        # We achieve this by replacing their depths with +/- infinity.
-        min_depths_clean = torch.where(has_data_mask, neighborhood_min_depths, float('inf'))
-        max_depths_clean = torch.where(has_data_mask, neighborhood_max_depths, float('-inf'))
-
-        # Aggregate the min/max depth across the entire neighborhood for each point.
-        min_depth_in_region = torch.min(min_depths_clean[points_with_data_mask], dim=1).values
-        max_depth_in_region = torch.max(max_depths_clean[points_with_data_mask], dim=1).values
-        
-        # Filter to the active points and depths we are currently classifying.
-        active_depths = valid_depths[points_with_data_mask]
-        active_indices = valid_indices[points_with_data_mask]
-        current_results = results[active_indices]
-        
-        # If the point's depth is greater than the max depth of the region, it's occluded.
-        occluded_mask = active_depths > max_depth_in_region + self.epsilon_depth_occlusion
-        current_results = torch.where(occluded_mask, OcclusionResult.OCCLUDED_BY_IMAGE.value, current_results)
-
-        # If the point's depth is less than the min depth of the region, it's an occluder.
-        occluding_mask = active_depths < min_depth_in_region - self.epsilon_depth_occlusion
-        current_results = torch.where(occluding_mask, OcclusionResult.OCCLUDING_IMAGE.value, current_results)
-
-        # Update the main results tensor with these refined classifications.
-        results[active_indices] = current_results
-
-    return results
-
-def check_occlusion_point_level_detailed_batch(
-    self: 'MDetector',
-    points_eval_global: torch.Tensor,
-    d_anchors_of_points_eval: torch.Tensor,
-    points_hist_cand_global: torch.Tensor,
-    historical_di: 'DepthImage',
-    occlusion_type_to_check: str,
-) -> torch.Tensor:
-    """
-    Performs a precise, fine-grained (narrow-phase) occlusion check between paired points.
-
-    This high-precision step is used after a coarse check has identified candidates.
-    It uses strict angular matching and an adaptive depth threshold.
-
-    Args:
-        points_eval_global (torch.Tensor): Points to evaluate. Shape: (N, 3).
-        d_anchors_of_points_eval (torch.Tensor): Anchor depths for eval points. Shape: (N,).
-        points_hist_cand_global (torch.Tensor): Paired historical candidate points. Shape: (N, 3).
-        historical_di (DepthImage): The historical DI used for projection.
-        occlusion_type_to_check (str): Relationship to verify ("OCCLUDING" or "OCCLUDED_BY").
-
-    Returns:
-        torch.Tensor: Boolean mask where True indicates the condition was met. Shape: (N,).
-    """
-    batch_size = points_eval_global.shape[0]
-    final_results = torch.zeros(batch_size, dtype=torch.bool, device=self.device)
-
-    # Guard clause for empty input
-    if batch_size == 0:
-        return final_results
-
-    # --- 1. Project both sets of points ---
-    # Concatenate for a single, efficient projection call to the GPU.
-    points_to_project = torch.cat([points_eval_global, points_hist_cand_global])
-    _, sph_coords_batch, _, valid_mask = historical_di.project_points_batch(points_to_project)
-
-    # Split the results back into evaluation and historical sets.
-    sph_coords_eval, sph_coords_hist = sph_coords_batch.chunk(2)
-    valid_mask_eval, valid_mask_hist = valid_mask.chunk(2)
-
-    # --- 2. Filter for valid pairs ---
-    # A check is only meaningful if *both* points in a pair successfully project.
-    possible_check_mask = valid_mask_eval & valid_mask_hist
-    if not torch.any(possible_check_mask):
-        return final_results
-    
-    # We now work only with the subset of pairs that can be checked.
-    possible_indices = torch.where(possible_check_mask)[0]
-    
-    # Extract spherical coordinates for the valid pairs.
-    phi_eval = sph_coords_eval[possible_indices, 0]
-    theta_eval = sph_coords_eval[possible_indices, 1]
-    d_eval = sph_coords_eval[possible_indices, 2]
-
-    phi_hist = sph_coords_hist[possible_indices, 0]
-    theta_hist = sph_coords_hist[possible_indices, 1]
-    d_hist = sph_coords_hist[possible_indices, 2]
-
-    # --- 3. Perform strict angular proximity check ---
-    # This ensures both points are on almost the exact same line of sight.
-    angular_phi_match = torch.abs(phi_eval - phi_hist) <= self.detailed_check_angular_threshold_h_rad
-    angular_theta_match = torch.abs(theta_eval - theta_hist) <= self.detailed_check_angular_threshold_v_rad
-    angular_match_mask = angular_phi_match & angular_theta_match
-
-    if not torch.any(angular_match_mask):
-        return final_results
-
-    # Filter again to the subset of pairs that passed the angular check.
-    passed_angular_indices = possible_indices[angular_match_mask]
-
-    # --- 4. Calculate adaptive depth threshold ---
-    # For points that are angularly close, calculate a more precise, distance-dependent
-    # depth threshold to account for increasing sensor error over distance.
-    d_anchors_for_calc = d_anchors_of_points_eval[passed_angular_indices]
-    adaptive_config = self.adaptive_eps_config_occ_depth
-    current_detailed_epsilon = calculate_adaptive_epsilon(
-        d_anchors_for_calc,
-        self.detailed_check_epsilon_depth,
-        adaptive_config['enabled'],
-        adaptive_config['dthr'],
-        adaptive_config['kthr'],
-        adaptive_config['dmax'],
-        adaptive_config['dmin']
+from pathlib import Path
+import time
+from rich.logging import RichHandler
+
+# --- Setup Paths and Environment ---
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+WORKING_DIR = PROJECT_ROOT.parent
+CONFIG_PATH_ABSOLUTE = PROJECT_ROOT / 'config' / 'm_detector_config.yaml'
+DB_DIR = PROJECT_ROOT / "optuna_studies"
+
+# Then import src code
+from src.config_loader import MDetectorConfigAccessor
+from src.tuning.modes import bake_runner, refinement_tuner, full_tuner
+from src.tuning.ray_actors import NuScenesDataActor, load_all_gt_data_in_background
+
+# For debugging, to see every single log message from every worker without deduplication,
+# uncomment the following line. This can create a massive amount of output.
+# os.environ["RAY_DEDUP_LOGS"] = "0"
+
+
+def main():
+    parser = argparse.ArgumentParser(description="M-Detector Experiment Runner")
+    parser.add_argument("--mode", type=str, required=True, choices=['bake', 'tune-refinement', 'tune-full'], help="The mode to run.")
+    parser.add_argument("--study-name", type=str, required=True, help="Name for the Optuna study.")
+    parser.add_argument("--n-trials", type=int, default=100, help="Number of trials for tuning modes.")
+    parser.add_argument("--source-study-name", type=str, help="For 'bake' mode: the geometric study to get best params from.")
+    parser.add_argument("--bake-id", type=str, help="For 'tune-refinement' mode: the ID of the baked results to use.")
+    args = parser.parse_args()
+
+    # --- Centralized Logging Configuration ---
+    logging.basicConfig(
+        level="INFO",
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True, show_path=False, markup=True)] # markup=True is default but explicit
     )
+    # Get a logger for this file, which will now use the RichHandler.
+    logger = logging.getLogger(__name__)
 
-    # --- 5. Perform final depth comparison ---
-    d_eval_final = d_eval[angular_match_mask]
-    d_hist_final = d_hist[angular_match_mask]
+    accessor = MDetectorConfigAccessor(CONFIG_PATH_ABSOLUTE)
+    base_config = accessor.get_raw_config()
+    base_config['study_name'] = args.study_name
 
-    # Check the specific occlusion condition requested by the caller.
-    depth_condition_met = torch.zeros_like(d_eval_final, dtype=torch.bool)
-    if occlusion_type_to_check == "OCCLUDING":
-        # Check if the evaluation point is significantly closer than the historical point.
-        depth_condition_met = d_eval_final < d_hist_final - current_detailed_epsilon
-    elif occlusion_type_to_check == "OCCLUDED_BY":
-        # Check if the evaluation point is significantly farther than the historical point.
-        depth_condition_met = d_eval_final > d_hist_final + current_detailed_epsilon
-    else:
-        # This should not happen with controlled inputs.
-        raise ValueError(f"Invalid occlusion_type_to_check: {occlusion_type_to_check}")
+    # Configure CUDA_VISIBLE_DEVICES based on config ---
+    processing_settings = accessor.get_processing_settings()
+    if processing_settings['device'] == 'cuda':
+        gpu_ids = processing_settings['gpu_ids']
+        if gpu_ids: # If gpu_ids is not empty
+            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, gpu_ids))
+            logger.info(f"Setting CUDA_VISIBLE_DEVICES=[bold yellow]{os.environ['CUDA_VISIBLE_DEVICES']}[/bold yellow]")
+        else:
+            if "CUDA_VISIBLE_DEVICES" in os.environ:
+                del os.environ["CUDA_VISIBLE_DEVICES"]
+            logger.info("CUDA_VISIBLE_DEVICES not explicitly set, Ray will use all available GPUs.")
 
-    # --- 6. Update final results ---
-    final_results[passed_angular_indices[depth_condition_met]] = True
+    ray.init(ignore_reinit_error=True, logging_level=logging.WARNING)
+    nuscenes_cfg = accessor.get_nuscenes_params()
+    config_path_str = str(CONFIG_PATH_ABSOLUTE)
+    
+    data_actor = NuScenesDataActor.options(name="nuscenes_data_service", get_if_exists=True).remote(
+        nuscenes_cfg['version'], nuscenes_cfg['dataroot'], config_path_str
+    )
+    gt_data_future = load_all_gt_data_in_background.remote(config_path_str)
+    ray.get(data_actor.set_cache.remote(ray.get(gt_data_future)))
+    logger.info("Ray initialized and data actor is ready.")
+
+    run_timestamp = time.strftime("%Y%m%d-%H%M%S")
+
+    try:
+        if args.mode == 'bake':
+            if not args.source_study_name:
+                raise ValueError("--source-study-name is required for 'bake' mode.")
+            bake_runner.run(base_config, args.source_study_name, DB_DIR)
+
+        elif args.mode == 'tune-refinement':
+            if not args.bake_id:
+                raise ValueError("--bake-id is required for 'tune-refinement' mode.")
+            refinement_tuner.run(base_config, args.study_name, args.n_trials, args.bake_id, DB_DIR, run_timestamp)
+
+        elif args.mode == 'tune-full':
+            full_tuner.run(base_config, args.study_name, args.n_trials, run_timestamp, DB_DIR)
+            
+    finally:
+        ray.shutdown()
+        logger.info("Ray shut down.")
+
+if __name__ == '__main__':
+    main()
+
+############################
+FILE: scripts/visualize_mdetector.py
+############################
+
+# scripts/visualize_mdetector.py (Refactored)
+
+import sys
+import argparse
+from pathlib import Path
+import numpy as np
+import torch
+from tqdm import tqdm
+from nuscenes.nuscenes import NuScenes
+import open3d as o3d
+
+# --- Path Setup ---
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+# --- Core Project Imports ---
+from src.config_loader import MDetectorConfigAccessor
+from src.utils.visualization import ColorMapper, VideoRenderer
+from scripts.generate_labels import SceneProcessor
+
+def main():
+    """Main entry point for visualizing pre-processed M-Detector results."""
+    parser = argparse.ArgumentParser(description="Generate a video from processed M-Detector results.")
+    parser.add_argument('--config', type=str, required=True, help='Path to the main YAML config file (for data loading).')
+    parser.add_argument('--scene-index', type=int, required=True, help='The index of the scene to visualize.')
+    parser.add_argument('--processed-file', type=str, required=True, help='Path to the pre-processed .pt results file.')
+    parser.add_argument('--output-path', type=str, default='mdetector_output.mp4', help='Path to save the output video.')
+    parser.add_argument('--fps', type=int, default=20, help='Frames per second for the output video.')
+    args = parser.parse_args()
+
+    # --- Initialization ---
+    config_accessor = MDetectorConfigAccessor(args.config)
+    color_mapper = ColorMapper()
+    renderer = VideoRenderer(output_path=args.output_path, fps=args.fps)
+    
+    nusc_params = config_accessor.get_nuscenes_params()
+    nusc = NuScenes(version=nusc_params['version'], dataroot=nusc_params['dataroot'], verbose=False)
+    scene_processor = SceneProcessor(nusc=nusc, config_accessor=config_accessor)
+    
+    scene_rec = nusc.scene[args.scene_index]
+    all_sweeps = scene_processor.get_scene_sweeps(scene_rec['token'])
+    
+    print(f"Loading processed data from {args.processed_file}...")
+    processed_data = torch.load(args.processed_file, weights_only=False)
+
+    # --- Main Rendering Loop ---
+    for i, frame_data in enumerate(tqdm(processed_data, desc="Rendering Frames")):
+        pcd = o3d.geometry.PointCloud()
+        if frame_data['points'].shape[0] > 0:
+            pcd.points = o3d.utility.Vector3dVector(frame_data['points'])
+            pcd.colors = o3d.utility.Vector3dVector(color_mapper.get_detector_output_colors(frame_data['labels']))
         
-    return final_results
+        geometries = {'pcd': pcd}
+        ego_position = all_sweeps[i].T_global_lidar[:3, 3]
+        camera_params = {'center': ego_position, 'eye': ego_position + np.array([-40, -40, 20]), 'up': np.array([0, 0, 1])}
+        
+        renderer.render_frame(geometries, camera_params)
+        
+    renderer.close()
+
+if __name__ == '__main__':
+    main()
+
+############################
+FILE: scripts/process_scene.py
+############################
+
+# scripts/process_scene.py
+
+import sys
+import argparse
+from pathlib import Path
+import numpy as np
+import torch
+import yaml
+from tqdm import tqdm
+from nuscenes.nuscenes import NuScenes
+
+# --- Path Setup ---
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+# --- Core Project Imports ---
+from src.config_loader import MDetectorConfigAccessor
+from src.core.m_detector.base import MDetector
+from scripts.generate_labels import SceneProcessor
+
+def deep_update_dict(d, u):
+    for k, v in u.items():
+        if isinstance(v, dict):
+            d[k] = deep_update_dict(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
+
+def main():
+    """Main entry point for the scene processing script."""
+    parser = argparse.ArgumentParser(description="Run M-Detector on a scene and save the results.")
+    parser.add_argument('--config', type=str, required=True, help='Path to the main YAML configuration file.')
+    parser.add_argument('--scene-index', type=int, required=True, help='The index of the scene to process.')
+    parser.add_argument('--output-path', type=str, required=True, help='Path to save the output .pt file.')
+    parser.add_argument('--params', type=str, help='Optional path to a YAML file with override parameters.')
+    args = parser.parse_args()
+
+    # --- Configuration and Initialization ---
+    if args.params:
+        with open(args.config, 'r') as f: base_config = yaml.safe_load(f)
+        with open(args.params, 'r') as f: override_params = yaml.safe_load(f)
+        final_config = deep_update_dict(base_config, override_params)
+        config_accessor = MDetectorConfigAccessor(config_dict=final_config)
+    else:
+        config_accessor = MDetectorConfigAccessor(args.config)
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    detector = MDetector(config_accessor=config_accessor, device=device)
+    
+    nusc_params = config_accessor.get_nuscenes_params()
+    nusc = NuScenes(version=nusc_params['version'], dataroot=nusc_params['dataroot'], verbose=False)
+    scene_processor = SceneProcessor(nusc=nusc, config_accessor=config_accessor)
+    
+    scene_rec = nusc.scene[args.scene_index]
+    print(f"Loading data for scene: {scene_rec['name']}...")
+    all_sweeps = scene_processor.get_scene_sweeps(scene_rec['token'])
+
+    # --- Main Processing Loop ---
+    results_per_frame = []
+    for sweep in tqdm(all_sweeps, desc="Processing Scene"):
+        points_sensor_raw = sweep.points_sensor_frame
+        points_global_raw = (sweep.T_global_lidar[:3, :3] @ points_sensor_raw[:, :3].T).T + sweep.T_global_lidar[:3, 3]
+        
+        detector.add_sweep(
+            points_global_raw=points_global_raw.astype(np.float32),
+            points_sensor_raw=points_sensor_raw.astype(np.float32),
+            pose_global=sweep.T_global_lidar.astype(np.float32),
+            timestamp=float(sweep.timestamp)
+        )
+        mdet_result = detector.process_latest_sweep()
+        
+        # --- START OF CHANGE ---
+        # Initialize with an extra key for the original indices
+        frame_result = {'points': np.array([]), 'labels': np.array([]), 'original_indices': np.array([])}
+        
+        if mdet_result and mdet_result.get('success'):
+            processed_di = mdet_result.get('processed_di')
+            if processed_di and processed_di.num_points > 0:
+                frame_result['points'] = processed_di.get_original_points_global()
+                frame_result['labels'] = processed_di.get_all_point_labels()
+                # Save the original indices of the points that the detector processed
+                frame_result['original_indices'] = processed_di.original_indices_of_filtered_points.cpu().numpy()
+        # --- END OF CHANGE ---
+        
+        results_per_frame.append(frame_result)
+
+    # --- Save Results ---
+    # Ensure the output directory exists
+    Path(args.output_path).parent.mkdir(parents=True, exist_ok=True)
+    print(f"Saving {len(results_per_frame)} frames of results to {args.output_path}...")
+    torch.save(results_per_frame, args.output_path)
+    print("Processing complete.")
+
+if __name__ == '__main__':
+    main()
+
+############################
+FILE: scripts/export_best_params.py
+############################
+
+import argparse
+import optuna
+import yaml
+
+def main():
+    """
+    Connects to an Optuna database, automatically finds the best trial in a study,
+    and saves its parameters to a YAML file.
+    """
+    parser = argparse.ArgumentParser(description="Extract the best Optuna trial's parameters to a YAML file.")
+    parser.add_argument('--storage', type=str, required=True, help="Path to the Optuna database (e.g., 'sqlite:///studies.db').")
+    parser.add_argument('--study-name', type=str, required=True, help="The name of the study to load.")
+    parser.add_argument('--output-file', type=str, required=True, help="Path to save the output YAML file.")
+    args = parser.parse_args()
+
+    print(f"Loading study '{args.study_name}' from '{args.storage}'...")
+    try:
+        study = optuna.load_study(study_name=args.study_name, storage=args.storage)
+    except KeyError:
+        print(f"Error: Study '{args.study_name}' not found in the database.")
+        return
+
+    try:
+        # Optuna's study.best_trial property automatically finds the best one!
+        best_trial = study.best_trial
+        print(f"Found best trial: Number {best_trial.number} with value: {best_trial.value:.6f}")
+    except ValueError:
+        print(f"Error: No completed trials found in study '{args.study_name}'. Cannot determine the best trial.")
+        return
+
+    # The parameters are stored in a flat dictionary, e.g., {'m_detector.mcc.max_dist': 0.5}
+    # We need to convert this to a nested dictionary for our config system.
+    nested_params = {}
+    for key, value in best_trial.params.items():
+        parts = key.split('.')
+        d = nested_params
+        # Traverse the path, creating keys if they don't exist
+        for part in parts[:-1]:
+            d = d.setdefault(part, {})
+        # Set the final value
+        d[parts[-1]] = value
+
+    print(f"Saving nested parameters to '{args.output_file}'...")
+    with open(args.output_file, 'w') as f:
+        # Use indent to make the YAML file readable
+        yaml.dump(nested_params, f, default_flow_style=False, indent=4)
+        
+    print(f"Successfully exported parameters from trial {best_trial.number} to {args.output_file}.")
+
+if __name__ == '__main__':
+    main()
+
+############################
+FILE: scripts/generate_labels.py
+############################
+
+# scripts/generate_labels.py
+
+import os
+import sys
+import argparse
+from pathlib import Path
+import numpy as np
+import torch
+from nuscenes.nuscenes import NuScenes
+from pyquaternion import Quaternion
+from tqdm import tqdm
+from typing import List, Dict, Optional, Tuple
+from dataclasses import dataclass
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+from src.config_loader import MDetectorConfigAccessor
+from src.utils.point_cloud_utils import filter_points, transform_points_numpy
+from nuscenes.utils.data_classes import Box as NuScenesDataClassesBox, LidarPointCloud
+
+# ==============================================================================
+# Data Classes and Constants
+# ==============================================================================
+
+@dataclass
+class SweepData:
+    """Container for LiDAR sweep information."""
+    points_sensor_frame: np.ndarray
+    T_global_lidar: np.ndarray
+    timestamp: int
+    calibrated_sensor_token: str
+    lidar_sd_token: str
+    is_key_frame: bool
+    sample_token: str
+
+@dataclass
+class AnnotationData:
+    """Container for keyframe annotation information."""
+    token: str
+    sample_token: str
+    timestamp: int
+    translation: np.ndarray
+    size: np.ndarray
+    rotation: Quaternion
+    category_name: str
+
+class Constants:
+    """Configuration constants."""
+    KEYFRAME_INTERVAL_US = 500000
+    MAX_EXTRAPOLATION_TIME_US = KEYFRAME_INTERVAL_US * 1.5  # 0.75s max extrapolation
+    MIN_TIME_DIFF_SEC = 1e-3
+
+# ==============================================================================
+# Box Interpolation/Extrapolation Logic
+# ==============================================================================
+
+class BoxInterpolator:
+    """Handles box interpolation and extrapolation for instance tracking."""
+    
+    def __init__(self, nusc: NuScenes):
+        self.nusc = nusc
+    
+    def get_keyframe_annotations(self, instance_token: str) -> List[AnnotationData]:
+        """Fetches and sorts all keyframe annotations for a given instance."""
+        instance_rec = self.nusc.get('instance', instance_token)
+        annotations = []
+        
+        current_token = instance_rec['first_annotation_token']
+        while current_token:
+            ann_rec = self.nusc.get('sample_annotation', current_token)
+            sample_rec = self.nusc.get('sample', ann_rec['sample_token'])
+            
+            annotations.append(AnnotationData(
+                token=ann_rec['token'],
+                sample_token=ann_rec['sample_token'],
+                timestamp=sample_rec['timestamp'],
+                translation=np.array(ann_rec['translation']),
+                size=np.array(ann_rec['size']),
+                rotation=Quaternion(ann_rec['rotation']),
+                category_name=ann_rec['category_name']
+            ))
+            
+            if current_token == instance_rec['last_annotation_token']:
+                break
+            current_token = ann_rec['next']
+        
+        return sorted(annotations, key=lambda x: x.timestamp)
+    
+    def get_velocity(self, annotation: AnnotationData, all_annotations: List[AnnotationData]) -> np.ndarray:
+        """Calculate velocity for an annotation using SDK or fallback methods."""
+        try:
+            velocity_sdk = self.nusc.box_velocity(annotation.token)
+            if not np.any(np.isnan(velocity_sdk)):
+                return velocity_sdk[:3]
+        except AssertionError:
+            pass
+        
+        # Fallback: manual calculation
+        return self._calculate_velocity_fallback(annotation, all_annotations)
+    
+    def _calculate_velocity_fallback(self, annotation: AnnotationData, all_annotations: List[AnnotationData]) -> np.ndarray:
+        """Calculate velocity using neighboring annotations when SDK fails."""
+        if len(all_annotations) <= 1:
+            return np.array([0.0, 0.0, 0.0])
+        
+        # Find current annotation index
+        current_idx = next((i for i, ann in enumerate(all_annotations) if ann.token == annotation.token), -1)
+        if current_idx == -1:
+            return np.array([0.0, 0.0, 0.0])
+        
+        # Use previous annotation if available
+        if current_idx > 0:
+            prev_ann = all_annotations[current_idx - 1]
+            dt_sec = (annotation.timestamp - prev_ann.timestamp) / 1e6
+            if dt_sec > Constants.MIN_TIME_DIFF_SEC:
+                return (annotation.translation - prev_ann.translation) / dt_sec
+        
+        # Use next annotation if available
+        if current_idx < len(all_annotations) - 1:
+            next_ann = all_annotations[current_idx + 1]
+            dt_sec = (next_ann.timestamp - annotation.timestamp) / 1e6
+            if dt_sec > Constants.MIN_TIME_DIFF_SEC:
+                return (next_ann.translation - annotation.translation) / dt_sec
+        
+        return np.array([0.0, 0.0, 0.0])
+    
+    def create_box_from_annotation(self, annotation: AnnotationData, velocity: np.ndarray, token_suffix: str = "") -> NuScenesDataClassesBox:
+        """Create a NuScenes box from annotation data."""
+        token = f"{annotation.token}{token_suffix}" if token_suffix else annotation.token
+        return NuScenesDataClassesBox(
+            annotation.translation, 
+            annotation.size, 
+            annotation.rotation,
+            name=annotation.category_name, 
+            token=token,
+            velocity=velocity
+        )
+    
+    def interpolate_box(self, prev_ann: AnnotationData, next_ann: AnnotationData, target_timestamp: int, sweep_idx: int) -> NuScenesDataClassesBox:
+        """Interpolate a box between two keyframe annotations."""
+        ratio = (target_timestamp - prev_ann.timestamp) / (next_ann.timestamp - prev_ann.timestamp)
+        
+        interp_translation = prev_ann.translation + ratio * (next_ann.translation - prev_ann.translation)
+        interp_rotation = Quaternion.slerp(prev_ann.rotation, next_ann.rotation, ratio)
+        
+        # Calculate velocity from the two reference annotations
+        dt_sec = (next_ann.timestamp - prev_ann.timestamp) / 1e6
+        velocity = np.array([0.0, 0.0, 0.0])
+        if dt_sec > Constants.MIN_TIME_DIFF_SEC:
+            velocity = (next_ann.translation - prev_ann.translation) / dt_sec
+        
+        return NuScenesDataClassesBox(
+            interp_translation, 
+            prev_ann.size, 
+            interp_rotation,
+            name=prev_ann.category_name,
+            token=f"interp_{prev_ann.token}_{next_ann.token}_{sweep_idx}",
+            velocity=velocity
+        )
+    
+    def extrapolate_box(self, annotations: List[AnnotationData], target_timestamp: int, sweep_idx: int) -> Optional[NuScenesDataClassesBox]:
+        """Extrapolate a box beyond the keyframe range."""
+        if len(annotations) < 1:
+            return None
+        
+        is_forward = target_timestamp > annotations[-1].timestamp
+        ref_ann = annotations[-1] if is_forward else annotations[0]
+        time_diff_us = target_timestamp - ref_ann.timestamp
+        
+        # Check if within extrapolation limit
+        if abs(time_diff_us) > Constants.MAX_EXTRAPOLATION_TIME_US:
+            return None
+        
+        extrap_translation = ref_ann.translation.copy()
+        velocity = np.array([0.0, 0.0, 0.0])
+        
+        # Calculate velocity from neighboring annotations if available
+        if len(annotations) > 1:
+            ref1, ref2 = (annotations[-2], annotations[-1]) if is_forward else (annotations[0], annotations[1])
+            dt_sec = (ref2.timestamp - ref1.timestamp) / 1e6
+            
+            if dt_sec > Constants.MIN_TIME_DIFF_SEC:
+                velocity = (ref2.translation - ref1.translation) / dt_sec
+                extrap_translation = ref_ann.translation + velocity * (time_diff_us / 1e6)
+        
+        return NuScenesDataClassesBox(
+            extrap_translation,
+            ref_ann.size,
+            ref_ann.rotation,
+            name=ref_ann.category_name,
+            token=f"extrap_{ref_ann.token}_{sweep_idx}",
+            velocity=velocity
+        )
+    
+    def get_boxes_for_sweeps(self, instance_token: str, sweeps: List[SweepData]) -> List[Optional[NuScenesDataClassesBox]]:
+        """Get interpolated/extrapolated boxes for all sweeps of an instance."""
+        annotations = self.get_keyframe_annotations(instance_token)
+        if not annotations:
+            return [None] * len(sweeps)
+        
+        timestamps = np.array([ann.timestamp for ann in annotations])
+        boxes = [None] * len(sweeps)
+        
+        for i, sweep in enumerate(sweeps):
+            target_ts = sweep.timestamp
+            
+            # Priority 1: Direct keyframe match
+            if sweep.is_key_frame:
+                match = next((ann for ann in annotations if ann.sample_token == sweep.sample_token), None)
+                if match:
+                    velocity = self.get_velocity(match, annotations)
+                    boxes[i] = self.create_box_from_annotation(match, velocity)
+                    continue
+            
+            # Priority 2: Exact timestamp match
+            exact_match_idx = np.where(timestamps == target_ts)[0]
+            if len(exact_match_idx) > 0:
+                match = annotations[exact_match_idx[0]]
+                velocity = self.get_velocity(match, annotations)
+                boxes[i] = self.create_box_from_annotation(match, velocity)
+                continue
+            
+            # Priority 3: Interpolation
+            idx_after = np.searchsorted(timestamps, target_ts, side='left')
+            if 0 < idx_after < len(timestamps):
+                prev_ann, next_ann = annotations[idx_after - 1], annotations[idx_after]
+                if prev_ann.timestamp < target_ts < next_ann.timestamp:
+                    boxes[i] = self.interpolate_box(prev_ann, next_ann, target_ts, i)
+                    continue
+            
+            # Priority 4: Extrapolation
+            extrap_box = self.extrapolate_box(annotations, target_ts, i)
+            if extrap_box:
+                boxes[i] = extrap_box
+        
+        return boxes
+
+# ==============================================================================
+# Point-in-Box Detection
+# ==============================================================================
+
+class PointInBoxDetector:
+    """Handles efficient point-in-box detection using AABB culling and OBB checks."""
+    
+    def __init__(self, debug_instance_token: Optional[str] = None, max_debug_points: int = 5):
+        self.debug_instance_token = debug_instance_token
+        self.max_debug_points = max_debug_points
+    
+    def get_points_in_box_mask(self, points_global: np.ndarray, box_global: NuScenesDataClassesBox) -> np.ndarray:
+        """Check which points are inside a 3D oriented bounding box."""
+        if points_global.shape[0] == 0:
+            return np.array([], dtype=bool)
+        
+        # Initialize result mask
+        final_mask = np.zeros(points_global.shape[0], dtype=bool)
+        
+        # Phase 1: AABB culling for efficiency
+        aabb_candidates = self._get_aabb_candidates(points_global, box_global)
+        if aabb_candidates.size == 0:
+            return final_mask
+        
+        # Phase 2: Precise OBB check on candidates
+        obb_mask = self._check_obb_candidates(
+            points_global[aabb_candidates], box_global, aabb_candidates
+        )
+        
+        final_mask[aabb_candidates[obb_mask]] = True
+        return final_mask
+    
+    def _get_aabb_candidates(self, points: np.ndarray, box: NuScenesDataClassesBox) -> np.ndarray:
+        """Get candidate points using Axis-Aligned Bounding Box culling."""
+        corners = box.corners()  # Shape (3, 8)
+        aabb_min = np.min(corners, axis=1)
+        aabb_max = np.max(corners, axis=1)
+        
+        mask = (
+            (points[:, 0] >= aabb_min[0]) & (points[:, 0] <= aabb_max[0]) &
+            (points[:, 1] >= aabb_min[1]) & (points[:, 1] <= aabb_max[1]) &
+            (points[:, 2] >= aabb_min[2]) & (points[:, 2] <= aabb_max[2])
+        )
+        
+        return np.where(mask)[0]
+    
+    def _check_obb_candidates(self, candidate_points: np.ndarray, box: NuScenesDataClassesBox, candidate_indices: np.ndarray) -> np.ndarray:
+        """Check candidates against oriented bounding box using separating axis theorem."""
+        if candidate_points.shape[0] == 0:
+            return np.array([], dtype=bool)
+        
+        # Vector from box center to each candidate point
+        center_to_points = candidate_points - box.center
+        
+        # Box axes in global coordinates
+        axes = box.rotation_matrix  # Each column is an axis
+        length_axis = axes[:, 0]    # Local X -> Length
+        width_axis = axes[:, 1]     # Local Y -> Width  
+        height_axis = axes[:, 2]    # Local Z -> Height
+        
+        # Project points onto each box axis
+        proj_length = center_to_points @ length_axis
+        proj_width = center_to_points @ width_axis
+        proj_height = center_to_points @ height_axis
+        
+        # Check if projections are within box half-dimensions
+        half_length, half_width, half_height = box.wlh[1]/2, box.wlh[0]/2, box.wlh[2]/2
+        
+        length_mask = np.abs(proj_length) <= half_length
+        width_mask = np.abs(proj_width) <= half_width
+        height_mask = np.abs(proj_height) <= half_height
+        
+        obb_mask = length_mask & width_mask & height_mask
+        
+        # Debug output if requested
+        self._debug_obb_check(box, candidate_points, candidate_indices, 
+                            proj_length, proj_width, proj_height,
+                            half_length, half_width, half_height,
+                            length_mask, width_mask, height_mask, obb_mask)
+        
+        return obb_mask
+    
+    def _debug_obb_check(self, box, candidate_points, candidate_indices, 
+                        proj_length, proj_width, proj_height,
+                        half_length, half_width, half_height,
+                        length_mask, width_mask, height_mask, obb_mask):
+        """Print debug information for OBB checks if debug token matches."""
+        should_debug = (
+            self.debug_instance_token is not None and 
+            box.token is not None and 
+            self.debug_instance_token in box.token
+        )
+        
+        if not should_debug:
+            return
+        
+        print(f"\n--- Debug OBB for Box (Token: {box.token[-10:] if box.token else 'N/A'}, Name: {box.name}) ---")
+        print(f"  Candidates: {len(candidate_indices)} -> {np.sum(obb_mask)} in OBB")
+        print(f"  Box Center: {box.center}, WLH: {box.wlh}")
+        
+        points_printed = 0
+        for i, (is_in_obb, orig_idx) in enumerate(zip(obb_mask, candidate_indices)):
+            if points_printed >= self.max_debug_points:
+                break
+            
+            if is_in_obb:  # Only print points that are inside
+                print(f"  Point {i} (Orig: {orig_idx}, Pos: {candidate_points[i]})")
+                print(f"    Length: {proj_length[i]:.3f} ≤ {half_length:.3f} -> {length_mask[i]}")
+                print(f"    Width:  {proj_width[i]:.3f} ≤ {half_width:.3f} -> {width_mask[i]}")
+                print(f"    Height: {proj_height[i]:.3f} ≤ {half_height:.3f} -> {height_mask[i]}")
+                points_printed += 1
+
+# ==============================================================================
+# Scene Processing
+# ==============================================================================
+
+class SceneProcessor:
+    """Handles processing of individual scenes."""
+    
+    def __init__(self, nusc: NuScenes, config_accessor: MDetectorConfigAccessor):
+        self.nusc = nusc
+        self.config = config_accessor
+        self.interpolator = BoxInterpolator(nusc)
+        self.point_detector = PointInBoxDetector()
+    
+    def get_scene_instances(self, scene_token: str, min_annotations: int = 1) -> List[str]:
+        """Find all instances in a scene with minimum annotation count."""
+        scene_rec = self.nusc.get('scene', scene_token)
+        instance_tokens = set()
+        
+        current_sample_token = scene_rec['first_sample_token']
+        while current_sample_token:
+            sample_rec = self.nusc.get('sample', current_sample_token)
+            for ann_token in sample_rec['anns']:
+                ann_rec = self.nusc.get('sample_annotation', ann_token)
+                instance_tokens.add(ann_rec['instance_token'])
+            current_sample_token = sample_rec['next']
+        
+        # Filter by annotation count
+        valid_instances = []
+        for instance_token in instance_tokens:
+            instance_rec = self.nusc.get('instance', instance_token)
+            if instance_rec['nbr_annotations'] >= min_annotations:
+                valid_instances.append(instance_token)
+        
+        return valid_instances
+    
+    def get_scene_sweeps(self, scene_token: str, lidar_name: str = "LIDAR_TOP") -> List[SweepData]:
+        """Get all LiDAR sweeps for a scene in chronological order."""
+        scene_rec = self.nusc.get('scene', scene_token)
+        
+        # Find first sweep
+        first_sample_token = scene_rec['first_sample_token']
+        current_sd_token = self._find_first_sweep_token(first_sample_token, lidar_name)
+        if not current_sd_token:
+            return []
+        
+        # Collect all sweeps
+        sweeps = []
+        while current_sd_token:
+            sweep_data = self._create_sweep_data(current_sd_token)
+            if sweep_data:
+                sweeps.append(sweep_data)
+            
+            sweep_rec = self.nusc.get('sample_data', current_sd_token)
+            current_sd_token = sweep_rec['next']
+        
+        return sweeps
+    
+    def _find_first_sweep_token(self, first_sample_token: str, lidar_name: str) -> Optional[str]:
+        """Find the first sweep token for the given LiDAR sensor."""
+        # Get initial sweep token
+        current_sd_token = self.nusc.get('sample', first_sample_token)['data'].get(lidar_name)
+        if not current_sd_token:
+            # Search through samples to find one with the LiDAR data
+            sample_token = first_sample_token
+            while sample_token:
+                sample_rec = self.nusc.get('sample', sample_token)
+                if lidar_name in sample_rec['data']:
+                    current_sd_token = sample_rec['data'][lidar_name]
+                    break
+                sample_token = sample_rec['next']
+        
+        if not current_sd_token:
+            return None
+        
+        # Go back to the very first sweep
+        while True:
+            sweep_rec = self.nusc.get('sample_data', current_sd_token)
+            if sweep_rec['prev']:
+                current_sd_token = sweep_rec['prev']
+            else:
+                break
+        
+        return current_sd_token
+    
+    def _create_sweep_data(self, sd_token: str) -> Optional[SweepData]:
+        """Create sweep data from sample_data token."""
+        sweep_rec = self.nusc.get('sample_data', sd_token)
+        cs_rec = self.nusc.get('calibrated_sensor', sweep_rec['calibrated_sensor_token'])
+        pose_rec = self.nusc.get('ego_pose', sweep_rec['ego_pose_token'])
+        
+        # Load point cloud
+        pc_filepath = os.path.join(self.nusc.dataroot, sweep_rec['filename'])
+        if not os.path.exists(pc_filepath):
+            points = np.empty((0, 5), dtype=np.float32)
+        else:
+            pc = LidarPointCloud.from_file(pc_filepath)
+            points = pc.points.T
+        
+        # Calculate transformation matrices
+        T_sensor_ego = self._create_transform_matrix(cs_rec['rotation'], cs_rec['translation'])
+        T_ego_global = self._create_transform_matrix(pose_rec['rotation'], pose_rec['translation'])
+        T_global_sensor = T_ego_global @ T_sensor_ego
+        
+        return SweepData(
+            points_sensor_frame=points,
+            T_global_lidar=T_global_sensor,
+            timestamp=sweep_rec['timestamp'],
+            calibrated_sensor_token=sweep_rec['calibrated_sensor_token'],
+            lidar_sd_token=sd_token,
+            is_key_frame=sweep_rec['is_key_frame'],
+            sample_token=sweep_rec['sample_token']
+        )
+    
+    def _create_transform_matrix(self, rotation: List[float], translation: List[float]) -> np.ndarray:
+        """Create 4x4 transformation matrix from rotation and translation."""
+        T = np.eye(4, dtype=np.float32)
+        T[:3, :3] = Quaternion(rotation).rotation_matrix
+        T[:3, 3] = np.array(translation)
+        return T
+    
+    def generate_labels(self, scene_rec: Dict) -> None:
+        """Generate and save sparse GT labels for a scene."""
+        scene_token, scene_name = scene_rec['token'], scene_rec['name']
+        
+        # Setup paths and parameters
+        output_dir = Path(self.config.get_nuscenes_params()['label_path'])
+        gt_vel_thresh = self.config.get_validation_params()['gt_velocity_threshold']
+        filter_params = self.config.get_point_pre_filtering_params()
+        output_file = output_dir / f"gt_sparse_labels_{scene_name}_v{gt_vel_thresh}.pt"
+        
+        tqdm.write(f"Processing scene '{scene_name}'...")
+        
+        # Get scene data
+        sweeps = self.get_scene_sweeps(scene_token)
+        if not sweeps:
+            return
+        
+        instance_tokens = self.get_scene_instances(scene_token, min_annotations=1)
+        
+        # Get boxes for all instances across all sweeps
+        tqdm.write(f"  Interpolating boxes for {len(instance_tokens)} instances...")
+        instance_boxes = {}
+        for token in tqdm(instance_tokens, desc="  Interpolating", leave=False):
+            instance_boxes[token] = self.interpolator.get_boxes_for_sweeps(token, sweeps)
+        
+        # Process each sweep to find dynamic points
+        all_dynamic_indices = []
+        sweep_boundaries = [0]
+        
+        for i, sweep in enumerate(tqdm(sweeps, desc="  Processing sweeps", leave=False)):
+            dynamic_indices = self._process_sweep(sweep, instance_boxes, i, filter_params, gt_vel_thresh)
+            all_dynamic_indices.append(dynamic_indices)
+            sweep_boundaries.append(sweep_boundaries[-1] + len(dynamic_indices))
+        
+        # Save results
+        data_to_save = {
+            'dynamic_point_indices': np.concatenate(all_dynamic_indices) if all_dynamic_indices else np.array([], dtype=np.int32),
+            'sweep_boundary_indices': np.array(sweep_boundaries, dtype=np.int64)
+        }
+        torch.save(data_to_save, output_file)
+        tqdm.write(f"  -> Saved to {output_file}")
+    
+    def _process_sweep(self, sweep: SweepData, instance_boxes: Dict[str, List], sweep_idx: int, 
+                      filter_params: Dict, gt_vel_thresh: float) -> np.ndarray:
+        """Process a single sweep to find dynamic point indices."""
+        points_raw = sweep.points_sensor_frame[:, :3]
+        if points_raw.shape[0] == 0:
+            return np.array([], dtype=np.int32)
+        
+        # Apply point filtering
+        keep_mask = filter_points(points_raw, filter_params)
+        if not np.any(keep_mask):
+            return np.array([], dtype=np.int32)
+        
+        original_indices = np.arange(points_raw.shape[0])
+        points_global = transform_points_numpy(points_raw[keep_mask], sweep.T_global_lidar)
+        
+        # Find dynamic points
+        dynamic_mask = np.zeros(points_global.shape[0], dtype=bool)
+        for instance_token, boxes in instance_boxes.items():
+            box = boxes[sweep_idx]
+            if box and np.linalg.norm(box.velocity[:2]) >= gt_vel_thresh:
+                dynamic_mask |= self.point_detector.get_points_in_box_mask(points_global, box)
+        
+        # Map back to original indices
+        dynamic_original_indices = original_indices[keep_mask][dynamic_mask]
+        return dynamic_original_indices.astype(np.int32)
+
+# ==============================================================================
+# Main Application
+# ==============================================================================
+
+def main():
+    """Main application entry point."""
+    parser = argparse.ArgumentParser(description="Generate sparse ground truth point labels for NuScenes.")
+    parser.add_argument('--config', type=str, required=True, help='Path to the main YAML configuration file.')
+    parser.add_argument('--scenes', type=str, default='all', help="Comma-separated list of scene indices or 'all'.")
+    parser.add_argument('--clean', action='store_true', help="Remove existing label files before processing.")
+    args = parser.parse_args()
+
+    # Initialize components
+    config_accessor = MDetectorConfigAccessor(args.config)
+    nusc = NuScenes(
+        version=config_accessor.get_nuscenes_params()['version'], 
+        dataroot=config_accessor.get_nuscenes_params()['dataroot'], 
+        verbose=False
+    )
+    processor = SceneProcessor(nusc, config_accessor)
+    
+    # Setup output directory
+    output_dir = Path(config_accessor.get_nuscenes_params()['label_path'])
+    if args.clean and output_dir.exists():
+        print(f"Cleaning output directory: {output_dir}")
+        for f in output_dir.glob('*.pt'):
+            f.unlink()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Determine scenes to process
+    if args.scenes.lower() == 'all':
+        scene_indices = list(range(len(nusc.scene)))
+    else:
+        scene_indices = [int(i.strip()) for i in args.scenes.split(',')]
+    
+    # Process scenes
+    print(f"Processing {len(scene_indices)} scenes...")
+    for scene_idx in scene_indices:
+        scene_record = nusc.scene[scene_idx]
+        processor.generate_labels(scene_record)
+    
+    print("\nLabel generation complete.")
+
+if __name__ == '__main__':
+    main()
 
