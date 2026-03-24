@@ -47,15 +47,6 @@ original method, likely due to the original authors including the ego-vehicle in
 The primary contribution is the re-implementation using pytorch and the surrounding 
 evaluation infrastructure, making this more suitable for pseudo-label generation for neural network training. 
 
-## Key Features
-
-- **Fully GPU-accelerated** — vectorized PyTorch operations throughout
-- **Three-stage tuning pipeline** — `tune-full` → `bake` → `tune-refinement` 
-  using Optuna and Ray for efficient parallel hyperparameter search
-- **Interactive error analysis** — Open3D-based visualization tool for 
-  frame-by-frame inspection of true/false positives and negatives
-- **Configurable** — all parameters managed via a central `config.yaml`
-
 ## Project Structure
 ```
 .
