@@ -12,7 +12,7 @@ detection for autonomous driving, evaluated on the
 
 ## Demo
 
-<video src="demo.mp4" controls width="100%"></video>
+https://gitlab.tudelft.nl/-/project/24942/uploads/e586e197518f968af143b9453ef3de96/demo.mp4
 
 *A nuScenes scene with points labeled as dynamic (red), ground (green), 
 or static background (grey).*
