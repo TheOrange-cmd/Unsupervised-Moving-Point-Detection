@@ -15,7 +15,7 @@ detection for autonomous driving, evaluated on the
 ![](demo.gif)
 
 *A nuScenes scene with points labeled as dynamic (red), ground (green), 
-or static background (grey).*
+or static background (grey). The detector requires an initialization period to build up history, visible by the blue points.*
 
 ## What This Does
 
@@ -39,15 +39,13 @@ The pipeline consists of five stages:
 ## Results
 
 Evaluated on nuScenes, the geometric pipeline achieves reasonable dynamic 
-point recall. The frame refinement stage showed limited improvement over the 
+point recall of around 50-60%, depending on the scene. The frame refinement stage showed no significant improvement over the 
 geometric baseline — bidirectional processing is a natural next step that was 
 outside the scope of this project. Overall performance does not match 
-state-of-the-art supervised methods, which is expected for a purely 
-unsupervised approach on a challenging real-world dataset.
+original method, likely due to the original authors including the ego-vehicle in the detection, overinflating their reported detection score.
 
-The primary contribution is the re-implementation itself and the surrounding 
-evaluation infrastructure, which provides a clean, reproducible baseline for 
-further experimentation.
+The primary contribution is the re-implementation using pytorch and the surrounding 
+evaluation infrastructure, making this more suitable for pseudo-label generation for neural network training. 
 
 ## Key Features
 
